@@ -18,6 +18,7 @@ with this library; if not, If not, see <http://www.gnu.org/licenses/>.
 
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
+
 Redistributions of source code must retain the above copyright notice, this list
 of conditions and the following disclaimer.
 
@@ -54,10 +55,11 @@ function mapHandler(event) {
 }
 
 
-function connect(url,program) {
+function connect(url,program,defines) {
     endpoint = new WebSocket(url);
     endpoint.onmessage = mapHandler;
     endpoint.onopen = function (event) {
+    		defines(endpoint);
         endpoint.send("GETMAP "+program); 
     }; 
 }
@@ -182,7 +184,7 @@ function showMap(map) {
 }
 
 
-function loadMap(mapUrl,program,id) {
+function loadMap(mapUrl,program,id,defines) {
 	mapTargetId = id;
-    connect(mapUrl,program);
+    connect(mapUrl,program,defines);
 }
