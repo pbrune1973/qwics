@@ -65,9 +65,6 @@ public class QwicsEJB {
 
 		
 	public QwicsEJB() {
-		this.transactionProgNames.put("MM01", "MN1APP");
-		this.transactionProgNames.put("AMSQ", "MN1SQL");
-		this.transactionProgNames.put("CQU1", "CQ2UPD");
 	}
 
 
@@ -83,7 +80,7 @@ public class QwicsEJB {
 			if (!isSend) {
 				// RETURN
 				String transId = maps.getString("TRANSID");
-				System.out.println("Return with transId "+transId);
+				//System.out.println("Return with transId "+transId);
 				program = transactionProgNames.get(transId);
 				try {
 					utx.commit();
@@ -115,9 +112,13 @@ public class QwicsEJB {
 	@OnMessage
 	@TransactionAttribute(TransactionAttributeType.REQUIRED)
 	public void onMessage(Session session, String msg) {
-		System.out.println(msg+" "+state);
-		System.out.println("OK");
 		try {		
+			if ((state == 0) && msg.startsWith("DEFINE")) {
+				String params[] = msg.split(" ");
+				if (params.length == 3) {
+					this.transactionProgNames.put(params[1], params[2]);
+				}
+			}
 			if ((state == 0) && msg.startsWith("GETMAP")) {
 				String program = msg.substring(7);
 				utx.begin();
@@ -154,7 +155,6 @@ public class QwicsEJB {
 					isValue = true;					
 				} else {
 					value = msg;
-					System.out.println(name+" "+value);
 					maps.updateString(name, value);
 					isValue = false;					
 				}
