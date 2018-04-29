@@ -15,7 +15,11 @@
 <script type="text/javascript">
 
 $(document).ready(function() {
-	loadMap('ws://localhost:8080/QwicsWebApp/endpoints/qwicsejb','MN1APP','#screen');
+	loadMap('ws://localhost:8080/QwicsWebApp/endpoints/qwicsejb','MN1APP','#screen',function(endpoint){
+        endpoint.send("DEFINE MM01 MN1APP"); 
+        endpoint.send("DEFINE AMSQ MN1SQL"); 
+        endpoint.send("DEFINE CQU1 CQ2UPD"); 
+	});
 });
 
 </script>
