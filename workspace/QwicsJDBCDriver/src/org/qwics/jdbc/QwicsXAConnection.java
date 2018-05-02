@@ -57,7 +57,7 @@ public class QwicsXAConnection extends QwicsPooledConnection implements
 
 	@Override
 	public XAResource getXAResource() throws SQLException {
-		System.out.println("XAConnection.getXAResource()");
+		//System.out.println("XAConnection.getXAResource()");
 		return new QwicsXAResource(this);
 	}
 

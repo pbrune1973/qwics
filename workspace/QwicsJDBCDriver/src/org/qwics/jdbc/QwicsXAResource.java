@@ -89,7 +89,7 @@ public class QwicsXAResource implements XAResource {
 	@Override
 	public void commit(Xid xid, boolean onePhase) throws XAException {
 		try {
-			System.out.println("XA commit "+xid+" "+onePhase);
+			// System.out.println("XA commit "+xid+" "+onePhase);
 			if (onePhase) {
 				conn.commit();
 				return;
@@ -103,7 +103,7 @@ public class QwicsXAResource implements XAResource {
 
 	@Override
 	public void end(Xid xid, int flags) throws XAException {
-		System.out.println("XA end "+xid+" "+flags);
+		// System.out.println("XA end "+xid+" "+flags);
 		/*
         if (flags != TMSUCCESS && flags != TMSUSPEND && flags != TMFAIL) {
             throw new XAException(XAException.XAER_INVAL);
@@ -186,7 +186,7 @@ public class QwicsXAResource implements XAResource {
 
 	@Override
 	public void start(Xid xid, int flags) throws XAException {
-		System.out.println("XA start "+xid+" "+flags);
+		// System.out.println("XA start "+xid+" "+flags);
 /*
 		if (flags != TMJOIN && flags != TMRESUME && flags != TMNOFLAGS) {
             throw new XAException(XAException.XAER_INVAL);
