@@ -1,0 +1,7 @@
+#!/bin/bash
+
+QWICS_HOME=/home/brune/qwics_0.9.0
+JBOSS_HOME=/home/brune/wildfly-12.0.0.Final
+
+$JBOSS_HOME/bin/standalone.sh >> $QWICS_HOME/log/wildfly.log
+

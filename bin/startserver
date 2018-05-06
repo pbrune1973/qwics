@@ -1,0 +1,6 @@
+#!/bin/bash
+
+QWICS_HOME=/home/brune/qwics_0.9.0
+
+$QWICS_HOME/bin/tpmserver 8000 >> $QWICS_HOME/log/tpmserver.log
+
