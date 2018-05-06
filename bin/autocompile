@@ -1,1 +1,29 @@
+#!/bin/bash
+
+QWICS_HOME=/home/brune/qwics_0.9.0
+
+touch $QWICS_HOME/cobsrc/checkpoint
+touch $QWICS_HOME/maps/checkpoint
+
+while true
+do
+  cd $QWICS_HOME/maps
+  find . -type f \( ! \( -name 'checkpoint' -or -name '*.log'  -or -name '.*' \) \) -newer checkpoint | while read line; do
+    MAPNAME=$(echo $line| cut -d '/' -f 2) 
+    echo $MAPNAME >> compile.log
+    $QWICS_HOME/bin/mapprep $MAPNAME >> compile.log
+  done
+
+  touch checkpoint
+
+  cd $QWICS_HOME/cobsrc
+  find . -name '*.cob' -newer checkpoint | while read line; do
+    COBNAME=$(echo $line| cut -d '.' -f 2| cut -d '/' -f 2)
+    echo $COBNAME >> compile.log
+    $QWICS_HOME/bin/cobp $COBNAME >> compile.log
+  done
+
+  touch checkpoint
+  sleep 5
+done
 
