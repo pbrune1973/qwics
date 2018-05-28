@@ -220,7 +220,7 @@ int execCallback(char *cmd, void *var) {
         int pos = 0;
         while (c != '\n') {
             int n = read(childfd,&c,1);
-            if ((n == 1) && (pos < 2047) && (c != '\n') && (c != '\r')) {
+            if ((n == 1) && (pos < 2047) && (c != '\n') && (c != '\r') && (c != '\'')) {
                 buf[pos] = c;
                 pos++;
             }
@@ -245,7 +245,7 @@ int execCallback(char *cmd, void *var) {
         int pos = 0;
         while (c != '\n') {
             int n = read(childfd,&c,1);
-            if ((n == 1) && (pos < 2047) && (c != '\n') && (c != '\r')) {
+            if ((n == 1) && (pos < 2047) && (c != '\n') && (c != '\r') && (c != '\'')) {
                 buf[pos] = c;
                 pos++;
             }
@@ -383,7 +383,7 @@ int execCallback(char *cmd, void *var) {
                     int pos = 0;
                     while (c != '\n') {
                         int n = read(childfd,&c,1);
-                        if ((n == 1) && (pos < 2047) && (c != '\n') && (c != '\r')) {
+                        if ((n == 1) && (pos < 2047) && (c != '\n') && (c != '\r') && (c != '\'')) {
                             buf[pos] = c;
                             pos++;
                         }
