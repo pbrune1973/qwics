@@ -101,7 +101,7 @@ cd bin
 /tpmserver 8000
 
 4. Start the Java EE appliaction server and use your COBOL code in your EJBs (see example)
-
+ 
 
 Have fun!
 
