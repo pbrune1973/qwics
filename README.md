@@ -4,7 +4,7 @@ Quick Web Information Control System (QWICS),
 
 an environment to execute transactional COBOL programs written for traditional mainframe transaction processing monitors (TPM) without these as part of any Java EE-complient appliaction server.
 
-Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de   
+Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@qwics.org   
 
 QWICS is free software, licensed either under the terms of the GNU General Public License or the GNU Lesser General Public License (see respectivesource fiules for details), both as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. 
 You should have received a copy of both licenses along with this project. If not, see <http://www.gnu.org/licenses/>.  
@@ -19,10 +19,46 @@ INSTALLATION:
 
 This software has been written and tested under Linux (for S390/z Systems mainframes and x86)!
 
-0. Download and extract a copy of the GnuCOBOL compiler sources in its newest release. Insert the following patch to the file termio.c in the subbdirectory libcob/
+0. Download and extract a copy of the GnuCOBOL compiler sources in its newest release. Modify the following lines the in the file termio.c in the subbdirectory libcob/ (preferably, search for the beginning of the function cob_display(...) and modify and extend it accordingly):
+
+int (*performEXEC)(char*, void*) = NULL;
+
+void display_cobfield(cob_field *f, FILE *fp) {
+    display_common(f,fp);
+}
 
 
-Build and install the GnuCOBOL compiler according to its documentation.
+void
+cob_display (const int to_stderr,
+   const int newline, const int varcnt, 
+   ...)
+{
+        FILE            *fp;
+        cob_field       *f;
+        int             i;
+        int             nlattr;
+        cob_u32_t       disp_redirect;
+        va_list         args;
+
+// BEGIN OF EXEC HANDLER
+        va_start (args, varcnt);
+        f = va_arg (args, cob_field * );
+        if (strstr((char*)f->data,
+        			    "TPMI:")) {
+           char *cmd 
+                = (char*)(f->data+5);
+            if (varcnt > 1) {
+                f = va_arg (args, 
+                      cob_field * );
+            }
+           (*performEXEC)(cmd,(void*)f);
+           va_end (args);
+           return;
+         }
+         va_end (args);
+// END OF EXEC HANDLER
+
+Afterwards, build and install the GnuCOBOL compiler according to its documentation.
 
 1. Download and insatll a copy of PostgreSQL database including its C client lib
 
