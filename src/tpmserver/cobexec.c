@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.03.2018                                  */
+/*   Author: Philipp Brune               Date: 20.09.2018                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -134,7 +134,7 @@ int processCmd(char *cmd, cob_field **outputVars) {
                 } else {
                     if (sqlcode != NULL) {
                         cob_set_int(sqlcode,1);
-                    } 
+                    }
                 }
                 PQclear(res);
             } else {
@@ -181,8 +181,8 @@ void execLoadModule(char *name, int mode) {
                 write(childfd,&response,strlen(response));
             }
             (*loadmod)(commArea);
-            if (mode == 0) {            
-                sprintf(response,"%s\n","STOP");
+            if (mode == 0) {
+                sprintf(response,"\n%s\n","STOP");
                 write(childfd,&response,strlen(response));
             }
         }
@@ -268,17 +268,17 @@ int execCallback(char *cmd, void *var) {
     if (strstr(cmd,"SETL0")) {
         cob_field *cobvar = (cob_field*)var;
         if ((*areaMode) == 0) {
-            cobvar->data = (unsigned char*)&linkArea[*linkAreaPtr];            
+            cobvar->data = (unsigned char*)&linkArea[*linkAreaPtr];
             (*linkAreaPtr) += (size_t)cobvar->size;
         } /* Currently not used
         else {
-            cobvar->data = (unsigned char*)&commArea[*commAreaPtr];  
+            cobvar->data = (unsigned char*)&commArea[*commAreaPtr];
             (*commAreaPtr) += (size_t)cobvar->size;
         }
         printf("%s%s%d%s%d%s%d%s%d\n",cmd," ",(long)cobvar->data," ",(int)cobvar->size," ",(*linkAreaPtr)," ",                                      (*commAreaPtr));
         */
     }
-    
+
     if (strstr(cmd,"CICS")) {
         cmdbuf[0] = 0x00;
         (*cmdState) = -1;
@@ -320,11 +320,11 @@ int execCallback(char *cmd, void *var) {
             (*cmdState) = 0;
             return 1;
         }
-        if ((var == NULL) || strstr(cmd,"MAP") || strstr(cmd,"MAPSET") || strstr(cmd,"DATAONLY") ||           
+        if ((var == NULL) || strstr(cmd,"MAP") || strstr(cmd,"MAPSET") || strstr(cmd,"DATAONLY") ||
             strstr(cmd,"ERASE") || strstr(cmd,"MAPONLY") || strstr(cmd,"RETURN") || strstr(cmd,"FROM") ||
-            strstr(cmd,"INTO") || strstr(cmd,"HANDLE") || strstr(cmd,"CONDITION") || strstr(cmd,"ERROR") || 
-            strstr(cmd,"INTO") || strstr(cmd,"MAPFAIL") || strstr(cmd,"NOTFND") || strstr(cmd,"ASSIGN") || 
-            strstr(cmd,"SYSID") || strstr(cmd,"TRANSID") || strstr(cmd,"COMMAREA") || strstr(cmd,"LENGTH") || 
+            strstr(cmd,"INTO") || strstr(cmd,"HANDLE") || strstr(cmd,"CONDITION") || strstr(cmd,"ERROR") ||
+            strstr(cmd,"INTO") || strstr(cmd,"MAPFAIL") || strstr(cmd,"NOTFND") || strstr(cmd,"ASSIGN") ||
+            strstr(cmd,"SYSID") || strstr(cmd,"TRANSID") || strstr(cmd,"COMMAREA") || strstr(cmd,"LENGTH") ||
             strstr(cmd,"CONTROL") || strstr(cmd,"FREEKB") || strstr(cmd,"PROGRAM") || strstr(cmd,"XCTL")) {
             sprintf(end,"%s%s",cmd,"\n");
             if (((*cmdState) == -3) && ((*xctlState) == 1)) {
@@ -333,12 +333,12 @@ int execCallback(char *cmd, void *var) {
                 int l = strlen(progname);
                 if (l > 8) l = 8;
                 int i = l-1;
-                while ((i > 0) && 
-                       ((progname[i]==' ') || (progname[i]=='\'') || 
-                        (progname[i]==10) || (progname[i]==13))) 
+                while ((i > 0) &&
+                       ((progname[i]==' ') || (progname[i]=='\'') ||
+                        (progname[i]==10) || (progname[i]==13)))
                     i--;
                 progname[i+1] = 0x00;
-                sprintf(xctlParams[0],"%s",progname);                    
+                sprintf(xctlParams[0],"%s",progname);
                 (*xctlState) = 10;
             }
             if ((*cmdState) == -3) {
@@ -411,15 +411,15 @@ int execCallback(char *cmd, void *var) {
                         int l = strlen(progname);
                         if (l > 8) l = 8;
                         int i = l-1;
-                        while ((i > 0) && 
-                               ((progname[i]==' ') || (progname[i]=='\'') || 
-                                (progname[i]==10) || (progname[i]==13))) 
+                        while ((i > 0) &&
+                               ((progname[i]==' ') || (progname[i]=='\'') ||
+                                (progname[i]==10) || (progname[i]==13)))
                             i--;
                         progname[i+1] = 0x00;
-                        sprintf(xctlParams[0],"%s",progname);                    
+                        sprintf(xctlParams[0],"%s",progname);
                         (*xctlState) = 10;
                     }
-                    
+
                 }
             }
             cmdbuf[0] = 0x00;
