@@ -1,7 +1,7 @@
 /*******************************************************************************************/
-/*   QWICS Server Mapset Definition Preprocessor                                           */                   */
+/*   QWICS Server Mapset Definition Preprocessor                                           */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.03.2018                                  */
+/*   Author: Philipp Brune               Date: 20.09.2018                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -18,6 +18,7 @@
 /*   along with this project. If not, see <http://www.gnu.org/licenses/>.                  */
 /*******************************************************************************************/
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
