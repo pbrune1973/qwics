@@ -1,6 +1,6 @@
 Welcome to the 
 
-Quick Web Information Control System (QWICS), 
+Quick Web-Based Interactive COBOL Service (QWICS), 
 
 an environment to execute transactional COBOL programs written for traditional mainframe transaction processing monitors (TPM) without these as part of any Java EE-complient appliaction server.
 
