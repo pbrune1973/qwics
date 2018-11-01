@@ -105,7 +105,7 @@ cd maps
 ../bin/mapprep <MAPFILE>
 
 cd ../cobsrc
-../bin/cobp <COBOLMODULENAME>  # withour .cob or .cbl suffix!
+../bin/cobp <COBOLMODULENAME>  # without .cob or .cbl suffix!
 ```
 
 2. Start the PostgreSQL server according to its docs
