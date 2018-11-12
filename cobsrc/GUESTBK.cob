@@ -13,20 +13,19 @@
        COPY DFHAID.
        COPY DFHEIBLK. 
        PROCEDURE DIVISION.
-    	   MOVE 'Enter title here' TO TITO.
-    	   MOVE 'Enter message here' TO MSGO.
-    	   EXEC CICS SEND MAP('GBKMAP') MAPSET('DGUESTBK')
+    	    MOVE 'Enter title here' TO TITO.
+    	    MOVE 'Enter message here' TO MSGO.
+    	    EXEC CICS SEND MAP('GBKMAP') MAPSET('DGUESTBK')
              ERASE  
            END-EXEC 
            EXEC CICS RECEIVE MAP('GBKMAP') MAPSET('DGUESTBK') 
            END-EXEC 
            MOVE TITI TO TIT.
            MOVE MSGI TO MSG.
-    	   EXEC SQL 
+    	    EXEC SQL 
     		 INSERT INTO ENTRIES(TITLE,MESSAGE) VALUES(:TIT,:MSG)
-    	   END-EXEC
-    	   MOVE "GB01" TO TA.
-    	   EXEC CICS RETURN
+    	    END-EXEC
+    	    MOVE "GB01" TO TA.
+    	    EXEC CICS RETURN
                 TRANSID (TA)
            END-EXEC.
-
