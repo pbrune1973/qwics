@@ -784,7 +784,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	@Override
 	public void updateBytes(int columnIndex, byte[] x) throws SQLException {
-		mapValues.set(columnIndex, "" + x);
+		// mapValues.set(columnIndex, "" + x);
 	}
 
 	@Override
@@ -891,7 +891,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	@Override
 	public void updateBytes(String columnLabel, byte[] x) throws SQLException {
-		mapValues.set(getColumnIndex(columnLabel), "" + x);
+		// mapValues.set(getColumnIndex(columnLabel), "" + x);
 	}
 
 	@Override
