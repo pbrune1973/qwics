@@ -69,7 +69,7 @@ public class QwicsXADataSource extends QwicsDataSource implements XADataSource {
 		try {
 			con.open();
 		} catch (Exception e) {
-			new SQLException(e);
+			throw new SQLException(e);
 		}
 		return con;
 	}
