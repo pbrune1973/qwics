@@ -151,7 +151,7 @@ public class QwicsXAResource implements XAResource {
         }
 
         if ((flags & TMSTARTRSCAN) == 0) {
-            return (Xid[])xids.toArray();
+            return (Xid[])xids.toArray(new Xid[xids.size()]);
         }
         
 		try {
@@ -165,7 +165,7 @@ public class QwicsXAResource implements XAResource {
 		} catch (Exception e) {
 			throw new XAException(e.toString());
 		}
-        return (Xid[])xids.toArray();
+        return (Xid[])xids.toArray(new Xid[xids.size()]);
 	}
 
 	@Override
