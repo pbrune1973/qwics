@@ -134,7 +134,7 @@ public class QwicsDataSource implements DataSource, ConnectionPoolDataSource {
 		try {
 			con.open();
 		} catch (Exception e) {
-			new SQLException(e);
+			throw new SQLException(e);
 		}
 		return con;
 	}
@@ -151,7 +151,7 @@ public class QwicsDataSource implements DataSource, ConnectionPoolDataSource {
 		try {
 			con.open();
 		} catch (Exception e) {
-			new SQLException(e);
+			throw new SQLException(e);
 		}
 		return con;
 	}
