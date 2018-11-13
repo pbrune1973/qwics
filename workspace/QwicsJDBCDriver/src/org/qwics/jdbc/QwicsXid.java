@@ -100,12 +100,12 @@ public class QwicsXid implements Xid {
 
 	@Override
 	public int getFormatId() {
-		return this.getFormatId();
+		return formatId;
 	}
 
 	@Override
 	public byte[] getGlobalTransactionId() {
-		return this.getGlobalTransactionId();
+		return globalTransactionId;
 	}
 
 }
