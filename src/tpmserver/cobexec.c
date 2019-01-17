@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 20.09.2018                                  */
+/*   Author: Philipp Brune               Date: 21.10.2018                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -27,6 +27,7 @@
 
 #include <libcob.h>
 #include "db/conpool.h"
+#include "msg/queueman.h"
 
 #ifdef __APPLE__
 #include "macosx/fmemopen.h"
@@ -39,6 +40,7 @@ pthread_key_t cmdbufKey;
 pthread_key_t cmdStateKey;
 pthread_key_t cobFieldKey;
 pthread_key_t xctlStateKey;
+pthread_key_t retrieveStateKey;
 pthread_key_t xctlParamsKey;
 pthread_key_t eibbufKey;
 pthread_key_t linkAreaKey;
@@ -49,6 +51,7 @@ pthread_key_t areaModeKey;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
+extern void* (*resolveCALL)(char*);
 
 // SQLCA
 cob_field *sqlcode = NULL;
@@ -157,7 +160,7 @@ void execLoadModule(char *name, int mode) {
     int childfd = *((int*)pthread_getspecific(childfdKey));
     char *commArea = (char*)pthread_getspecific(commAreaKey);
 
-    sprintf(fname,"%s%s%s","../loadmod/",name,".so");
+    sprintf(fname,"%s%s%s","../loadmod/",name,".dylib");
     void* sdl_library = dlopen(fname, RTLD_LAZY);
     if (sdl_library == NULL) {
         sprintf(response,"%s%s%s\n","ERROR: Load module ",fname," not found!");
@@ -198,6 +201,7 @@ int execCallback(char *cmd, void *var) {
     cob_field **outputVars = (cob_field**)pthread_getspecific(cobFieldKey);
     char *end = &cmdbuf[strlen(cmdbuf)];
     int *xctlState = (int*)pthread_getspecific(xctlStateKey);
+    int *retrieveState = (int*)pthread_getspecific(retrieveStateKey);
     char **xctlParams = (char**)pthread_getspecific(xctlParamsKey);
     char *eibbuf = (char*)pthread_getspecific(eibbufKey);
     char *linkArea = (char*)pthread_getspecific(linkAreaKey);
@@ -306,6 +310,14 @@ int execCallback(char *cmd, void *var) {
             (*xctlState) = 0;
             return 1;
         }
+        if (strstr(cmd,"RETRIEVE")) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -4;
+            (*retrieveState) = 0;
+            return 1;
+        }
         if (strstr(cmd,"END-EXEC")) {
             cmdbuf[0] = 0x00;
             outputVars[0] = NULL; // NULL terminated list
@@ -317,15 +329,20 @@ int execCallback(char *cmd, void *var) {
                 //printf("%s%s\n","XCTL ",xctlParams[0]);
                 execLoadModule(xctlParams[0],1);
             }
+            if (((*cmdState) == -4) && ((*retrieveState) >= 1)) {
+                // RETRIEVE
+                (*retrieveState) = 0;
+            }
             (*cmdState) = 0;
             return 1;
         }
         if ((var == NULL) || strstr(cmd,"MAP") || strstr(cmd,"MAPSET") || strstr(cmd,"DATAONLY") ||
             strstr(cmd,"ERASE") || strstr(cmd,"MAPONLY") || strstr(cmd,"RETURN") || strstr(cmd,"FROM") ||
             strstr(cmd,"INTO") || strstr(cmd,"HANDLE") || strstr(cmd,"CONDITION") || strstr(cmd,"ERROR") ||
-            strstr(cmd,"INTO") || strstr(cmd,"MAPFAIL") || strstr(cmd,"NOTFND") || strstr(cmd,"ASSIGN") ||
+            strstr(cmd,"SET") || strstr(cmd,"MAPFAIL") || strstr(cmd,"NOTFND") || strstr(cmd,"ASSIGN") ||
             strstr(cmd,"SYSID") || strstr(cmd,"TRANSID") || strstr(cmd,"COMMAREA") || strstr(cmd,"LENGTH") ||
-            strstr(cmd,"CONTROL") || strstr(cmd,"FREEKB") || strstr(cmd,"PROGRAM") || strstr(cmd,"XCTL")) {
+            strstr(cmd,"CONTROL") || strstr(cmd,"FREEKB") || strstr(cmd,"PROGRAM") || strstr(cmd,"XCTL") ||
+            strstr(cmd,"ABEND") || strstr(cmd,"ABCODE") || strstr(cmd,"NODUMP")) {
             sprintf(end,"%s%s",cmd,"\n");
             if (((*cmdState) == -3) && ((*xctlState) == 1)) {
                 // XCTL PROGRAM param value
@@ -344,6 +361,17 @@ int execCallback(char *cmd, void *var) {
             if ((*cmdState) == -3) {
                 if (strstr(cmd,"PROGRAM")) {
                     (*xctlState) = 1;
+                }
+            }
+            if ((*cmdState) == -4) {
+                if (strstr(cmd,"INTO")) {
+                    (*retrieveState) = 1;
+                }
+                if (strstr(cmd,"SET")) {
+                    (*retrieveState) = 2;
+                }
+                if (strstr(cmd,"LENGTH")) {
+                    (*retrieveState) = 3;
                 }
             }
             write(childfd,cmdbuf,strlen(cmdbuf));
@@ -419,7 +447,23 @@ int execCallback(char *cmd, void *var) {
                         sprintf(xctlParams[0],"%s",progname);
                         (*xctlState) = 10;
                     }
-
+                }
+                if ((*cmdState) == -4) {
+                    if ((*retrieveState) == 1) {
+                      // INTO
+                      sprintf(end,"%d",(size_t)cobvar->size);
+                      write(childfd,cmdbuf,strlen(cmdbuf));
+                      write(childfd,"\n",1);
+                      int i = 0;
+                      char c;
+                      for (i = 0; i < (size_t)cobvar->size; ) {
+                          int n = read(childfd,&c,1);
+                          if (n == 1) {
+                            cobvar->data[i] = c;
+                            i++;
+                          }
+                      }
+                    }
                 }
             }
             cmdbuf[0] = 0x00;
@@ -480,6 +524,7 @@ int execCallback(char *cmd, void *var) {
 // Manage load module executor
 void initExec() {
     performEXEC = &execCallback;
+    resolveCALL = &callCallback;
     cobinit();
     pthread_key_create(&childfdKey, NULL);
     pthread_key_create(&connKey, NULL);
