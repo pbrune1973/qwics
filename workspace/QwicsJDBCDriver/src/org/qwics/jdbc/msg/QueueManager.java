@@ -43,68 +43,7 @@ OF SUCH DAMAGE.
 
 package org.qwics.jdbc.msg;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map.Entry;
-import java.util.Set;
 
-public class QueueHandler {
-	private QueueManager queueManager = null;
-	private ArrayList<QueueWrapper> objs = new ArrayList<QueueWrapper>();
-	private HashMap<String,Integer> objIndices = new HashMap<String, Integer>();
-	
-		
-	public QueueHandler(QueueManager queueManager) {
-		this.queueManager = queueManager;
-	}
-
-
-	public int openQueue(String name, int type, int opts) throws Exception {
-		synchronized (this) {
-			if (objIndices.containsKey(name)) {
-				return objIndices.get(name);
-			}
-			QueueWrapper q = queueManager.getQueue(name,type,opts);
-			for (int i = 0; i < objs.size(); i++) {
-				if (objs.get(i) == null) {
-					objs.set(i, q);
-					objIndices.put(name, i);
-					return i;
-				}
-			}
-			objs.add(q);
-			int idx = objs.size()-1;
-			objIndices.put(name, idx);
-			return idx;
-		}
-	}
-
-	
-	public void closeQueue(int obj, int opts) throws Exception {
-		synchronized (this) {
-			String name = "";
-			Set<Entry<String, Integer>> elems = objIndices.entrySet();
-			for (Entry<String, Integer> el : elems) {
-				if (el.getValue() == obj) {
-					name = el.getKey();
-					break;
-				}
-			}
-			if (name == null) {
-				throw new Exception("Invalid obj index!");
-			}
-			QueueWrapper q = objs.get(obj);
-			q.close();
-			objs.set(obj, null);
-			objIndices.remove(name,obj);
-		}		
-	}
-	
-	
-	public QueueWrapper getQueue(int obj) throws Exception {
-		synchronized (this) {
-			return objs.get(obj);
-		}
-	}
-	
+public interface QueueManager {
+	public QueueWrapper getQueue(String name, int type, int opts) throws Exception;
 }
