@@ -152,7 +152,6 @@ public class QwicsCallableStatement implements CallableStatement,
 
 	@Override
 	public ResultSet executeQuery() throws SQLException {
-		System.out.println(preparedSql);
 		if (preparedSql.startsWith("PROGRAM ")) {
 			conn.sendCmd(preparedSql);
 			try {

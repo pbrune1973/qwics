@@ -67,6 +67,11 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.qwics.jdbc.msg.MsgHeaderConverter;
+import org.qwics.jdbc.msg.QueueHandler;
+import org.qwics.jdbc.msg.QueueManager;
+import org.qwics.jdbc.msg.QueueWrapper;
+
 public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private QwicsConnection conn;
 	private boolean closed = false;
@@ -78,6 +83,9 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private char eibAID = '"';
 	private String transId = "";
 	private String lastMapName = "";
+	private QueueManager queueManager = null;
+	private QueueHandler queueHandler = null;
+	
 
 	public QwicsMapResultSet(QwicsConnection conn, long eibCALen, char eibAID) {
 		this.conn = conn;
@@ -184,7 +192,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 			while (true) {
 				mapCmd = conn.readResult();
 				putMapValue("MAP_CMD", mapCmd);
-				System.out.println(mapCmd);
+				// System.out.println(mapCmd);
 				if (mapCmd.startsWith("STOP")) {
 					closed = true;
 					return false;
@@ -231,20 +239,266 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 						}
 					}
 				} else if (mapCmd.startsWith("XCTL")) {
-					String name = "";
-					while (!"".equals(name = conn.readResult())) {
+					while (!"".equals(conn.readResult())) {
 					}
 					eibCALen = 0;
 					conn.sendCmd("" + eibCALen);
 					conn.sendCmd("" + eibAID);
-				} else {
-					putMapValue("MAP_CMD", mapCmd);
-					String name = "";
+				} else if (mapCmd.startsWith("ABEND")) {
+					String name = "";					
 					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							} 
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								putMapValue(vals[0], vals[1]);
+							} 
+						} else {
+							lastMapName = name;
+							if (!"ABCODE".equals(name)) {
+								putMapValue(name, "true");
+							}
+						}
+					}
+				} else if (mapCmd.startsWith("RETRIEVE")) {
+					String name = "";
+					boolean into = false;
+					while (!"".equals(name = conn.readResult())) {
+						if (into) {
+							try {
+								int n = Integer.parseInt(name);
+								char startMsg[] = new char[n];
+								startMsg[0] = ' ';
+								startMsg[1] = ' ';
+								startMsg[2] = ' ';
+								startMsg[3] = ' ';
+								
+								startMsg[4] = 0x01;
+								startMsg[5] = 0x00;
+								startMsg[6] = 0x00;
+								startMsg[7] = 0x00;
+								
+								String qn = getString("QNAME");
+								int l = qn.length();
+								if (l > 48) l = 48;
+								for (int i = 0; i < l; i++) {
+									startMsg[i+8] = qn.charAt(i);
+								}
+								for (int i = l+8; i < n; i++) {
+									startMsg[i] = ' ';
+								}
+
+								startMsg[168] = 0x00;
+								startMsg[169] = 0x00;
+								startMsg[170] = 0x00;
+								startMsg[171] = 0x00;
+
+								try {
+									String data = getString("TRIGGERDATA");
+									l = data.length();
+									if (l > 64) l = 64;
+									for (int i = 0; i < l; i++) {
+										startMsg[i+104] = data.charAt(i);
+									}
+								} catch (Exception e) {
+								}
+
+								try {
+									String data = getString("ENVDATA");
+									l = data.length();
+									if (l > 128) l = 128;
+									for (int i = 0; i < l; i++) {
+										startMsg[i+428] = data.charAt(i);
+									}
+								} catch (Exception e) {
+								}
+
+								try {
+									String data = getString("USERDATA");
+									l = data.length();
+									if (l > 128) l = 128;
+									for (int i = 0; i < l; i++) {
+										startMsg[i+556] = data.charAt(i);
+									}
+								} catch (Exception e) {
+								}
+
+								conn.sendBuf(startMsg);
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
+							into = false;
+						}
+						if (!into & "INTO".equals(name)) {
+							into = true;
+						}
+					}
+				} else if (mapCmd.startsWith("QOPEN")) {
+					String name = "";
+					int mode = 0;
+					int objType = 0;
+					int opts = 0;
+					String objName = "";
+					int obj = 0;
+					int compcode = 0;
+					int reason = 0;
+					while (!"".equals(name = conn.readResult())) {
+						try {
+							if (mode == 0) {
+								objType = Integer.parseInt(name);
+							}
+							if (mode == 1) {
+								objName = name.trim();
+							}
+							if (mode == 2) {
+								opts = Integer.parseInt(name);
+								
+								try {
+									obj = queueHandler.openQueue(objName, objType, opts);
+								} catch (Exception e) {
+									compcode = 2;
+								}
+
+								conn.sendCmd(""+obj);
+								conn.sendCmd(""+compcode);
+								conn.sendCmd(""+reason);
+							}
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+						mode++;
+					}
+				} else if (mapCmd.startsWith("QCLOSE")) {
+					String name = "";
+					int mode = 0;
+					int opts = 0;
+					int obj = 0;
+					int compcode = 0;
+					int reason = 0;
+					while (!"".equals(name = conn.readResult())) {
+						try {
+							if (mode == 0) {
+								obj = Integer.parseInt(name);
+							}
+							if (mode == 1) {
+								opts = Integer.parseInt(name);
+
+								try {
+									queueHandler.closeQueue(obj,opts);
+								} catch (Exception e) {
+									compcode = 2;
+								}
+
+								conn.sendCmd(""+compcode);
+								conn.sendCmd(""+reason);
+							}
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+						mode++;
+					}
+				} else if (mapCmd.startsWith("QGET")) {
+					String name = "";
+					int mode = 0;
+					int obj = 0;
+					char msgDesc[] = new char[364];
+					char msgOpts[] = new char[100];
+					int msgLen = 0;
+					char msgBody[] = null;
+					int compcode = 0;
+					int reason = 0;
+					while (!"".equals(name = conn.readResult())) {
+						try {
+							if (mode == 0) {
+								obj = Integer.parseInt(name);
+
+								conn.readBuf(msgDesc);
+								conn.readBuf(msgOpts);
+							}
+							if (mode == 1) {
+								msgLen = Integer.parseInt(name);
+								msgBody = new char[msgLen];
+								
+								try {
+									QueueWrapper q = queueHandler.getQueue(obj);
+									HashMap<String,Object> msgHeader = MsgHeaderConverter.getConverter().toMap(msgDesc);
+									q.get(msgHeader,msgBody);
+									MsgHeaderConverter.getConverter().toRaw(msgHeader,msgDesc);
+								} catch (Exception e) {
+									e.printStackTrace();
+									compcode = 2;
+								}
+
+								conn.sendBuf(msgDesc);
+								conn.sendBuf(msgBody);
+								conn.sendCmd(""+msgLen);
+								conn.sendCmd(""+compcode);
+								conn.sendCmd(""+reason);
+							}
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+						mode++;
+					}
+				} else if (mapCmd.startsWith("QPUT")) {
+					String name = "";
+					int mode = 0;
+					int obj = 0;
+					char msgDesc[] = new char[364];
+					char msgOpts[] = new char[152];
+					int msgLen = 0;
+					char msgBody[] = null;
+					int compcode = 0;
+					int reason = 0;
+					while (!"".equals(name = conn.readResult())) {
+						try {
+							if (mode == 0) {
+								obj = Integer.parseInt(name);
+
+								conn.readBuf(msgDesc);
+								conn.readBuf(msgOpts);
+							}
+							if (mode == 1) {
+								msgLen = Integer.parseInt(name);
+								msgBody = new char[msgLen];
+								conn.readBuf(msgBody);
+								
+								try {
+									QueueWrapper q = queueHandler.getQueue(obj);
+									HashMap<String,Object> msgHeader = MsgHeaderConverter.getConverter().toMap(msgDesc);
+									q.put(msgHeader,msgBody);
+									MsgHeaderConverter.getConverter().toRaw(msgHeader,msgDesc);
+								} catch (Exception e) {
+									e.printStackTrace();
+									compcode = 2;
+								}
+
+								conn.sendBuf(msgDesc);
+								conn.sendCmd(""+compcode);
+								conn.sendCmd(""+reason);
+							}
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+						mode++;
+					}
+				} else {
+					if (!"".equals(mapCmd)) {
+						putMapValue("MAP_CMD", mapCmd);
+						while (!"".equals(conn.readResult())) {
+						}
 					}
 				}
 			}
 		} catch (Exception e) {
+			closed = true;
 			e.printStackTrace();
 			throw new SQLException(e);
 		}
@@ -468,7 +722,11 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 		if (columnLabel.equals("EIBAID")) {
 			return "" + eibAID;
 		}
-		return getString(nameIndices.get(columnLabel));
+		try {
+			return getString(nameIndices.get(columnLabel));
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
 	}
 
 	@Override
@@ -784,7 +1042,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	@Override
 	public void updateBytes(int columnIndex, byte[] x) throws SQLException {
-		// mapValues.set(columnIndex, "" + x);
+		//mapValues.set(columnIndex, "" + x);
 	}
 
 	@Override
@@ -885,8 +1143,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 			eibAID = x.charAt(0);
 			return;
 		}
-
-		mapValues.set(getColumnIndex(columnLabel), x);
+		putMapValue(columnLabel, x);
 	}
 
 	@Override
@@ -932,11 +1189,25 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	@Override
 	public void updateObject(String columnLabel, Object x, int scaleOrLength) throws SQLException {
+		if ("QMGR".equals(columnLabel)) {
+			if (queueHandler == null) {
+				this.queueManager = (QueueManager)x;
+				this.queueHandler = new QueueHandler(queueManager);
+			}
+			return;
+		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
 	}
 
 	@Override
 	public void updateObject(String columnLabel, Object x) throws SQLException {
+		if ("QMGR".equals(columnLabel)) {
+			if (queueHandler == null) {
+				this.queueManager = (QueueManager)x;
+				this.queueHandler = new QueueHandler(queueManager);
+			}
+			return;
+		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
 	}
 

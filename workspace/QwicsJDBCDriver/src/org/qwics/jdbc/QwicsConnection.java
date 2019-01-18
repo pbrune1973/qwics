@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2018 Philipp Brune    Email: Philipp.Brune@hqwics.org
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -139,8 +139,40 @@ public class QwicsConnection implements Connection {
 		return 0;
 	}
 
+	public int sendBuf(char buf[]) throws Exception {
+		try {
+			socketWriter.write(buf);
+			socketWriter.flush();
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw e;
+		}
+		return 0;
+	}
+
+	public int readBuf(char buf[]) throws Exception {
+		try {
+			int off = 0;
+			int l = buf.length;
+			int n = -1;
+			do {
+				n = socketReader.read(buf,off,l);
+				off = off + n;
+				l = l - n;
+			} while ((off < buf.length) && (n >= 0)); 	
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw e;
+		}
+		return 0;
+	}
+
 	public String readResult() throws Exception {
-		return socketReader.readLine();
+		String line = socketReader.readLine(); 
+		if (line == null) {
+			throw new Exception("Connection to tpmserver lost");
+		}
+		return line;
 	}
 
 	@Override
