@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 21.10.2018                                  */
+/*   Author: Philipp Brune               Date: 25.02.2019                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -103,6 +103,45 @@ void writeJson(char *map, char *mapset, int childfd) {
     write(childfd,"\n",1);
 }
 
+// Adjust pading and scale for COBOL numeric data
+char* convertNumeric(char *val, int digits, int scale, char *buf) {
+    char *sep = strchr(val,'.');
+    char *pos = sep;
+    if (sep == NULL) {
+      pos = val + strlen(val) - 1;
+    }
+    pos++;
+    int i = 0;
+    while (((*pos) != 0x00) && (i < scale)) {
+      buf[digits-scale+i] = *pos;
+      i++;
+      pos++;
+    }
+    // Pad to the right with 0
+    while (i < scale) {
+      buf[digits-scale+i] = '0';
+      i++;
+    }
+
+    pos = sep;
+    if (sep == NULL) {
+      pos = val + strlen(val);
+    }
+    pos--;
+    i = digits-scale-1;
+    while ((pos >= val) && (i >= 0)) {
+      buf[i] = *pos;
+      i--;
+      pos--;
+    }
+    // Pad to the left with 0
+    while (i >= 0) {
+      buf[i] = '0';
+      i--;
+    }
+    buf[digits] = 0x00;
+    return buf;
+}
 
 // Callback handler for EXEC statements
 int processCmd(char *cmd, cob_field **outputVars) {
@@ -130,7 +169,15 @@ int processCmd(char *cmd, cob_field **outputVars) {
                 if (rows > 0) {
                     while (outputVars[i] != NULL) {
                         if (i < cols) {
-                            cob_put_picx(outputVars[i]->data,outputVars[i]->size,PQgetvalue(res, 0, i));
+                            if (outputVars[i]->attr->type == COB_TYPE_NUMERIC) {
+                              char buf[256];
+                              cob_put_picx(outputVars[i]->data,outputVars[i]->size,
+                                  convertNumeric(PQgetvalue(res, 0, i),
+                                                 outputVars[i]->attr->digits,
+                                                 outputVars[i]->attr->scale,buf));
+                            } else {
+                              cob_put_picx(outputVars[i]->data,outputVars[i]->size,PQgetvalue(res, 0, i));
+                            }
                         }
                         i++;
                     }
@@ -274,11 +321,12 @@ int execCallback(char *cmd, void *var) {
         if ((*areaMode) == 0) {
             cobvar->data = (unsigned char*)&linkArea[*linkAreaPtr];
             (*linkAreaPtr) += (size_t)cobvar->size;
-        } /* Currently not used
+        }
         else {
             cobvar->data = (unsigned char*)&commArea[*commAreaPtr];
             (*commAreaPtr) += (size_t)cobvar->size;
         }
+        /*
         printf("%s%s%d%s%d%s%d%s%d\n",cmd," ",(long)cobvar->data," ",(int)cobvar->size," ",(*linkAreaPtr)," ",                                      (*commAreaPtr));
         */
     }
@@ -549,7 +597,7 @@ void clearExec() {
 }
 
 
-void execTransaction(char *name, void *fd) {
+void execTransaction(char *name, void *fd, int setCommArea) {
     char cmdbuf[2048];
     int cmdState = 0;
     int xctlState = 0;
@@ -579,6 +627,18 @@ void execTransaction(char *name, void *fd) {
     pthread_setspecific(commAreaKey, &commArea);
     pthread_setspecific(commAreaPtrKey, &commAreaPtr);
     pthread_setspecific(areaModeKey, &areaMode);
+    // Oprionally read in content of commarea
+    if (setCommArea == 1) {
+      write(*(int*)fd,"COMMAREA\n",9);
+      char c = 0x00;
+      for (i = 0; i < 4096; ) {
+        int n = read(*(int*)fd,&c,1);
+        if (n == 1) {
+          commArea[i] = c;
+          i++;
+        }
+      }
+    }
     PGconn *conn = getDBConnection();
     pthread_setspecific(connKey, (void*)conn);
     execLoadModule(name,0);
@@ -587,7 +647,7 @@ void execTransaction(char *name, void *fd) {
 
 
 // Exec COBOL module within an existing DB transaction
-void execInTransaction(char *name, void *fd) {
+void execInTransaction(char *name, void *fd, int setCommArea) {
     char cmdbuf[2048];
     int cmdState = 0;
     int xctlState = 0;
@@ -617,6 +677,18 @@ void execInTransaction(char *name, void *fd) {
     pthread_setspecific(commAreaKey, &commArea);
     pthread_setspecific(commAreaPtrKey, &commAreaPtr);
     pthread_setspecific(areaModeKey, &areaMode);
+    // Oprionally read in content of commarea
+    if (setCommArea == 1) {
+      write(*(int*)fd,"COMMAREA\n",9);
+      char c = 0x00;
+      for (i = 0; i < 4096; ) {
+        int n = read(*(int*)fd,&c,1);
+        if (n == 1) {
+          commArea[i] = c;
+          i++;
+        }
+      }
+    }
     execLoadModule(name,0);
 }
 

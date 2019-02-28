@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server Main Tcp Connection Handler                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.03.2018                                  */
+/*   Author: Philipp Brune               Date: 14.02.2019                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <netdb.h>
-#include <sys/types.h> 
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -54,17 +54,22 @@ void *handle_client(void *fd) {
       char *cmd = strstr(buf,"exec");
       if (cmd) {
         char *name = cmd+5;
-        execTransaction(name, &childfd);
+        execTransaction(name, &childfd, 0);
       } else {
         char *cmd = strstr(buf,"sql");
         if (cmd) {
             char *sql = cmd+4;
             execSql(sql, &childfd);
         } else {
-            char *cmd = strstr(buf,"PROGRAM");
+            cmd = strstr(buf,"PROGRAM");
             if (cmd) {
                 char *name = cmd+8;
-                execInTransaction(name, &childfd);
+                execInTransaction(name, &childfd, 0);
+            }
+            cmd = strstr(buf,"CAPROG");
+            if (cmd) {
+                char *name = cmd+7;
+                execInTransaction(name, &childfd, 1);
             }
         }
       }
@@ -94,8 +99,8 @@ int main(int argc, char **argv) {
   char *hostaddrp; /* dotted decimal host addr string */
   int optval; /* flag value for setsockopt */
 
-  /* 
-   * check command line arguments 
+  /*
+   * check command line arguments
    */
   if (argc != 2) {
     fprintf(stderr, "usage: %s <port>\n", argv[0]);
@@ -103,22 +108,22 @@ int main(int argc, char **argv) {
   }
   portno = atoi(argv[1]);
 
-  /* 
-   * socket: create the parent socket 
+  /*
+   * socket: create the parent socket
    */
   parentfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (parentfd < 0) { 
+  if (parentfd < 0) {
     printf("%s\n","ERROR opening socket");
     exit(1);
   }
 
-  /* setsockopt: Handy debugging trick that lets 
-   * us rerun the server immediately after we kill it; 
-   * otherwise we have to wait about 20 secs. 
-   * Eliminates "ERROR on binding: Address already in use" error. 
+  /* setsockopt: Handy debugging trick that lets
+   * us rerun the server immediately after we kill it;
+   * otherwise we have to wait about 20 secs.
+   * Eliminates "ERROR on binding: Address already in use" error.
    */
   optval = 1;
-  setsockopt(parentfd, SOL_SOCKET, SO_REUSEADDR, 
+  setsockopt(parentfd, SOL_SOCKET, SO_REUSEADDR,
 	     (const void *)&optval , sizeof(int));
 
   /*
@@ -135,23 +140,23 @@ int main(int argc, char **argv) {
   /* this is the port we will listen on */
   serveraddr.sin_port = htons((unsigned short)portno);
 
-  /* 
-   * bind: associate the parent socket with a port 
+  /*
+   * bind: associate the parent socket with a port
    */
-  if (bind(parentfd, (struct sockaddr *) &serveraddr, 
-	   sizeof(serveraddr)) < 0) { 
+  if (bind(parentfd, (struct sockaddr *) &serveraddr,
+	   sizeof(serveraddr)) < 0) {
     printf("%s\n","ERROR on binding");
     exit(1);
   }
 
-  /* 
-   * listen: make this socket ready to accept connection requests 
+  /*
+   * listen: make this socket ready to accept connection requests
    */
-  if (listen(parentfd, 5) < 0) { 
+  if (listen(parentfd, 5) < 0) {
     printf("%s\n","ERROR on listen");
     exit(1);
   }
-  
+
   if (signal(SIGINT, sig_handler) == SIG_ERR) {
     printf("%s\n","ERROR: Installing signal handler failed!");
   }
@@ -161,11 +166,11 @@ int main(int argc, char **argv) {
 
   while (1) {
     childfd = accept(parentfd, (struct sockaddr *) &clientaddr, (socklen_t*)&clientlen);
-    if (childfd >= 0) { 
+    if (childfd >= 0) {
       pthread_t p1;
       pthread_create (&p1, NULL, handle_client, &childfd);
     }
-  }  
+  }
 
   clearExec();
   return 0;
