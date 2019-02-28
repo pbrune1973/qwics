@@ -71,8 +71,7 @@ import java.util.Map;
 import javax.sql.ConnectionEvent;
 import javax.sql.ConnectionEventListener;
 
-public class QwicsCallableStatement implements CallableStatement,
-		ConnectionEventListener {
+public class QwicsCallableStatement implements CallableStatement, ConnectionEventListener {
 	private QwicsConnection conn;
 	private String sql;
 	private String preparedSql;
@@ -83,8 +82,8 @@ public class QwicsCallableStatement implements CallableStatement,
 	private boolean closed = false;
 	private long eibCALen = 0;
 	private char eibAID = '"';
-	
-	
+	private char[] commArea = null;
+
 	public QwicsCallableStatement(QwicsConnection conn) {
 		this.conn = conn;
 		this.sql = "";
@@ -157,7 +156,23 @@ public class QwicsCallableStatement implements CallableStatement,
 			try {
 				String resp = conn.readResult();
 				if ("OK".equals(resp)) {
-					resultSet = new QwicsMapResultSet(conn,eibCALen,eibAID);
+					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID);
+					return resultSet;
+				}
+			} catch (Exception e) {
+				throw new SQLException(e);
+			}
+			throw new SQLException("PROGRAM LOAD ERROR");
+		} else if (preparedSql.startsWith("CAPROG ")) {
+			conn.sendCmd(preparedSql);
+			try {
+				String resp = conn.readResult();
+				if ("COMMAREA".equals(resp)) {
+					conn.sendBuf(commArea);
+					resp = conn.readResult();
+				}
+				if ("OK".equals(resp)) {
+					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID);
 					return resultSet;
 				}
 			} catch (Exception e) {
@@ -202,102 +217,97 @@ public class QwicsCallableStatement implements CallableStatement,
 
 	@Override
 	public void setBoolean(int parameterIndex, boolean x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setByte(int parameterIndex, byte x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setShort(int parameterIndex, short x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setInt(int parameterIndex, int x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setLong(int parameterIndex, long x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setFloat(int parameterIndex, float x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setDouble(int parameterIndex, double x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
-	public void setBigDecimal(int parameterIndex, BigDecimal x)
-			throws SQLException {
-		params.set(parameterIndex-1, x);
+	public void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException {
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setString(int parameterIndex, String x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setBytes(int parameterIndex, byte[] x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setDate(int parameterIndex, Date x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setTime(int parameterIndex, Time x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
-	public void setTimestamp(int parameterIndex, Timestamp x)
-			throws SQLException {
-		params.set(parameterIndex-1, x);
+	public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
-	public void setAsciiStream(int parameterIndex, InputStream x, int length)
-			throws SQLException {
-		params.set(parameterIndex-1, x);
+	public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
-	public void setUnicodeStream(int parameterIndex, InputStream x, int length)
-			throws SQLException {
-		params.set(parameterIndex-1, x);
+	public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
-	public void setBinaryStream(int parameterIndex, InputStream x, int length)
-			throws SQLException {
-		params.set(parameterIndex-1, x);
+	public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
@@ -305,21 +315,20 @@ public class QwicsCallableStatement implements CallableStatement,
 	public void clearParameters() throws SQLException {
 		int n = sqlParts.length - 1;
 		for (int i = 0; i < n; i++) {
-			params.set(i,null);
+			params.set(i, null);
 		}
 		prepareSql();
 	}
 
 	@Override
-	public void setObject(int parameterIndex, Object x, int targetSqlType)
-			throws SQLException {
-		params.set(parameterIndex-1, x);
+	public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
 	@Override
 	public void setObject(int parameterIndex, Object x) throws SQLException {
-		params.set(parameterIndex-1, x);
+		params.set(parameterIndex - 1, x);
 		prepareSql();
 	}
 
@@ -344,8 +353,7 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setCharacterStream(int parameterIndex, Reader reader, int length)
-			throws SQLException {
+	public void setCharacterStream(int parameterIndex, Reader reader, int length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -380,29 +388,25 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setDate(int parameterIndex, Date x, Calendar cal)
-			throws SQLException {
+	public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setTime(int parameterIndex, Time x, Calendar cal)
-			throws SQLException {
+	public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal)
-			throws SQLException {
+	public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setNull(int parameterIndex, int sqlType, String typeName)
-			throws SQLException {
+	public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -426,15 +430,13 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setNString(int parameterIndex, String value)
-			throws SQLException {
+	public void setNString(int parameterIndex, String value) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setNCharacterStream(int parameterIndex, Reader value,
-			long length) throws SQLException {
+	public void setNCharacterStream(int parameterIndex, Reader value, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -446,85 +448,73 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setClob(int parameterIndex, Reader reader, long length)
-			throws SQLException {
+	public void setClob(int parameterIndex, Reader reader, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setBlob(int parameterIndex, InputStream inputStream, long length)
-			throws SQLException {
+	public void setBlob(int parameterIndex, InputStream inputStream, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setNClob(int parameterIndex, Reader reader, long length)
-			throws SQLException {
+	public void setNClob(int parameterIndex, Reader reader, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setSQLXML(int parameterIndex, SQLXML xmlObject)
-			throws SQLException {
+	public void setSQLXML(int parameterIndex, SQLXML xmlObject) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setObject(int parameterIndex, Object x, int targetSqlType,
-			int scaleOrLength) throws SQLException {
+	public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setAsciiStream(int parameterIndex, InputStream x, long length)
-			throws SQLException {
+	public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setBinaryStream(int parameterIndex, InputStream x, long length)
-			throws SQLException {
+	public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setCharacterStream(int parameterIndex, Reader reader,
-			long length) throws SQLException {
+	public void setCharacterStream(int parameterIndex, Reader reader, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setAsciiStream(int parameterIndex, InputStream x)
-			throws SQLException {
+	public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setBinaryStream(int parameterIndex, InputStream x)
-			throws SQLException {
+	public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setCharacterStream(int parameterIndex, Reader reader)
-			throws SQLException {
+	public void setCharacterStream(int parameterIndex, Reader reader) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setNCharacterStream(int parameterIndex, Reader value)
-			throws SQLException {
+	public void setNCharacterStream(int parameterIndex, Reader value) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -536,8 +526,7 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setBlob(int parameterIndex, InputStream inputStream)
-			throws SQLException {
+	public void setBlob(int parameterIndex, InputStream inputStream) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -557,7 +546,7 @@ public class QwicsCallableStatement implements CallableStatement,
 			try {
 				String resp = conn.readResult();
 				if ("OK".equals(resp)) {
-					resultSet = new QwicsMapResultSet(conn,eibCALen,eibAID);
+					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID);
 					return resultSet;
 				}
 			} catch (Exception e) {
@@ -773,26 +762,22 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public int executeUpdate(String sql, int autoGeneratedKeys)
-			throws SQLException {
+	public int executeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
 		return executeUpdate(sql);
 	}
 
 	@Override
-	public int executeUpdate(String sql, int[] columnIndexes)
-			throws SQLException {
+	public int executeUpdate(String sql, int[] columnIndexes) throws SQLException {
 		return executeUpdate(sql);
 	}
 
 	@Override
-	public int executeUpdate(String sql, String[] columnNames)
-			throws SQLException {
+	public int executeUpdate(String sql, String[] columnNames) throws SQLException {
 		return executeUpdate(sql);
 	}
 
 	@Override
-	public boolean execute(String sql, int autoGeneratedKeys)
-			throws SQLException {
+	public boolean execute(String sql, int autoGeneratedKeys) throws SQLException {
 		return execute(sql);
 	}
 
@@ -802,8 +787,7 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public boolean execute(String sql, String[] columnNames)
-			throws SQLException {
+	public boolean execute(String sql, String[] columnNames) throws SQLException {
 		return execute(sql);
 	}
 
@@ -861,99 +845,85 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setAsciiStream(String parameterName, InputStream x, long length)
-			throws SQLException {
+	public void setAsciiStream(String parameterName, InputStream x, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setBinaryStream(String parameterName, InputStream x, long length)
-			throws SQLException {
+	public void setBinaryStream(String parameterName, InputStream x, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setCharacterStream(String parameterName, Reader reader,
-			long length) throws SQLException {
+	public void setCharacterStream(String parameterName, Reader reader, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setAsciiStream(String parameterName, InputStream x)
-			throws SQLException {
+	public void setAsciiStream(String parameterName, InputStream x) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setBinaryStream(String parameterName, InputStream x)
-			throws SQLException {
+	public void setBinaryStream(String parameterName, InputStream x) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setCharacterStream(String parameterName, Reader reader)
-			throws SQLException {
+	public void setCharacterStream(String parameterName, Reader reader) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setNCharacterStream(String parameterName, Reader value)
-			throws SQLException {
+	public void setNCharacterStream(String parameterName, Reader value) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setClob(String parameterName, Reader reader)
-			throws SQLException {
+	public void setClob(String parameterName, Reader reader) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setBlob(String parameterName, InputStream inputStream)
-			throws SQLException {
+	public void setBlob(String parameterName, InputStream inputStream) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setNClob(String parameterName, Reader reader)
-			throws SQLException {
+	public void setNClob(String parameterName, Reader reader) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public <T> T getObject(int parameterIndex, Class<T> type)
-			throws SQLException {
+	public <T> T getObject(int parameterIndex, Class<T> type) throws SQLException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public <T> T getObject(String parameterName, Class<T> type)
-			throws SQLException {
+	public <T> T getObject(String parameterName, Class<T> type) throws SQLException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public void registerOutParameter(int parameterIndex, int sqlType)
-			throws SQLException {
+	public void registerOutParameter(int parameterIndex, int sqlType) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void registerOutParameter(int parameterIndex, int sqlType, int scale)
-			throws SQLException {
+	public void registerOutParameter(int parameterIndex, int sqlType, int scale) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -1037,8 +1007,7 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public BigDecimal getBigDecimal(int parameterIndex, int scale)
-			throws SQLException {
+	public BigDecimal getBigDecimal(int parameterIndex, int scale) throws SQLException {
 		try {
 			return (BigDecimal) params.get(parameterIndex);
 		} catch (Exception e) {
@@ -1098,8 +1067,7 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public Object getObject(int parameterIndex, Map<String, Class<?>> map)
-			throws SQLException {
+	public Object getObject(int parameterIndex, Map<String, Class<?>> map) throws SQLException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -1141,36 +1109,31 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public Timestamp getTimestamp(int parameterIndex, Calendar cal)
-			throws SQLException {
+	public Timestamp getTimestamp(int parameterIndex, Calendar cal) throws SQLException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public void registerOutParameter(int parameterIndex, int sqlType,
-			String typeName) throws SQLException {
+	public void registerOutParameter(int parameterIndex, int sqlType, String typeName) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void registerOutParameter(String parameterName, int sqlType)
-			throws SQLException {
+	public void registerOutParameter(String parameterName, int sqlType) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void registerOutParameter(String parameterName, int sqlType,
-			int scale) throws SQLException {
+	public void registerOutParameter(String parameterName, int sqlType, int scale) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void registerOutParameter(String parameterName, int sqlType,
-			String typeName) throws SQLException {
+	public void registerOutParameter(String parameterName, int sqlType, String typeName) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -1237,15 +1200,14 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setBigDecimal(String parameterName, BigDecimal x)
-			throws SQLException {
+	public void setBigDecimal(String parameterName, BigDecimal x) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
 	public void setString(String parameterName, String x) throws SQLException {
-		if ("EIBAID".equals(parameterName) && (x != null) ) {
+		if ("EIBAID".equals(parameterName) && (x != null)) {
 			eibAID = x.charAt(0);
 		}
 	}
@@ -1269,77 +1231,68 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setTimestamp(String parameterName, Timestamp x)
-			throws SQLException {
+	public void setTimestamp(String parameterName, Timestamp x) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setAsciiStream(String parameterName, InputStream x, int length)
-			throws SQLException {
+	public void setAsciiStream(String parameterName, InputStream x, int length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setBinaryStream(String parameterName, InputStream x, int length)
-			throws SQLException {
+	public void setBinaryStream(String parameterName, InputStream x, int length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setObject(String parameterName, Object x, int targetSqlType,
-			int scale) throws SQLException {
+	public void setObject(String parameterName, Object x, int targetSqlType, int scale) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setObject(String parameterName, Object x, int targetSqlType)
-			throws SQLException {
+	public void setObject(String parameterName, Object x, int targetSqlType) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
 	public void setObject(String parameterName, Object x) throws SQLException {
+		if ("COMMAREA".equals(parameterName) && (x != null) && (x instanceof char[])) {
+			commArea = (char[]) x;
+		}
+	}
+
+	@Override
+	public void setCharacterStream(String parameterName, Reader reader, int length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setCharacterStream(String parameterName, Reader reader,
-			int length) throws SQLException {
+	public void setDate(String parameterName, Date x, Calendar cal) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setDate(String parameterName, Date x, Calendar cal)
-			throws SQLException {
+	public void setTime(String parameterName, Time x, Calendar cal) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setTime(String parameterName, Time x, Calendar cal)
-			throws SQLException {
+	public void setTimestamp(String parameterName, Timestamp x, Calendar cal) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setTimestamp(String parameterName, Timestamp x, Calendar cal)
-			throws SQLException {
-		// TODO Auto-generated method stub
-
-	}
-
-	@Override
-	public void setNull(String parameterName, int sqlType, String typeName)
-			throws SQLException {
+	public void setNull(String parameterName, int sqlType, String typeName) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -1429,8 +1382,7 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public Object getObject(String parameterName, Map<String, Class<?>> map)
-			throws SQLException {
+	public Object getObject(String parameterName, Map<String, Class<?>> map) throws SQLException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -1472,8 +1424,7 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public Timestamp getTimestamp(String parameterName, Calendar cal)
-			throws SQLException {
+	public Timestamp getTimestamp(String parameterName, Calendar cal) throws SQLException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -1503,15 +1454,13 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setNString(String parameterName, String value)
-			throws SQLException {
+	public void setNString(String parameterName, String value) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setNCharacterStream(String parameterName, Reader value,
-			long length) throws SQLException {
+	public void setNCharacterStream(String parameterName, Reader value, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -1523,22 +1472,19 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setClob(String parameterName, Reader reader, long length)
-			throws SQLException {
+	public void setClob(String parameterName, Reader reader, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setBlob(String parameterName, InputStream inputStream,
-			long length) throws SQLException {
+	public void setBlob(String parameterName, InputStream inputStream, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void setNClob(String parameterName, Reader reader, long length)
-			throws SQLException {
+	public void setNClob(String parameterName, Reader reader, long length) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -1556,8 +1502,7 @@ public class QwicsCallableStatement implements CallableStatement,
 	}
 
 	@Override
-	public void setSQLXML(String parameterName, SQLXML xmlObject)
-			throws SQLException {
+	public void setSQLXML(String parameterName, SQLXML xmlObject) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
