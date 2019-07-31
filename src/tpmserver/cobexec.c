@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 25.02.2019                                  */
+/*   Author: Philipp Brune               Date: 31.07.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
 /*                                                                                         */
@@ -48,6 +48,13 @@ pthread_key_t linkAreaPtrKey;
 pthread_key_t commAreaKey;
 pthread_key_t commAreaPtrKey;
 pthread_key_t areaModeKey;
+pthread_key_t linkStackKey;
+pthread_key_t linkStackPtrKey;
+pthread_key_t memParamsStateKey;
+pthread_key_t memParamsKey;
+pthread_key_t twaKey;
+pthread_key_t allocMemKey;
+pthread_key_t allocMemPtrKey;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
@@ -56,6 +63,64 @@ extern void* (*resolveCALL)(char*);
 // SQLCA
 cob_field *sqlcode = NULL;
 char currentMap[9];
+
+// Making COBOl thread safe
+int runningModuleCnt = 0;
+char runningModules[500][9];
+pthread_mutex_t moduleMutex;
+pthread_cond_t  waitForModuleChange;
+
+pthread_mutex_t sharedMemMutex;
+pthread_mutex_t cwaMutex;
+
+void* sharedAllocMem[1000];
+int sharedAllocMemPtr = 0;
+
+unsigned char cwa[4096];
+
+
+// Synchronizing COBOL module execution
+void startModule(char *progname) {
+  int found = 0;
+  pthread_mutex_lock(&moduleMutex);
+  do {
+    found = 0;
+    for (int i = 0; i < runningModuleCnt; i++) {
+      if (strcmp(runningModules[i],progname) == 0) {
+        found = 1;
+        break;
+      }
+    }
+    if (found == 1) {
+        pthread_cond_wait(&waitForModuleChange,&moduleMutex);
+    }
+  } while (found == 1);
+
+  if (runningModuleCnt < 500) {
+      sprintf(runningModules[runningModuleCnt],"%s",progname);
+      runningModuleCnt++;
+  }
+  pthread_mutex_unlock(&moduleMutex);
+}
+
+
+void endModule(char *progname) {
+  int found = 0;
+  pthread_mutex_lock(&moduleMutex);
+  for (int i = 0; i < runningModuleCnt; i++) {
+    if (found == 1) {
+      sprintf(runningModules[i-1],"%s",runningModules[i]);
+    }
+    if ((found == 0) && (strcmp(runningModules[i],progname) == 0)) {
+      found = 1;
+    }
+  }
+  if (runningModuleCnt > 0) {
+    runningModuleCnt--;
+  }
+  pthread_mutex_unlock(&moduleMutex);
+  pthread_cond_broadcast(&waitForModuleChange);
+}
 
 
 void writeJson(char *map, char *mapset, int childfd) {
@@ -199,6 +264,91 @@ int processCmd(char *cmd, cob_field **outputVars) {
 }
 
 
+void initMain() {
+  void **allocMem = (void**)pthread_getspecific(allocMemKey);
+  int *allocMemPtr = (int*)pthread_getspecific(allocMemPtrKey);
+  (*allocMemPtr) = 0;
+}
+
+
+void *getmain(int length, int shared) {
+  void **allocMem;
+  int *allocMemPtr;
+  if (shared == 0) {
+    allocMem = (void**)pthread_getspecific(allocMemKey);
+    allocMemPtr = (int*)pthread_getspecific(allocMemPtrKey);
+  } else {
+    pthread_mutex_lock(&sharedMemMutex);
+    allocMem = (void**)&sharedAllocMem;
+    allocMemPtr = &sharedAllocMemPtr;
+  }
+  int i = 0;
+  for (i = 0; i < (*allocMemPtr); i++) {
+      if (allocMem[i] == NULL) {
+        break;
+      }
+  }
+  if (i < 1000) {
+    void *p = malloc(length);
+    if (p != NULL) {
+      allocMem[i] = p;
+      if (i == (*allocMemPtr)) {
+        (*allocMemPtr)++;
+      }
+    }
+    printf("%s %d %x %d\n","getmain",length,(unsigned int)p,shared);
+    if (shared) {
+      pthread_mutex_unlock(&sharedMemMutex);
+    }
+    return p;
+  }
+  if (shared) {
+    pthread_mutex_unlock(&sharedMemMutex);
+  }
+  return NULL;
+}
+
+
+void freemain(void *p) {
+  void **allocMem = (void**)pthread_getspecific(allocMemKey);
+  int *allocMemPtr = (int*)pthread_getspecific(allocMemPtrKey);
+  for (int i = 0; i < (*allocMemPtr); i++) {
+      if ((p != NULL) && (allocMem[i] == p)) {
+          printf("%s %x\n","freemain",(unsigned int)p);
+          free(allocMem[i]);
+          allocMem[i] = NULL;
+          return;
+      }
+  }
+  // Free shared mem
+  pthread_mutex_lock(&sharedMemMutex);
+  allocMem = (void**)&sharedAllocMem;
+  allocMemPtr = &sharedAllocMemPtr;
+  for (int i = 0; i < (*allocMemPtr); i++) {
+      if ((p != NULL) && (allocMem[i] == p)) {
+          printf("%s %x\n","freemain shared",(unsigned int)p);
+          free(allocMem[i]);
+          allocMem[i] = NULL;
+          break;
+      }
+  }
+  pthread_mutex_unlock(&sharedMemMutex);
+}
+
+
+void clearMain() {
+  void **allocMem = (void**)pthread_getspecific(allocMemKey);
+  int *allocMemPtr = (int*)pthread_getspecific(allocMemPtrKey);
+  // Clean up, avoid memory leaks
+  for (int i = 0; i < (*allocMemPtr); i++) {
+      if (allocMem[i] != NULL) {
+          free(allocMem[i]);
+      }
+  }
+  (*allocMemPtr) = 0;
+}
+
+
 // Execute COBOL loadmod in transaction
 void execLoadModule(char *name, int mode) {
     int (*loadmod)();
@@ -230,7 +380,9 @@ void execLoadModule(char *name, int mode) {
                 sprintf(response,"%s\n","OK");
                 write(childfd,&response,strlen(response));
             }
+            startModule(name);
             (*loadmod)(commArea);
+            endModule(name);
             if (mode == 0) {
                 sprintf(response,"\n%s\n","STOP");
                 write(childfd,&response,strlen(response));
@@ -256,12 +408,18 @@ int execCallback(char *cmd, void *var) {
     char *commArea = (char*)pthread_getspecific(commAreaKey);
     int *commAreaPtr = (int*)pthread_getspecific(commAreaPtrKey);
     int *areaMode = (int*)pthread_getspecific(areaModeKey);
+    char *linkStack = (char*)pthread_getspecific(linkStackKey);
+    int *linkStackPtr = (int*)pthread_getspecific(linkStackPtrKey);
+    void **memParams = (void**)pthread_getspecific(memParamsKey);
+    int *memParamsState = (int*)pthread_getspecific(memParamsStateKey);
+    char *twa = (char*)pthread_getspecific(twaKey);
 
+    //printf("%s %s\n","execCallback",cmd);
     if (strstr(cmd,"SET SQLCODE") && (var != NULL)) {
         sqlcode = var;
         return 1;
     }
-    if (strstr(cmd,"SET EIBCALEN")) {
+    if (strstr(cmd,"SET EIBCALEN") && ((*linkStackPtr) == 0)) {
         cob_field *cobvar = (cob_field*)var;
 //        cobvar->data = (unsigned char*)(eibbuf+24);
         // Read in client response value
@@ -281,7 +439,7 @@ int execCallback(char *cmd, void *var) {
         cob_put_u64_compx(val,cobvar->data,(size_t)cobvar->size);
         return 1;
     }
-    if (strstr(cmd,"SET EIBAID")) {
+    if (strstr(cmd,"SET EIBAID") && ((*linkStackPtr) == 0)) {
         // Reset link area ptr before SETLx
         (*linkAreaPtr) = 0;
         (*commAreaPtr) = 0;
@@ -305,7 +463,7 @@ int execCallback(char *cmd, void *var) {
         cob_put_picx(cobvar->data,(size_t)cobvar->size,buf);
         return 1;
     }
-    if (strstr(cmd,"SET DFHEIBLK")) {
+    if (strstr(cmd,"SET DFHEIBLK") && ((*linkStackPtr) == 0)) {
         cob_field *cobvar = (cob_field*)var;
         cobvar->data = (unsigned char*)eibbuf;
         return 1;
@@ -331,26 +489,27 @@ int execCallback(char *cmd, void *var) {
         */
     }
 
-    if (strstr(cmd,"CICS")) {
+    if (strcmp(cmd,"CICS") == 0) {
         cmdbuf[0] = 0x00;
         (*cmdState) = -1;
         return 1;
     }
+
     if ((*cmdState) < 0) {
-        if (strstr(cmd,"SEND")) {
+        if (strcmp(cmd,"SEND") == 0) {
             sprintf(cmdbuf,"%s%s",cmd,"\n");
             write(childfd,cmdbuf,strlen(cmdbuf));
             cmdbuf[0] = 0x00;
             return 1;
         }
-        if (strstr(cmd,"RECEIVE")) {
+        if (strcmp(cmd,"RECEIVE") == 0) {
             sprintf(cmdbuf,"%s%s",cmd,"\n");
             write(childfd,cmdbuf,strlen(cmdbuf));
             cmdbuf[0] = 0x00;
             (*cmdState) = -2;
             return 1;
         }
-        if (strstr(cmd,"XCTL")) {
+        if (strcmp(cmd,"XCTL") == 0) {
             sprintf(cmdbuf,"%s%s",cmd,"\n");
             write(childfd,cmdbuf,strlen(cmdbuf));
             cmdbuf[0] = 0x00;
@@ -358,12 +517,45 @@ int execCallback(char *cmd, void *var) {
             (*xctlState) = 0;
             return 1;
         }
-        if (strstr(cmd,"RETRIEVE")) {
+        if (strcmp(cmd,"RETRIEVE") == 0) {
             sprintf(cmdbuf,"%s%s",cmd,"\n");
             write(childfd,cmdbuf,strlen(cmdbuf));
             cmdbuf[0] = 0x00;
             (*cmdState) = -4;
             (*retrieveState) = 0;
+            return 1;
+        }
+        if (strcmp(cmd,"LINK") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -5;
+            (*xctlState) = 0;
+            return 1;
+        }
+        if ((strcmp(cmd,"GETMAIN") == 0) || (strcmp(cmd,"GETMAIN64") == 0)) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -6;
+            (*memParamsState) = 0;
+            return 1;
+        }
+        if ((strcmp(cmd,"FREEMAIN") == 0) || (strcmp(cmd,"FREEMAIN64") == 0)) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -7;
+            (*memParamsState) = 0;
+            memParams[2] = (void*)0; // SHARED
+            return 1;
+        }
+        if (strcmp(cmd,"ADDRESS") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -8;
+            (*memParamsState) = 0;
             return 1;
         }
         if (strstr(cmd,"END-EXEC")) {
@@ -381,29 +573,53 @@ int execCallback(char *cmd, void *var) {
                 // RETRIEVE
                 (*retrieveState) = 0;
             }
+            if (((*cmdState) == -5) && ((*xctlState) >= 1)) {
+                // LINK
+                (*xctlState) = 0;
+                (*cmdState) = 0;
+                sprintf(&(linkStack[9*(*linkStackPtr)]),"%s",xctlParams[0]);
+                if ((*linkStackPtr) < 99) {
+                  (*linkStackPtr)++;
+                }
+                execLoadModule(xctlParams[0],1);
+            }
+            if (((*cmdState) == -6) && ((*memParamsState) >= 1)) {
+                cob_field *cobvar = (cob_field*)memParams[1];
+                (*((unsigned char**)cobvar->data)) = (unsigned char*)getmain(*((int*)memParams[0]),(int)memParams[2]);
+            }
+            if (((*cmdState) == -7) && ((*memParamsState) >= 1)) {
+                freemain(memParams[1]);
+            }
             (*cmdState) = 0;
             return 1;
         }
-        if ((var == NULL) || strstr(cmd,"MAP") || strstr(cmd,"MAPSET") || strstr(cmd,"DATAONLY") ||
+        if ((var == NULL) || strstr(cmd,"'") || strstr(cmd,"MAP") || strstr(cmd,"MAPSET") || strstr(cmd,"DATAONLY") ||
             strstr(cmd,"ERASE") || strstr(cmd,"MAPONLY") || strstr(cmd,"RETURN") || strstr(cmd,"FROM") ||
             strstr(cmd,"INTO") || strstr(cmd,"HANDLE") || strstr(cmd,"CONDITION") || strstr(cmd,"ERROR") ||
             strstr(cmd,"SET") || strstr(cmd,"MAPFAIL") || strstr(cmd,"NOTFND") || strstr(cmd,"ASSIGN") ||
             strstr(cmd,"SYSID") || strstr(cmd,"TRANSID") || strstr(cmd,"COMMAREA") || strstr(cmd,"LENGTH") ||
             strstr(cmd,"CONTROL") || strstr(cmd,"FREEKB") || strstr(cmd,"PROGRAM") || strstr(cmd,"XCTL") ||
-            strstr(cmd,"ABEND") || strstr(cmd,"ABCODE") || strstr(cmd,"NODUMP")) {
+            strstr(cmd,"ABEND") || strstr(cmd,"ABCODE") || strstr(cmd,"NODUMP") || strstr(cmd,"LINK") ||
+            strstr(cmd,"FLENGTH") || strstr(cmd,"DATA") || strstr(cmd,"DATAPOINTER") || strstr(cmd,"SHARED") ||
+            strstr(cmd,"CWA") || strstr(cmd,"TWA") || strstr(cmd,"TCTUA")) {
             sprintf(end,"%s%s",cmd,"\n");
             if (((*cmdState) == -3) && ((*xctlState) == 1)) {
                 // XCTL PROGRAM param value
-                char *progname = (cmd+4);
+                char *progname = (cmd+1);
                 int l = strlen(progname);
-                if (l > 8) l = 8;
+                if (l > 9) l = 9;
                 int i = l-1;
                 while ((i > 0) &&
                        ((progname[i]==' ') || (progname[i]=='\'') ||
-                        (progname[i]==10) || (progname[i]==13)))
+                        (progname[i]==10) || (progname[i]==13))) {
                     i--;
-                progname[i+1] = 0x00;
-                sprintf(xctlParams[0],"%s",progname);
+                }
+                l = i+1;
+                if (l > 8) l = 8;
+                for (i = 0; i < l; i++) {
+                  xctlParams[0][i] = progname[i];
+                }
+                xctlParams[0][l] = 0x00;
                 (*xctlState) = 10;
             }
             if ((*cmdState) == -3) {
@@ -420,6 +636,65 @@ int execCallback(char *cmd, void *var) {
                 }
                 if (strstr(cmd,"LENGTH")) {
                     (*retrieveState) = 3;
+                }
+            }
+            if (((*cmdState) == -5) && ((*xctlState) == 1)) {
+                // LINK PROGRAM param value
+                char *progname = (cmd+1);
+                int l = strlen(progname);
+                if (l > 9) l = 9;
+                int i = l-1;
+                while ((i > 0) &&
+                       ((progname[i]==' ') || (progname[i]=='\'') ||
+                        (progname[i]==10) || (progname[i]==13))) {
+                    i--;
+                }
+                l = i+1;
+                if (l > 8) l = 8;
+                for (i = 0; i < l; i++) {
+                  xctlParams[0][i] = progname[i];
+                }
+                xctlParams[0][l] = 0x00;
+                (*xctlState) = 10;
+            }
+            if ((*cmdState) == -5) {
+              if (strstr(cmd,"PROGRAM")) {
+                  (*xctlState) = 1;
+              }
+              if (strstr(cmd,"COMMAREA")) {
+                  (*xctlState) = 2;
+              }
+            }
+            if (((*cmdState) == -6) && ((*memParamsState) == 2)) {
+                // GETMAIN LENGTH/FLENGTH param value
+                (*((int*)memParams[0])) = atoi(cmd);
+                (*memParamsState) = 10;
+            }
+            if ((*cmdState) == -6) {
+                if (strcmp(cmd,"SET") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strstr(cmd,"LENGTH")) {
+                    (*memParamsState) = 2;
+                }
+                if (strstr(cmd,"SHARED")) {
+                    memParams[2] = (void*)1;
+                }
+            }
+            if ((*cmdState) == -7) {
+                if (strcmp(cmd,"DATA") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"DATAPOINTER") == 0) {
+                    (*memParamsState) = 2;
+                }
+            }
+            if ((*cmdState) == -8) {
+                if (strcmp(cmd,"CWA") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"TWA") == 0) {
+                    (*memParamsState) = 2;
                 }
             }
             write(childfd,cmdbuf,strlen(cmdbuf));
@@ -440,7 +715,7 @@ int execCallback(char *cmd, void *var) {
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                    if (cobvar->data[0] != 0) {
+                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
                         display_cobfield(cobvar,f);
                     }
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
@@ -465,7 +740,6 @@ int execCallback(char *cmd, void *var) {
                         }
                     }
                     buf[pos] = 0x00;
-                    printf("%s\n",buf);
                     cob_put_picx(cobvar->data,cobvar->size,buf);
                 }
                 if ((*cmdState) == -3) {
@@ -473,7 +747,7 @@ int execCallback(char *cmd, void *var) {
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                    if (cobvar->data[0] != 0) {
+                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
                         display_cobfield(cobvar,f);
                     }
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
@@ -485,7 +759,7 @@ int execCallback(char *cmd, void *var) {
                         // XCTL PROGRAM param value
                         char *progname = (cmdbuf+2);
                         int l = strlen(progname);
-                        if (l > 8) l = 8;
+                        if (l > 9) l = 9;
                         int i = l-1;
                         while ((i > 0) &&
                                ((progname[i]==' ') || (progname[i]=='\'') ||
@@ -499,7 +773,7 @@ int execCallback(char *cmd, void *var) {
                 if ((*cmdState) == -4) {
                     if ((*retrieveState) == 1) {
                       // INTO
-                      sprintf(end,"%d",(size_t)cobvar->size);
+                      sprintf(end,"%d",(int)cobvar->size);
                       write(childfd,cmdbuf,strlen(cmdbuf));
                       write(childfd,"\n",1);
                       int i = 0;
@@ -512,6 +786,75 @@ int execCallback(char *cmd, void *var) {
                           }
                       }
                     }
+                }
+                if ((*cmdState) == -5) {
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
+                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+                    if ((*xctlState) == 1) {
+                        // LINK PROGRAM param value
+                        char *progname = (cmdbuf+2);
+                        int l = strlen(progname);
+                        if (l > 9) l = 9;
+                        int i = l-1;
+                        while ((i > 0) &&
+                               ((progname[i]==' ') || (progname[i]=='\'') ||
+                                (progname[i]==10) || (progname[i]==13)))
+                            i--;
+                        progname[i+1] = 0x00;
+                        sprintf(xctlParams[0],"%s",progname);
+                        (*xctlState) = 10;
+                    }
+                }
+                if (((*cmdState) == -5) && ((*xctlState) == 2)) {
+                    for (int i = 0; i < cobvar->size; i++) {
+                      commArea[i] = cobvar->data[i];
+                    }
+                    (*xctlState) = 10;
+                }
+                if (((*cmdState) == -6) && ((*memParamsState) == 1)) {
+                  memParams[1] = (void*)cobvar;
+                  (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -6) && ((*memParamsState) == 2)) {
+                    // GETMAIN LENGTH/FLENGTH param value
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+                    (*((int*)memParams[0])) = atoi(end);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -7) && ((*memParamsState) == 1)) {
+                  memParams[1] = (void*)cobvar->data;
+                  (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -7) && ((*memParamsState) == 2)) {
+                  memParams[1] = (void*)(*((unsigned char**)cobvar->data));
+                  (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -8) && ((*memParamsState) == 1)) {
+                  (*((unsigned char**)cobvar->data)) = (unsigned char*)&cwa;
+                  (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -8) && ((*memParamsState) == 2)) {
+                  (*((unsigned char**)cobvar->data)) = (unsigned char*)twa;
+                  (*memParamsState) = 10;
                 }
             }
             cmdbuf[0] = 0x00;
@@ -533,7 +876,7 @@ int execCallback(char *cmd, void *var) {
             if ((*cmdState) < 2) {
                 FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                if (cobvar->data[0] != 0) {
+                if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
                     display_cobfield(cobvar,f);
                 }
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
@@ -587,12 +930,24 @@ void initExec() {
     pthread_key_create(&commAreaKey, NULL);
     pthread_key_create(&commAreaPtrKey, NULL);
     pthread_key_create(&areaModeKey, NULL);
+    pthread_key_create(&linkStackKey, NULL);
+    pthread_key_create(&linkStackPtrKey, NULL);
+    pthread_key_create(&memParamsKey, NULL);
+    pthread_key_create(&memParamsStateKey, NULL);
+    pthread_key_create(&twaKey, NULL);
+
+    pthread_mutex_init(&moduleMutex,NULL);
+    pthread_cond_init(&waitForModuleChange,NULL);
+    pthread_mutex_init(&sharedMemMutex,NULL);
+    pthread_mutex_init(&cwaMutex,NULL);
     setUpPool(10, "dbname=pbrune");
     currentMap[0] = 0x00;
+    cob_get_global_ptr ()->cob_call_params = 1;
 }
 
 
 void clearExec() {
+    pthread_cond_destroy(&waitForModuleChange);
     tearDownPool();
 }
 
@@ -609,9 +964,18 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     int linkAreaPtr = 0;
     int commAreaPtr = 0;
     int areaMode = 0;
+    char linkStack[900];
+    int linkStackPtr = 0;
+    int memParamsState = 0;
+    void *memParams[10];
+    int memParam = 0;
+    char twa[32768];
+    void* allocMem[1000];
+    int allocMemPtr = 0;
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
+    memParams[0] = &memParam;
     cob_field* outputVars[100];
     outputVars[0] = NULL; // NULL terminated list
     cmdbuf[0] = 0x00;
@@ -627,6 +991,13 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     pthread_setspecific(commAreaKey, &commArea);
     pthread_setspecific(commAreaPtrKey, &commAreaPtr);
     pthread_setspecific(areaModeKey, &areaMode);
+    pthread_setspecific(linkStackKey, &linkStack);
+    pthread_setspecific(linkStackPtrKey, &linkStackPtr);
+    pthread_setspecific(memParamsKey, &memParams);
+    pthread_setspecific(memParamsStateKey, &memParamsState);
+    pthread_setspecific(twaKey, &twa);
+    pthread_setspecific(allocMemKey, &allocMem);
+    pthread_setspecific(allocMemPtrKey, &allocMemPtr);
     // Oprionally read in content of commarea
     if (setCommArea == 1) {
       write(*(int*)fd,"COMMAREA\n",9);
@@ -641,7 +1012,9 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     }
     PGconn *conn = getDBConnection();
     pthread_setspecific(connKey, (void*)conn);
+    initMain();
     execLoadModule(name,0);
+    clearMain();
     returnDBConnection(conn,1);
 }
 
@@ -659,9 +1032,18 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     int commAreaPtr = 0;
     int areaMode = 0;
     char progname[9];
+    char linkStack[900];
+    int linkStackPtr = 0;
+    int memParamsState = 0;
+    void *memParams[10];
+    int memParam = 0;
+    char twa[4096];
+    void* allocMem[1000];
+    int allocMemPtr = 0;
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
+    memParams[0] = &memParam;
     cob_field* outputVars[100];
     outputVars[0] = NULL; // NULL terminated list
     cmdbuf[0] = 0x00;
@@ -677,6 +1059,13 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     pthread_setspecific(commAreaKey, &commArea);
     pthread_setspecific(commAreaPtrKey, &commAreaPtr);
     pthread_setspecific(areaModeKey, &areaMode);
+    pthread_setspecific(linkStackKey, &linkStack);
+    pthread_setspecific(linkStackPtrKey, &linkStackPtr);
+    pthread_setspecific(memParamsKey, &memParams);
+    pthread_setspecific(memParamsStateKey, &memParamsState);
+    pthread_setspecific(twaKey, &twa);
+    pthread_setspecific(allocMemKey, &allocMem);
+    pthread_setspecific(allocMemPtrKey, &allocMemPtr);
     // Oprionally read in content of commarea
     if (setCommArea == 1) {
       write(*(int*)fd,"COMMAREA\n",9);
@@ -689,7 +1078,9 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
         }
       }
     }
+    initMain();
     execLoadModule(name,0);
+    clearMain();
 }
 
 
