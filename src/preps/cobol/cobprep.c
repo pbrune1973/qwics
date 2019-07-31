@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.03.2018                                  */
+/*   Author: Philipp Brune               Date: 31.07.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 
 int sqlca = 0;
@@ -29,6 +30,7 @@ int isMapIO = 0;
 int mapCmd = 0; // 1: RECEIVE, 0: SEND
 int isBranchLabel = 0;
 int isResponseParam = 0;
+int isPtrField = 0;
 char respParam[9];
 char mapName[9];
 char mapsetName[9];
@@ -39,6 +41,9 @@ int outputDot = 1;
 int isReturn = 0;
 int isXctl = 0;
 int commAreaPresent = 0;
+int allowIntoParam = 0;
+int inLinkageSection = 0;
+
 
 struct linkageVarDef {
     char name[33];
@@ -70,7 +75,7 @@ void parseLinkageVarDef(char *line) {
                 linkageVars[numOfLinkageVars-1].isGroup = 1;
             }
         }
-        
+
         while ((line[pos] == ' ') && (pos < len)) pos++;
 
         i = 0;
@@ -100,7 +105,7 @@ int includeCbk(char *copybook, FILE *outFile) {
         printf("%s%s%s\n","Info: Copybook file not found: ",path," - Looking for I/O suffix files.");
         return -1;
     }
-    
+
     char line[255];
     int inExec = 0;
     while (fgets(line, 255, (FILE*)cbk) != NULL) {
@@ -116,12 +121,15 @@ int includeCbk(char *copybook, FILE *outFile) {
         }
         if (!inExec) {
             fputs(line,outFile);
+            if (inLinkageSection) {
+              parseLinkageVarDef(line);
+            }
         }
         if (inExec && strstr(line,"END-EXEC")) {
             inExec = 0;
-        }        
+        }
     }
-    
+
     fclose(cbk);
     return 1;
 }
@@ -135,12 +143,12 @@ int includeCbkIO(char *copybook, FILE *outFile) {
         printf("%s%s\n","Copybook file not found: ",path);
         return -1;
     }
-    
+
     char line[255];
     while (fgets(line, 255, (FILE*)cbk) != NULL) {
         fputs(line,outFile);
     }
-    
+
     fclose(cbk);
 
     sprintf(path,"%s%s%s","../copybooks/",copybook,"O.cpy");
@@ -149,13 +157,13 @@ int includeCbkIO(char *copybook, FILE *outFile) {
         printf("%s%s\n","Copybook file not found: ",path);
         return -1;
     }
-    
+
     while (fgets(line, 255, (FILE*)cbk) != NULL) {
         fputs(line,outFile);
     }
-    
+
     fclose(cbk);
-    
+
     if (numOfLCopybooks < 20) {
         sprintf(lcopybookNames[numOfLCopybooks],"%s",copybook);
         numOfLCopybooks++;
@@ -181,7 +189,7 @@ int includeCbkL(FILE *outFile) {
             parseLinkageVarDef(line);
         }
 
-        fclose(cbk);        
+        fclose(cbk);
     }
 
     return 1;
@@ -204,7 +212,7 @@ int includeMapDisplays(char *mapset, char *map, FILE *outFile, int input) {
     if (input) { // Read in attention identifier value for RECEIVE
         fputs("           DISPLAY \"TPMI:EIBAID\" EIBAID.\n",outFile);
     }
-    
+
     int outOn = 0;
     char line[255];
     while (fgets(line, 255, (FILE*)cbk) != NULL) {
@@ -218,7 +226,7 @@ int includeMapDisplays(char *mapset, char *map, FILE *outFile, int input) {
             outOn = 1;
         }
     }
-    
+
     fclose(cbk);
     return 1;
 }
@@ -250,7 +258,7 @@ void processDataExecLine(char *buf, FILE *fp2) {
                 tokenPos = 0;
             }
         } else {
-            token[tokenPos] = buf[i];
+            token[tokenPos] = toupper(buf[i]);
             tokenPos++;
         }
     }
@@ -262,14 +270,14 @@ char *getExecTerminator(int quotes) {
         if (quotes) {
             return "\".";
         } else {
-            return ".";            
+            return ".";
         }
     }
-    
+
     if (quotes) {
         return "\"";
     } else {
-        return "";            
+        return "";
     }
 }
 
@@ -331,16 +339,37 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
             tokenPos++;
             continue;
         }
-        
+
         if (execCmd == 1) {  // EXEC CICS
             if (buf[i] == '(') {
                 if (tokenPos > 0) {
                     token[tokenPos] = 0x00;
+                    if (strstr(token,"CWA") != NULL) {
+                        isPtrField = 1;
+                    }
+                    if (strstr(token,"TWA") != NULL) {
+                        isPtrField = 1;
+                    }
+                    if (strstr(token,"TCTUA") != NULL) {
+                        isPtrField = 1;
+                    }
+                    if (strstr(token,"SET") != NULL) {
+                        isPtrField = 1;
+                    }
+                    if (strstr(token,"DATA") != NULL) {
+                        isPtrField = 1;
+                    }
+                    if (strstr(token,"DATAPOINTER") != NULL) {
+                        isPtrField = 1;
+                    }
                     if (strstr(token,"RECEIVE") != NULL) {
                         mapCmd = 1;
                     }
                     if (strstr(token,"SEND") != NULL) {
                         mapCmd = 0;
+                    }
+                    if (strstr(token,"RETRIEVE") != NULL) {
+                        allowIntoParam = 1;
                     }
                     if (strstr(token,"MAP") != NULL) {
                         mapNameMode = 1;
@@ -351,7 +380,7 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                     if (strstr(token,"FROM") != NULL) {
                         isMapIO = 1;
                     }
-                    if (strstr(token,"INTO") != NULL) {
+                    if (!allowIntoParam && (strstr(token,"INTO") != NULL)) {
                         isMapIO = 1;
                     }
                     if (strstr(token,"ERROR") != NULL) {
@@ -377,6 +406,43 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                         fputs(execbuf, (FILE*)fp2);
                     }
                     tokenPos = 0;
+
+                    if (isPtrField) {
+                        int adrOf = 0;
+                        do {
+                          i++;
+                          if ((buf[i] != ' ') && (buf[i] != ')')) {
+                            token[tokenPos] = toupper(buf[i]);
+                            tokenPos++;
+                          } else {
+                            if (tokenPos > 0) {
+                              token[tokenPos] = 0x00;
+                              tokenPos = 0;
+                            }
+                            if ((adrOf == 0) && (strcmp(token,"ADDRESS") == 0)) {
+                                adrOf = 1;
+                            }
+                            if ((adrOf == 1) && (strcmp(token,"OF") == 0)) {
+                                adrOf = 2;
+                            }
+                          }
+                        } while (buf[i] != ')');
+
+                        if (adrOf == 2) {
+                          sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
+                                  "QWICSPTR",getExecTerminator(0));
+                          fputs(execbuf, (FILE*)fp2);
+                          sprintf(execbuf,"%s%s%s%s\n","           SET ADDRESS OF ",
+                                  token," TO QWICSPTR",getExecTerminator(0));
+                          fputs(execbuf, (FILE*)fp2);
+                        } else {
+                          sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
+                                  token,getExecTerminator(0));
+                          fputs(execbuf, (FILE*)fp2);
+                        }
+                        isPtrField = 0;
+                        tokenPos = 0;
+                    }
                 }
                 value = 1;
             } else {
@@ -397,13 +463,13 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                             if (isBranchLabel) {
                                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
                                         token,getExecTerminator(1));
-                                fputs(execbuf, (FILE*)fp2);                                
+                                fputs(execbuf, (FILE*)fp2);
                                 isBranchLabel = 0;
                             } else
                             if (isResponseParam) {
                                 sprintf(execbuf,"%s%s%s%s%s\n","           DISPLAY \"TPMI:",
                                         respParam,"\" ",token,getExecTerminator(0));
-                                fputs(execbuf, (FILE*)fp2);                                
+                                fputs(execbuf, (FILE*)fp2);
                                 isResponseParam = 0;
                             } else {
                                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
@@ -417,6 +483,9 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                             if (strstr(token,"SEND") != NULL) {
                                 mapCmd = 0;
                             }
+                            if (strstr(token,"RETRIEVE") != NULL) {
+                                allowIntoParam = 1;
+                            }
                             if (strstr(token,"MAP") != NULL) {
                                 mapNameMode = 1;
                             }
@@ -426,7 +495,7 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                             if (strstr(token,"FROM") != NULL) {
                                 isMapIO = 1;
                             }
-                            if (strstr(token,"INTO") != NULL) {
+                            if (!allowIntoParam && (strstr(token,"INTO") != NULL)) {
                                 isMapIO = 1;
                             }
                             if (strstr(token,"ERROR") != NULL) {
@@ -462,7 +531,7 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                     }
                     value = 0;
                 } else {
-                    token[tokenPos] = buf[i];
+                    token[tokenPos] = toupper(buf[i]);
                     tokenPos++;
                 }
             }
@@ -558,16 +627,16 @@ int main(int argc, char **argv) {
    buf[0] = 0x00;
 
    if (argc < 2) {
-	printf("%s\n","Usage: cobprep <COBOL-File>");
-	return -1;
+	    printf("%s\n","Usage: cobprep <COBOL-File>");
+	    return -1;
    }
 
-   fp = fopen(argv[1], "r");	   
+   fp = fopen(argv[1], "r");
    if (fp == NULL) {
-	printf("%s%s\n","No input file: ",argv[1]);
-	return -1;
-   }	
-   
+	    printf("%s%s\n","No input file: ",argv[1]);
+	    return -1;
+   }
+
    sprintf(oname,"%s%s","exec_",argv[1]);
    fp2 = fopen(oname,"w");
    if (fp2 == NULL) {
@@ -579,43 +648,91 @@ int main(int argc, char **argv) {
    int inProcDivision = 0;
    int startProcDivision = 0;
    int linkageSectionPresent = 0;
-       
+   int wstorageSectionPresent = 0;
+
    while (fgets(buf, 255, (FILE*)fp) != NULL) {
+       // Turn everything to caps
+       int verb = 0;
+       for (int i = 0; i < strlen(buf); i++) {
+         if ((verb == 1) && (buf[i] == '\'')) {
+             verb = 0;
+         }
+         if ((verb == 2) && (buf[i] == '"')) {
+             verb = 0;
+         }
+         if ((verb == 0) && (buf[i] == '\'')) {
+             verb = 1;
+         }
+         if ((verb == 0) && (buf[i] == '"')) {
+             verb = 2;
+         }
+         if (verb == 0) {
+            buf[i] = toupper(buf[i]);
+         }
+       }
+
        if (strstr(buf,"PROCEDURE DIVISION") != NULL) {
+            inLinkageSection = 0;
             inProcDivision = 1;
             startProcDivision = 1;
-           
+
             if (!linkageSectionPresent) {
+                if (!wstorageSectionPresent) {
+                  fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
+                  fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
+                }
                 fputs("       LINKAGE SECTION.\n",(FILE*)fp2);
+                inLinkageSection = 1;
                 if (!eibPresent) {
-                    includeCbk("DFHEIBLK",(FILE*)fp2);   
+                    includeCbk("DFHEIBLK",(FILE*)fp2);
                 }
                 includeCbkL((FILE*)fp2);
+                inLinkageSection = 0;
             }
             if (!commAreaPresent) {
                 fputs("       01  DFHCOMMAREA PIC X.\n",(FILE*)fp2);
             }
-            sprintf(&buf[25],"%s\n"," USING DFHCOMMAREA.");
-
+            sprintf(&buf[25],"%s"," USING DFHCOMMAREA");
+            fputs(buf,(FILE*)fp2);
+            int n = 0;
+            for (n = 0; n < numOfLinkageVars; n++) {
+                if (((linkageVars[n].level == 1) || (linkageVars[n].level > 49))
+                    && (strcmp(linkageVars[n].name,"DFHCOMMAREA") != 0)) {
+                    // Top level or elementary variable
+                    fputs(",\n",(FILE*)fp2);
+                    sprintf(buf,"%s%s","      -     ",linkageVars[n].name);
+                    fputs(buf,(FILE*)fp2);
+                }
+            }
+            fputs(".\n",(FILE*)fp2);
+            buf[0] = 0x00;
             linkageSectionPresent = 0;
        }
 
        if (execCmd == 0) {
            char *cmd = strstr(buf,"EXEC");
            if ((cmd != NULL) && strstr(buf,"CICS")) {
+               allowIntoParam = 0;
                execCmd = 1;
                isReturn = 0;
                isXctl = 0;
            }
            if ((cmd != NULL) && strstr(buf,"SQL")) {
+               allowIntoParam = 0;
                execCmd = 2;
            }
        }
-       
+
        if (execCmd == 0) {
            if (!inProcDivision && (strstr(buf,"  COPY ") != NULL)) {
                processDataExecLine(buf,fp2);
            } else {
+               if (strstr(buf,"LINKAGE SECTION") != NULL) {
+                 if (!wstorageSectionPresent) {
+                   fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
+                   fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
+                 }
+               }
                fputs(buf,(FILE*)fp2);
                if (linkageSectionPresent) {
                    parseLinkageVarDef(buf);
@@ -636,7 +753,7 @@ int main(int argc, char **argv) {
                    sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET EIBAID\" ",
                            "EIBAID",getExecTerminator(0));
                    fputs(buf,(FILE*)fp2);
-                   
+
                    int n = 0;
                    for (n = 0; n < numOfLinkageVars; n++) {
                        if (linkageVars[n].isGroup) {
@@ -650,7 +767,7 @@ int main(int argc, char **argv) {
                        }
                        fputs(buf,(FILE*)fp2);
                    }
-                   
+
                    startProcDivision = 0;
                }
            }
@@ -682,20 +799,26 @@ int main(int argc, char **argv) {
                }
            }
        }
-       
+
        if (strstr(buf,"LINKAGE SECTION") != NULL) {
+            inLinkageSection = 1;
             linkageSectionPresent = 1;
             if (!eibPresent) {
                 includeCbk("DFHEIBLK",(FILE*)fp2);
             }
             includeCbkL((FILE*)fp2);
-       }       
-   }
+       }
 
-    fclose(fp);
-    fclose(fp2);
-    return 0;
-    
+       if (strstr(buf,"WORKING-STORAGE SECTION") != NULL) {
+            wstorageSectionPresent = 1;
+            fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
+       }
+  }
+
+  fclose(fp);
+  fclose(fp2);
+  return 0;
+
   // argv[0| = "cobc";
   // return execv("cobc",argv);
 }
