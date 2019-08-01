@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.07.2019                                  */
+/*   Author: Philipp Brune               Date: 01.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -31,6 +31,7 @@ int mapCmd = 0; // 1: RECEIVE, 0: SEND
 int isBranchLabel = 0;
 int isResponseParam = 0;
 int isPtrField = 0;
+int isLengthField = 0;
 char respParam[9];
 char mapName[9];
 char mapsetName[9];
@@ -42,6 +43,7 @@ int isReturn = 0;
 int isXctl = 0;
 int commAreaPresent = 0;
 int allowIntoParam = 0;
+int allowFromParam = 0;
 int inLinkageSection = 0;
 
 
@@ -362,6 +364,12 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                     if (strstr(token,"DATAPOINTER") != NULL) {
                         isPtrField = 1;
                     }
+                    if (strstr(token,"LENGTH") != NULL) {
+                        isLengthField = 1;
+                    }
+                    if (strstr(token,"FLENGTH") != NULL) {
+                        isLengthField = 1;
+                    }
                     if (strstr(token,"RECEIVE") != NULL) {
                         mapCmd = 1;
                     }
@@ -371,13 +379,19 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                     if (strstr(token,"RETRIEVE") != NULL) {
                         allowIntoParam = 1;
                     }
+                    if (strstr(token,"GET") != NULL) {
+                        allowIntoParam = 1;
+                    }
+                    if (strstr(token,"PUT") != NULL) {
+                        allowFromParam = 1;
+                    }
                     if (strstr(token,"MAP") != NULL) {
                         mapNameMode = 1;
                     }
                     if (strstr(token,"MAPSET") != NULL) {
                         mapNameMode = 2;
                     }
-                    if (strstr(token,"FROM") != NULL) {
+                    if (!allowFromParam && (strstr(token,"FROM") != NULL)) {
                         isMapIO = 1;
                     }
                     if (!allowIntoParam && (strstr(token,"INTO") != NULL)) {
@@ -443,6 +457,43 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                         isPtrField = 0;
                         tokenPos = 0;
                     }
+
+                    if (isLengthField) {
+                        int lenOf = 0;
+                        do {
+                          i++;
+                          if ((buf[i] != ' ') && (buf[i] != ')')) {
+                            token[tokenPos] = toupper(buf[i]);
+                            tokenPos++;
+                          } else {
+                            if (tokenPos > 0) {
+                              token[tokenPos] = 0x00;
+                              tokenPos = 0;
+                            }
+                            if ((lenOf == 0) && (strcmp(token,"LENGTH") == 0)) {
+                                lenOf = 1;
+                            }
+                            if ((lenOf == 1) && (strcmp(token,"OF") == 0)) {
+                                lenOf = 2;
+                            }
+                          }
+                        } while (buf[i] != ')');
+
+                        if (lenOf == 2) {
+                          sprintf(execbuf,"%s%s%s%s\n","           MOVE LENGTH OF ",
+                                  token," TO QWICSLEN",getExecTerminator(0));
+                          fputs(execbuf, (FILE*)fp2);
+                          sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
+                                  "QWICSLEN",getExecTerminator(0));
+                          fputs(execbuf, (FILE*)fp2);
+                        } else {
+                          sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
+                                  token,getExecTerminator(0));
+                          fputs(execbuf, (FILE*)fp2);
+                        }
+                        isLengthField = 0;
+                        tokenPos = 0;
+                    }
                 }
                 value = 1;
             } else {
@@ -486,13 +537,19 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                             if (strstr(token,"RETRIEVE") != NULL) {
                                 allowIntoParam = 1;
                             }
+                            if (strstr(token,"GET") != NULL) {
+                                allowIntoParam = 1;
+                            }
+                            if (strstr(token,"PUT") != NULL) {
+                                allowFromParam = 1;
+                            }
                             if (strstr(token,"MAP") != NULL) {
                                 mapNameMode = 1;
                             }
                             if (strstr(token,"MAPSET") != NULL) {
                                 mapNameMode = 2;
                             }
-                            if (strstr(token,"FROM") != NULL) {
+                            if (!allowFromParam && (strstr(token,"FROM") != NULL)) {
                                 isMapIO = 1;
                             }
                             if (!allowIntoParam && (strstr(token,"INTO") != NULL)) {
@@ -680,6 +737,7 @@ int main(int argc, char **argv) {
                 if (!wstorageSectionPresent) {
                   fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
                   fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
+                  fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
                 }
                 fputs("       LINKAGE SECTION.\n",(FILE*)fp2);
                 inLinkageSection = 1;
@@ -713,12 +771,14 @@ int main(int argc, char **argv) {
            char *cmd = strstr(buf,"EXEC");
            if ((cmd != NULL) && strstr(buf,"CICS")) {
                allowIntoParam = 0;
+               allowFromParam = 0;
                execCmd = 1;
                isReturn = 0;
                isXctl = 0;
            }
            if ((cmd != NULL) && strstr(buf,"SQL")) {
                allowIntoParam = 0;
+               allowFromParam = 0;
                execCmd = 2;
            }
        }
@@ -731,6 +791,7 @@ int main(int argc, char **argv) {
                  if (!wstorageSectionPresent) {
                    fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
                    fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
+                   fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
                  }
                }
                fputs(buf,(FILE*)fp2);
@@ -812,6 +873,7 @@ int main(int argc, char **argv) {
        if (strstr(buf,"WORKING-STORAGE SECTION") != NULL) {
             wstorageSectionPresent = 1;
             fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
+            fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
        }
   }
 
