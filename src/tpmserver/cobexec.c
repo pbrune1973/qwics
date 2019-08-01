@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.07.2019                                  */
+/*   Author: Philipp Brune               Date: 01.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
 /*                                                                                         */
@@ -73,7 +73,9 @@ pthread_cond_t  waitForModuleChange;
 pthread_mutex_t sharedMemMutex;
 pthread_mutex_t cwaMutex;
 
-void* sharedAllocMem[1000];
+#define MEM_POOL_SIZE 100000
+
+void* sharedAllocMem[MEM_POOL_SIZE];
 int sharedAllocMemPtr = 0;
 
 unsigned char cwa[4096];
@@ -288,7 +290,7 @@ void *getmain(int length, int shared) {
         break;
       }
   }
-  if (i < 1000) {
+  if (i < MEM_POOL_SIZE) {
     void *p = malloc(length);
     if (p != NULL) {
       allocMem[i] = p;
@@ -317,6 +319,9 @@ void freemain(void *p) {
           printf("%s %x\n","freemain",(unsigned int)p);
           free(allocMem[i]);
           allocMem[i] = NULL;
+          if (i == (*allocMemPtr)-1) {
+            (*allocMemPtr)--;
+          }
           return;
       }
   }
@@ -329,6 +334,9 @@ void freemain(void *p) {
           printf("%s %x\n","freemain shared",(unsigned int)p);
           free(allocMem[i]);
           allocMem[i] = NULL;
+          if (i == (*allocMemPtr)-1) {
+            (*allocMemPtr)--;
+          }
           break;
       }
   }
@@ -558,6 +566,22 @@ int execCallback(char *cmd, void *var) {
             (*memParamsState) = 0;
             return 1;
         }
+        if (strcmp(cmd,"PUT") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -9;
+            (*memParamsState) = 0;
+            return 1;
+        }
+        if (strcmp(cmd,"GET") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -10;
+            (*memParamsState) = 0;
+            return 1;
+        }
         if (strstr(cmd,"END-EXEC")) {
             cmdbuf[0] = 0x00;
             outputVars[0] = NULL; // NULL terminated list
@@ -590,6 +614,51 @@ int execCallback(char *cmd, void *var) {
             if (((*cmdState) == -7) && ((*memParamsState) >= 1)) {
                 freemain(memParams[1]);
             }
+            if (((*cmdState) == -9) && ((*memParamsState) >= 1)) {
+                int len = *((int*)memParams[0]);
+                cob_field *cobvar = (cob_field*)memParams[1];
+                int i,l;
+                if (len <= cobvar->size) {
+                  l = len;
+                } else {
+                  l = cobvar->size;
+                }
+                write(childfd,cobvar->data,l);
+                if (l < len) {
+                  char zero[1];
+                  zero[0] = 0x00;
+                  for (i = l; i < len; i++) {
+                    write(childfd,&zero,1);
+                  }
+                }
+                write(childfd,"\n",1);
+                write(childfd,"\n",1);
+            }
+            if (((*cmdState) == -10) && ((*memParamsState) >= 1)) {
+                int len = *((int*)memParams[0]);
+                cob_field *cobvar = (cob_field*)memParams[1];
+                int i,l;
+                if (len <= cobvar->size) {
+                  l = len;
+                } else {
+                  l = cobvar->size;
+                }
+                char c;
+                i = 0;
+                while (i < l) {
+                    int n = read(childfd,&c,1);
+                    if (n == 1) {
+                        cobvar->data[i] = c;
+                        i++;
+                    }
+                }
+                while (i < len) {
+                  int n = read(childfd,&c,1);
+                  if (n == 1) {
+                      i++;
+                  }
+                }
+            }
             (*cmdState) = 0;
             return 1;
         }
@@ -601,7 +670,11 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"CONTROL") || strstr(cmd,"FREEKB") || strstr(cmd,"PROGRAM") || strstr(cmd,"XCTL") ||
             strstr(cmd,"ABEND") || strstr(cmd,"ABCODE") || strstr(cmd,"NODUMP") || strstr(cmd,"LINK") ||
             strstr(cmd,"FLENGTH") || strstr(cmd,"DATA") || strstr(cmd,"DATAPOINTER") || strstr(cmd,"SHARED") ||
-            strstr(cmd,"CWA") || strstr(cmd,"TWA") || strstr(cmd,"TCTUA")) {
+            strstr(cmd,"CWA") || strstr(cmd,"TWA") || strstr(cmd,"TCTUA") || strstr(cmd,"PUT") || strstr(cmd,"GET") ||
+            strstr(cmd,"CONTAINER") || strstr(cmd,"CHANNEL") || strstr(cmd,"BYTEOFFSET") || strstr(cmd,"NODATA-FLENGTH") ||
+            strstr(cmd,"INTOCCSID") || strstr(cmd,"INTOCODEPAGE") || strstr(cmd,"CONVERTST") || strstr(cmd,"CCSID") ||
+            strstr(cmd,"FROMCCSID") || strstr(cmd,"FROMCODEPAGE") || strstr(cmd,"DATATYPE") ||
+            strstr(cmd,"APPEND") || strstr(cmd,"BIT") || strstr(cmd,"CHAR") || strstr(cmd,"CANCEL")) {
             sprintf(end,"%s%s",cmd,"\n");
             if (((*cmdState) == -3) && ((*xctlState) == 1)) {
                 // XCTL PROGRAM param value
@@ -694,6 +767,32 @@ int execCallback(char *cmd, void *var) {
                     (*memParamsState) = 1;
                 }
                 if (strcmp(cmd,"TWA") == 0) {
+                    (*memParamsState) = 2;
+                }
+            }
+            if (((*cmdState) == -9) && ((*memParamsState) == 1)) {
+                // PUT FLENGTH param value
+                (*((int*)memParams[0])) = atoi(cmd);
+                (*memParamsState) = 10;
+            }
+            if ((*cmdState) == -9) {
+                if (strcmp(cmd,"FLENGTH") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"FROM") == 0) {
+                    (*memParamsState) = 2;
+                }
+            }
+            if (((*cmdState) == -10) && ((*memParamsState) == 1)) {
+                // GET FLENGTH param value
+                (*((int*)memParams[0])) = atoi(cmd);
+                (*memParamsState) = 10;
+            }
+            if ((*cmdState) == -10) {
+                if (strcmp(cmd,"FLENGTH") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"INTO") == 0) {
                     (*memParamsState) = 2;
                 }
             }
@@ -821,6 +920,23 @@ int execCallback(char *cmd, void *var) {
                     }
                     (*xctlState) = 10;
                 }
+                if (((*cmdState) < -5) &&
+                    !(((*cmdState) == -9) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -10) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -6) && ((*memParamsState) == 2))) {
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
+                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+                }
                 if (((*cmdState) == -6) && ((*memParamsState) == 1)) {
                   memParams[1] = (void*)cobvar;
                   (*memParamsState) = 10;
@@ -854,6 +970,44 @@ int execCallback(char *cmd, void *var) {
                 }
                 if (((*cmdState) == -8) && ((*memParamsState) == 2)) {
                   (*((unsigned char**)cobvar->data)) = (unsigned char*)twa;
+                  (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -9) && ((*memParamsState) == 1)) {
+                    // PUT FLENGTH param value
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+                    (*((int*)memParams[0])) = atoi(end);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -9) && ((*memParamsState) == 2)) {
+                  memParams[1] = (void*)cobvar;
+                  (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -10) && ((*memParamsState) == 1)) {
+                    // GET FLENGTH param value
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+                    (*((int*)memParams[0])) = atoi(end);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -10) && ((*memParamsState) == 2)) {
+                  memParams[1] = (void*)cobvar;
                   (*memParamsState) = 10;
                 }
             }
@@ -970,7 +1124,7 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     void *memParams[10];
     int memParam = 0;
     char twa[32768];
-    void* allocMem[1000];
+    void** allocMem = (void**)malloc(MEM_POOL_SIZE*sizeof(void*));
     int allocMemPtr = 0;
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
@@ -996,7 +1150,7 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     pthread_setspecific(memParamsKey, &memParams);
     pthread_setspecific(memParamsStateKey, &memParamsState);
     pthread_setspecific(twaKey, &twa);
-    pthread_setspecific(allocMemKey, &allocMem);
+    pthread_setspecific(allocMemKey, allocMem);
     pthread_setspecific(allocMemPtrKey, &allocMemPtr);
     // Oprionally read in content of commarea
     if (setCommArea == 1) {
@@ -1015,6 +1169,7 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     initMain();
     execLoadModule(name,0);
     clearMain();
+    free(allocMem);
     returnDBConnection(conn,1);
 }
 
@@ -1038,7 +1193,7 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     void *memParams[10];
     int memParam = 0;
     char twa[4096];
-    void* allocMem[1000];
+    void** allocMem = (void**)malloc(MEM_POOL_SIZE*sizeof(void*));
     int allocMemPtr = 0;
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
@@ -1064,7 +1219,7 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     pthread_setspecific(memParamsKey, &memParams);
     pthread_setspecific(memParamsStateKey, &memParamsState);
     pthread_setspecific(twaKey, &twa);
-    pthread_setspecific(allocMemKey, &allocMem);
+    pthread_setspecific(allocMemKey, allocMem);
     pthread_setspecific(allocMemPtrKey, &allocMemPtr);
     // Oprionally read in content of commarea
     if (setCommArea == 1) {
@@ -1081,6 +1236,7 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     initMain();
     execLoadModule(name,0);
     clearMain();
+    free(allocMem);
 }
 
 
