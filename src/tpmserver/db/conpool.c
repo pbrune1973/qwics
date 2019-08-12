@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Database Connection Pool (currently PostgreSQL only)                     */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.03.2018                                  */
+/*   Author: Philipp Brune               Date: 03.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -19,6 +19,7 @@
 /*******************************************************************************************/
 
 #include "conpool.h"
+#include "../shm/shmtpm.h"
 
 
 void safeExit(PGconn *conn)
@@ -40,50 +41,56 @@ sem_t *poolAccess;
 
 
 // Pool management
-void setUpPool(int numCon, char *conInfo) {
+void setUpPool(int numCon, char *conInfo, int openCons) {
     if (conInfo == NULL) {
         conInfo = "dbname = postgres";
     }
-    
-    pool = malloc(sizeof(struct conRec)*numCon);
+
+    // pool = malloc(sizeof(struct conRec)*numCon);
+    pool = sharedMalloc(10,sizeof(struct conRec)*numCon);
     if (pool == NULL) {
         printf("%s%d%s\n","ERROR: Could not allocate connection pool with ",numCon," connections!");
         exit(1);
     }
     poolSize = numCon;
-    
+
     sem_unlink("pool");
     poolAccess = sem_open("pool", O_CREAT, 0600, 1);
     if(poolAccess == SEM_FAILED) {
         printf("%s\n","ERROR: Could not open pool access semaphore");
         exit(1);
     }
-    
+
     // Open connections
-    int i;
-    for (i = 0; i < poolSize; i++) {
+    if (openCons == 1) {
+      int i;
+      for (i = 0; i < poolSize; i++) {
         pool[i].used = 0;
         pool[i].conn = PQconnectdb(conInfo);
-        
+
         if (PQstatus(pool[i].conn) != CONNECTION_OK) {
             printf("ERROR: Connection to database failed: %s",
                     PQerrorMessage(pool[i].conn));
             safeExit(pool[i].conn);
         }
+      }
     }
 }
 
 
-void tearDownPool() {
+void tearDownPool(int closeCons) {
     // Ensure no transcations are currently processed, wait for completion
     sem_wait(poolAccess);
-    
-    int i;
-    for (i = 0; i < poolSize; i++) {
-        PQfinish(pool[i].conn);
+
+    if (closeCons == 1) {
+      int i;
+      for (i = 0; i < poolSize; i++) {
+          PQfinish(pool[i].conn);
+      }
     }
-    free(pool);
-    
+    //free(pool);
+    sharedFree(pool,sizeof(struct conRec)*poolSize);
+
     sem_post(poolAccess);
     sem_close(poolAccess);
     sem_unlink("pool");
@@ -122,7 +129,7 @@ PGconn *getDBConnection() {
 int returnDBConnection(PGconn *conn, int commit) {
     int ret = 1;
     PGresult *res;
-    
+
     if (commit) {
         res = PQexec(conn, "COMMIT");
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
