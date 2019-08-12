@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 14.02.2019                                  */
+/*   Author: Philipp Brune               Date: 03.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
 /*                                                                                         */
@@ -22,8 +22,8 @@
 #define _cobexec_h
 
 // Manage load module executor
-void initExec();
-void clearExec();
+void initExec(int initCons);
+void clearExec(int initCons);
 
 // Execute COBOL loadmod in transaction
 void execTransaction(char *name, void *fd, int setCommArea);
