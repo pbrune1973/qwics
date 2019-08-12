@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.08.2019                                  */
+/*   Author: Philipp Brune               Date: 09.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -32,6 +32,7 @@ int isBranchLabel = 0;
 int isResponseParam = 0;
 int isPtrField = 0;
 int isLengthField = 0;
+int isErrHandlerField = 0;
 char respParam[9];
 char mapName[9];
 char mapsetName[9];
@@ -346,6 +347,18 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
             if (buf[i] == '(') {
                 if (tokenPos > 0) {
                     token[tokenPos] = 0x00;
+                    if (strstr(token,"QIDERR") != NULL) {
+                        isErrHandlerField = 44;
+                    }
+                    if (strstr(token,"LENGERR") != NULL) {
+                        isErrHandlerField = 22;
+                    }
+                    if (strstr(token,"INVREQ") != NULL) {
+                        isErrHandlerField = 16;
+                    }
+                    if (strstr(token,"ENQBUSY") != NULL) {
+                        isErrHandlerField = 55;
+                    }
                     if (strstr(token,"CWA") != NULL) {
                         isPtrField = 1;
                     }
@@ -372,6 +385,7 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                     }
                     if (strstr(token,"RECEIVE") != NULL) {
                         mapCmd = 1;
+                        allowIntoParam = 1;
                     }
                     if (strstr(token,"SEND") != NULL) {
                         mapCmd = 0;
@@ -383,6 +397,12 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                         allowIntoParam = 1;
                     }
                     if (strstr(token,"PUT") != NULL) {
+                        allowFromParam = 1;
+                    }
+                    if (strstr(token,"READQ") != NULL) {
+                        allowIntoParam = 1;
+                    }
+                    if (strstr(token,"WRITEQ") != NULL) {
                         allowFromParam = 1;
                     }
                     if (strstr(token,"MAP") != NULL) {
@@ -420,6 +440,44 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                         fputs(execbuf, (FILE*)fp2);
                     }
                     tokenPos = 0;
+
+                    if (isErrHandlerField > 0) {
+                        int para = 0;
+                        do {
+                          i++;
+                          if ((buf[i] != ' ') && (buf[i] != ')')) {
+                            token[tokenPos] = toupper(buf[i]);
+                            tokenPos++;
+                          } else {
+                            if (tokenPos > 0) {
+                              token[tokenPos] = 0x00;
+                              tokenPos = 0;
+                              para = 1;
+                            }
+                          }
+                        } while (buf[i] != ')');
+
+                        if (para == 1) {
+                          sprintf(execbuf,"%s%s\n","           CALL \"setjmp\" USING QWICSJMP",getExecTerminator(0));
+                          fputs(execbuf, (FILE*)fp2);
+                          sprintf(execbuf,"%s\n","           IF RETURN-CODE > 0 THEN");
+                          fputs(execbuf, (FILE*)fp2);
+                          sprintf(execbuf,"%s%s\n","             PERFORM ",token);
+                          fputs(execbuf, (FILE*)fp2);
+                          sprintf(execbuf,"%s\n","           ELSE");
+                          fputs(execbuf, (FILE*)fp2);
+                          sprintf(execbuf,"%s%d%s\n","             CALL \"setJmpAbend\" USING ",isErrHandlerField,",QWICSJMP");
+                          fputs(execbuf, (FILE*)fp2);
+                          sprintf(execbuf,"%s%s\n","           END-IF",getExecTerminator(0));
+                          fputs(execbuf, (FILE*)fp2);
+                        } else {
+                          sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
+                                  token,getExecTerminator(0));
+                          fputs(execbuf, (FILE*)fp2);
+                        }
+                        isErrHandlerField = 0;
+                        tokenPos = 0;
+                    }
 
                     if (isPtrField) {
                         int adrOf = 0;
@@ -530,6 +588,7 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                         } else {
                             if (strstr(token,"RECEIVE") != NULL) {
                                 mapCmd = 1;
+                                allowIntoParam = 1;
                             }
                             if (strstr(token,"SEND") != NULL) {
                                 mapCmd = 0;
@@ -541,6 +600,12 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                                 allowIntoParam = 1;
                             }
                             if (strstr(token,"PUT") != NULL) {
+                                allowFromParam = 1;
+                            }
+                            if (strstr(token,"READQ") != NULL) {
+                                allowIntoParam = 1;
+                            }
+                            if (strstr(token,"WRITEQ") != NULL) {
                                 allowFromParam = 1;
                             }
                             if (strstr(token,"MAP") != NULL) {
@@ -708,6 +773,11 @@ int main(int argc, char **argv) {
    int wstorageSectionPresent = 0;
 
    while (fgets(buf, 255, (FILE*)fp) != NULL) {
+       // Handle comments
+       if (buf[6] == '*') {
+         fputs(buf,(FILE*)fp2);
+         continue;
+       }
        // Turn everything to caps
        int verb = 0;
        for (int i = 0; i < strlen(buf); i++) {
@@ -738,6 +808,7 @@ int main(int argc, char **argv) {
                   fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
                   fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
                   fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
+                  fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
                 }
                 fputs("       LINKAGE SECTION.\n",(FILE*)fp2);
                 inLinkageSection = 1;
@@ -792,6 +863,7 @@ int main(int argc, char **argv) {
                    fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
                    fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
                    fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
+                   fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
                  }
                }
                fputs(buf,(FILE*)fp2);
@@ -874,6 +946,7 @@ int main(int argc, char **argv) {
             wstorageSectionPresent = 1;
             fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
             fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
+            fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
        }
   }
 
