@@ -43,26 +43,83 @@ OF SUCH DAMAGE.
 
 package org.qwics.jdbc.scheduler;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.URL;
+public class TaScheduled implements Comparable {
+	private String transId;
+	private String reqId;
+	private char data[];
+	private long startAtMillis = 0;
 
-public class TaStarter {
-	private String baseUrl = System.getProperty("org.qwics.jdbc.scheduler.baseUrl");
+	public TaScheduled(String transId, String reqId, char[] data, String time, boolean isInterval) throws NumberFormatException {
+		this.transId = transId;
+		this.reqId = reqId;
+		this.data = data;
 
-	void start(String transId) {
 		try {
-			System.out.println("Starting transaction "+transId);
-
-			URL qwics = new URL(baseUrl + "/QwicsWebApp/services/ta/call/" + transId);
-			BufferedReader in = new BufferedReader(new InputStreamReader(qwics.openStream()));
-
-			String inputLine;
-			while ((inputLine = in.readLine()) != null) {
+			int hour = Integer.parseInt(time.substring(0, 2));
+			int min = Integer.parseInt(time.substring(2, 4));
+			int sec = Integer.parseInt(time.substring(4));
+			if ((min < 0) || (min > 59)) {
+				throw new NumberFormatException("min");
 			}
-			in.close();
+			if ((sec < 0) || (sec > 59)) {
+				throw new NumberFormatException("sec");
+			}
+			
+			long millis = (long) ((hour * 60 + min) * 60 + sec) * 1000;
+			if (isInterval) {
+				millis = millis + System.currentTimeMillis();
+			}
+			startAtMillis = millis;
 		} catch (Exception e) {
 			e.printStackTrace();
+			if (e instanceof NumberFormatException) {
+				throw e;
+			}
 		}
 	}
+
+	public String getTransId() {
+		return transId;
+	}
+
+	public void setTransId(String transId) {
+		this.transId = transId;
+	}
+
+	public String getReqId() {
+		return reqId;
+	}
+
+	public void setReqId(String reqId) {
+		this.reqId = reqId;
+	}
+
+	public char[] getData() {
+		return data;
+	}
+
+	public void setData(char[] data) {
+		this.data = data;
+	}
+
+	public long getStartAtMillis() {
+		return startAtMillis;
+	}
+
+	public void setStartAtMillis(long startAtMillis) {
+		this.startAtMillis = startAtMillis;
+	}
+
+	@Override
+	public int compareTo(Object o) {
+		TaScheduled ta = (TaScheduled)o;
+		if (this.startAtMillis < ta.getStartAtMillis()) {
+			return -1;
+		}
+		if (this.startAtMillis > ta.getStartAtMillis()) {
+			return 1;
+		}
+		return 0;
+	}
+
 }
