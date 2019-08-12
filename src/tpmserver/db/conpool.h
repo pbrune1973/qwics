@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Database Connection Pool (currently PostgreSQL only)                     */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.03.2018                                  */
+/*   Author: Philipp Brune               Date: 03.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -24,15 +24,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>           /* For O_* constants */
-#include <sys/stat.h>        /* For mode constants */       
+#include <sys/stat.h>        /* For mode constants */
 #include <semaphore.h>
 #include <unistd.h>
 #include <libpq-fe.h>
 
 
 // Pool management
-void setUpPool(int numCon, char *conInfo);
-void tearDownPool();
+void setUpPool(int numCon, char *conInfo, int openCons);
+void tearDownPool(int closeCons);
 
 // Pool usage: Used connection always forms one transaction
 PGconn *getDBConnection();
