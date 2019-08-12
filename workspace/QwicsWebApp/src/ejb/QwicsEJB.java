@@ -51,7 +51,7 @@ public class QwicsEJB {
 //	@PersistenceContext( unitName = "QWICS" )
 //	private EntityManager em;
 	
-	@Resource(mappedName="java:jboss/datasources/QwicsDS") 
+	@Resource(name="jdbc/QwicsCobolDS") 
 	DataSource datasource;	
 	
 	private int state = 0;
@@ -72,6 +72,29 @@ public class QwicsEJB {
 		boolean isSend = false;
 		do {
 			isSend = maps.next();
+
+			if (isSend && maps.getBoolean("SYNCPOINT")) {
+				if (!maps.getBoolean("ROLLBACK")) {
+					try {
+						utx.commit();
+						utx.begin();
+						con = datasource.getConnection(con.getClientInfo("conId"),"");
+						maps.updateString("SYNCPOINTRESULT", "COMMIT");
+					} catch (Exception e) {
+						e.printStackTrace();
+						maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
+						utx.rollback();
+						utx.begin();
+						con = datasource.getConnection(con.getClientInfo("conId"),"");
+					}
+				} else {
+					maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
+					utx.rollback();
+					utx.begin();
+					con = datasource.getConnection(con.getClientInfo("conId"),"");
+				}
+				continue;
+			}			
 			if (isSend && "SEND".equals(maps.getString("MAP_CMD"))) {
 				session.getBasicRemote().sendText(maps.getString("JSON"));
 				return true;
@@ -82,11 +105,13 @@ public class QwicsEJB {
 				String transId = maps.getString("TRANSID");
 				//System.out.println("Return with transId "+transId);
 				program = transactionProgNames.get(transId);
+				//System.out.println("Program name "+program);
 				try {
 					utx.commit();
 					utx.begin();
 					con = datasource.getConnection(con.getClientInfo("conId"),"");
 				} catch (Exception e) {
+					e.printStackTrace();
 					utx.rollback();
 					utx.begin();
 					con = datasource.getConnection(con.getClientInfo("conId"),"");
@@ -110,12 +135,13 @@ public class QwicsEJB {
 	
 	
 	@OnMessage
-	@TransactionAttribute(TransactionAttributeType.REQUIRED)
+	//@TransactionAttribute(TransactionAttributeType.REQUIRED)
 	public void onMessage(Session session, String msg) {
 		try {		
 			if ((state == 0) && msg.startsWith("DEFINE")) {
 				String params[] = msg.split(" ");
 				if (params.length == 3) {
+					System.out.println("params "+params[1]+" "+params[2]);
 					this.transactionProgNames.put(params[1], params[2]);
 				}
 			}
@@ -165,7 +191,7 @@ public class QwicsEJB {
 	}
 	
 	@OnClose
-	@TransactionAttribute(TransactionAttributeType.REQUIRED)
+	//@TransactionAttribute(TransactionAttributeType.REQUIRED)
 	public void onClose(Session session) {
 		try {
 			utx.commit();

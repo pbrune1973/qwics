@@ -42,72 +42,65 @@ import org.qwics.jdbc.msg.QueueWrapper;
  * Message-Driven Bean implementation class for: QwicsMDB
  */
 @MessageDriven(activationConfig = {
-	    @ActivationConfigProperty(propertyName = "destinationLookup",
-	            propertyValue = "java:/jms/queue/MyQueue"),
-	    @ActivationConfigProperty(propertyName = "destinationType",
-	            propertyValue = "javax.jms.Queue")
-	},
-	messageListenerInterface = MessageListener.class)
+		@ActivationConfigProperty(propertyName = "destinationLookup", propertyValue = "java:/jms/queue/MyQueue"),
+		@ActivationConfigProperty(propertyName = "destinationType", propertyValue = "javax.jms.Queue") }, messageListenerInterface = MessageListener.class)
 public class QwicsMDB implements MessageListener, QueueManager {
-	@Resource(mappedName="java:/JmsXA")
+	@Resource(mappedName = "java:/JmsXA")
 	private ConnectionFactory cf;
-	
-	@Resource(mappedName="java:jboss/datasources/QwicsDS") 
-	DataSource datasource;	
+
+	@Resource(name= "jdbc/QwicsCobolDS")
+	DataSource datasource;
 
 	private Connection con;
 	private CallableStatement call;
 	private ResultSet maps;
 	private Message triggerMessage = null;
-	
-	
-    public QwicsMDB() {
-    }
 
-    
-    public QueueWrapper getQueue(String name, int type, int opts) {
-    		try {
-    			InitialContext ctx = new InitialContext();
-        		if (type == 1) {
-        			// Queue
-        			Queue queue = (Queue)ctx.lookup("java:/jms/queue/"+name);
-        			ctx.close();   
-        			if ((triggerMessage != null) && triggerMessage.getJMSDestination().equals(queue)) {
-            			return new QwicsQueue(cf,queue,triggerMessage);        				
-        			} else {
-            			return new QwicsQueue(cf,queue);        				
-        			}
-        		}
-            	if (type == 8) {
-            		// Topic
-        			Topic topic = (Topic)ctx.lookup("java:/jms/topic/"+name);
-        			ctx.close();    		    			
-        			return new QwicsTopic(cf,topic);
-            	}         			
-    		} catch (Exception e) {
-    		}
-    		return null;
-    }
-	
+	public QwicsMDB() {
+	}
 
-    public void onMessage(Message message) {
-    		try {
-    			triggerMessage = message;
+	public QueueWrapper getQueue(String name, int type, int opts) {
+		try {
+			InitialContext ctx = new InitialContext();
+			if (type == 1) {
+				// Queue
+				Queue queue = (Queue) ctx.lookup("java:/jms/queue/" + name);
+				ctx.close();
+				if ((triggerMessage != null) && triggerMessage.getJMSDestination().equals(queue)) {
+					return new QwicsQueue(cf, queue, triggerMessage);
+				} else {
+					return new QwicsQueue(cf, queue);
+				}
+			}
+			if (type == 8) {
+				// Topic
+				Topic topic = (Topic) ctx.lookup("java:/jms/topic/" + name);
+				ctx.close();
+				return new QwicsTopic(cf, topic);
+			}
+		} catch (Exception e) {
+		}
+		return null;
+	}
+
+	public void onMessage(Message message) {
+		try {
+			triggerMessage = message;
 			con = datasource.getConnection();
 			call = con.prepareCall("PROGRAM QPUBCBL");
 			maps = call.executeQuery();
-			maps.updateString("QNAME","MyQueue");
-			maps.updateString("ENVDATA","MyStatQueue");
+			maps.updateString("QNAME", "MyQueue");
+			maps.updateString("ENVDATA", "MyStatQueue");
 			maps.updateObject("QMGR", this);
-			maps.next();			
+			maps.next();
 			try {
-				String ac = maps.getString("ABCODE");		
-				throw new QwicsException("ABEND "+ac);
+				String ac = maps.getString("ABCODE");
+				throw new QwicsException("ABEND " + ac);
 			} catch (Exception e) {
 			}
-    		} catch (Exception e) {
-    			throw new QwicsException(e);
-    		}
-    }
+		} catch (Exception e) {
+			throw new QwicsException(e);
+		}
+	}
 
 }
