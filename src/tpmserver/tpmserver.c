@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Main Tcp Connection Handler                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 14.02.2019                                  */
+/*   Author: Philipp Brune               Date: 09.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
 /*                                                                                         */
@@ -25,12 +25,23 @@
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <signal.h>
+#include <errno.h>
 
+#include "shm/shmtpm.h"
+#include "config.h"
 #include "cobexec.h"
+
+
+// Global shared memory area for all workers, as desclared in shmtpm.h
+int shmId;
+key_t shmKey;
+void *shmPtr;
 
 
 void *handle_client(void *fd) {
@@ -80,11 +91,16 @@ void *handle_client(void *fd) {
   return NULL;
 }
 
-void sig_handler(int signo)
+
+static void sig_handler(int signo)
 {
+    printf("Stopping QWICS tpmserver...\n");
     if (signo == SIGINT) {
-        clearExec();
+        clearExec(1);
+        shmdt(shmPtr);
+        shmctl(shmId,IPC_RMID,NULL);
     }
+    exit(0);
 }
 
 
@@ -92,6 +108,7 @@ int main(int argc, char **argv) {
   int parentfd; /* parent socket */
   int childfd; /* child socket */
   int portno; /* port to listen on */
+  int workers = 1; /* tpmserver processes started in parallel */
   int clientlen; /* byte size of client's address */
   struct sockaddr_in serveraddr; /* server's addr */
   struct sockaddr_in clientaddr; /* client addr */
@@ -102,11 +119,51 @@ int main(int argc, char **argv) {
   /*
    * check command line arguments
    */
+#ifndef _USE_ONLY_PROCESSES_
+  if ((argc < 2) || (argc > 3)) {
+    fprintf(stderr, "usage: %s <port> [<workers>]\n", argv[0]);
+    exit(1);
+  }
+  portno = atoi(argv[1]);
+  if (argc == 3) {
+    workers = atoi(argv[2]);
+  }
+  if (workers < 1) {
+    workers = 1;
+  }
+
+  int pid;
+  for (int i = 1; i < workers; i++) {
+      pid = fork();
+      if (pid == 0) {
+        portno = portno + i;
+        // Child procs quit loop;
+        break;
+      }
+  }
+  printf("%s %d %d\n","Started worker process: pid=",pid,portno);
+#else
   if (argc != 2) {
     fprintf(stderr, "usage: %s <port>\n", argv[0]);
     exit(1);
   }
   portno = atoi(argv[1]);
+#endif
+
+  // Init shared memory area
+  if ((shmKey = ftok(argv[0], SHM_ID)) == -1) {
+      fprintf(stderr, "Failed to make a key with file %s.\n", argv[1]);
+      return -1;
+  }
+  // printf("shm key=%x\n",shmKey);
+  if ((shmId = shmget(shmKey, SHM_SIZE, 0777 | IPC_CREAT | IPC_EXCL)) == -1) {
+      fprintf(stderr, "Failed to get shared memory segment. errno=%d %d %d %d\n",errno,ENOMEM,EACCES,EEXIST);
+      return -1;
+  }
+  else if ((shmPtr = shmat(shmId, NULL, 0)) == (void *) -1) {
+      fprintf(stderr, "Failed to attach shared memory segment.\n");
+      return -1;
+  }
 
   /*
    * socket: create the parent socket
@@ -157,21 +214,45 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  if (signal(SIGINT, sig_handler) == SIG_ERR) {
-    printf("%s\n","ERROR: Installing signal handler failed!");
-  }
-
-  initExec();
+  initExec(1);
   clientlen = sizeof(clientaddr);
+
+  // Set signal handler for SIGINT (proper shutdown of server)
+  struct sigaction a;
+  a.sa_handler = sig_handler;
+  a.sa_flags = 0;
+  sigemptyset( &a.sa_mask );
+  sigaction( SIGINT, &a, NULL );
 
   while (1) {
     childfd = accept(parentfd, (struct sockaddr *) &clientaddr, (socklen_t*)&clientlen);
+    if (childfd == -1) {
+      if (errno == EINTR) {
+        break;
+      }
+    }
     if (childfd >= 0) {
+#ifndef _USE_ONLY_PROCESSES_
       pthread_t p1;
       pthread_create (&p1, NULL, handle_client, &childfd);
+#else
+      int pid = fork();
+      if (pid == 0) {
+        // Child process
+        initExec(0);
+        handle_client((void*)&childfd);
+        clearExec(0);
+        shmdt(shmPtr);
+        return 0;
+      } else {
+        close(childfd);
+      }
+#endif
     }
   }
 
-  clearExec();
+  clearExec(1);
+  shmdt(shmPtr);
+  shmctl(shmId,IPC_RMID,NULL);
   return 0;
 }
