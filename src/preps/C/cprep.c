@@ -69,9 +69,9 @@ void DISPLAY(char *buf,char*cmdstr, char *varname, FILE *f) {
       sprintf(buf,"%s%d%s%s%s%s%s\n","cob_field f_",varcount," = {sizeof(",varname,"),(unsigned char*)&",varname,",&a_3};");
     } else {
       if (strcmp("dfheiptr->eibaid",varname) == 0) {
-        sprintf(buf,"%s%d%s%s%s%s%s\n","cob_field f_",varcount," = {sizeof(",varname,"),(unsigned char*)&",varname,",&a_4};");        
+        sprintf(buf,"%s%d%s%s%s%s%s\n","cob_field f_",varcount," = {sizeof(",varname,"),(unsigned char*)&",varname,",&a_4};");
       } else {
-        sprintf(buf,"%s%d%s%s%s%s%s\n","cob_field f_",varcount," = {strlen(",varname,"),(unsigned char*)&",varname,",&a_4};");
+        sprintf(buf,"%s%d%s%s%s%s%s\n","cob_field f_",varcount," = {strlen(",varname,"),(unsigned char*)",varname,",&a_4};");
       }
     }
     fputs(buf,f);
@@ -476,6 +476,8 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
 
                         if (lenOf == 1) {
                           sprintf(execbuf,"%s%s%s\n","QWICSLEN = strlen(",token,");");
+                          fputs(execbuf, (FILE*)fp2);
+                          sprintf(execbuf,"%s\n","QWICSLEN = COB_BSWAP_64(QWICSLEN);");
                           fputs(execbuf, (FILE*)fp2);
                           DISPLAY(execbuf,"","QWICSLEN",fp2);
                         } else {
