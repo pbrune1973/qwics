@@ -1,0 +1,8 @@
+#!/bin/bash
+
+../bin/cprep $1
+PROG=${1%.*}
+PROG=$(echo $PROG | tr a-z A-Z)
+cobc exec_$PROG.c
+mv exec_$PROG.dylib ../loadmod/$PROG.dylib
+

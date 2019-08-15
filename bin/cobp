@@ -1,0 +1,9 @@
+#!/bin/bash
+
+../bin/cobprep $1
+PROG=${1%.*}
+PROG=$(echo $PROG | tr a-z A-Z)
+cobc exec_$PROG.cob
+mv exec_$PROG.dylib ../loadmod/$PROG.dylib
+
+
