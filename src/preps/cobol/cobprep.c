@@ -345,6 +345,12 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
 
         if (execCmd == 1) {  // EXEC CICS
             if (buf[i] == '(') {
+                i++;
+                while (buf[i] == ' ') {
+                  i++;
+                }
+                i--;
+
                 if (tokenPos > 0) {
                     token[tokenPos] = 0x00;
                     if (strstr(token,"QIDERR") != NULL) {
@@ -426,11 +432,11 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                     if (strstr(token,"NOTFND") != NULL) {
                         isBranchLabel = 1;
                     }
-                    if (strstr(token,"RESP") != NULL) {
+                    if (strcmp(token,"RESP") == 0) {
                         isResponseParam = 1;
                         sprintf(respParam,"%s",token);
                     }
-                    if (strstr(token,"RESP2") != NULL) {
+                    if (strcmp(token,"RESP2") == 0) {
                         isResponseParam = 1;
                         sprintf(respParam,"%s",token);
                     }
@@ -586,6 +592,15 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                                 fputs(execbuf, (FILE*)fp2);
                             }
                         } else {
+                            while (buf[i] == ' ') {
+                              i++;
+                            }
+                            if (buf[i] == '(') {
+                              i--;
+                              continue;
+                            }
+                            i--;
+
                             if (strstr(token,"RECEIVE") != NULL) {
                                 mapCmd = 1;
                                 allowIntoParam = 1;
@@ -635,11 +650,11 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                             if (strstr(token,"XCTL") != NULL) {
                                 isXctl = 1;
                             }
-                            if (strstr(token,"RESP") != NULL) {
+                            if (strcmp(token,"RESP") == 0) {
                                 isResponseParam = 1;
                                 sprintf(respParam,"%s",token);
                             }
-                            if (strstr(token,"RESP2") != NULL) {
+                            if (strcmp(token,"RESP2") == 0) {
                                 isResponseParam = 1;
                                 sprintf(respParam,"%s",token);
                             }
