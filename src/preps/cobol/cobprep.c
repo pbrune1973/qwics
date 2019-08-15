@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 09.08.2019                                  */
+/*   Author: Philipp Brune               Date: 15.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -774,7 +774,19 @@ int main(int argc, char **argv) {
 	    return -1;
    }
 
-   sprintf(oname,"%s%s","exec_",argv[1]);
+   char *progname = argv[1];
+   int i,l = strlen(progname);
+   if (l > 8) l = 8;
+   for (i = 0; i < l; i++) {
+     if (progname[i] == '.') {
+       progname[i] = 0x00;
+       break;
+     }
+     progname[i] = toupper(progname[i]);
+   }
+   progname[i] = 0x00;
+
+   sprintf(oname,"%s%s%s","exec_",progname,".cob");
    fp2 = fopen(oname,"w");
    if (fp2 == NULL) {
         printf("%s%s\n","Could not create output file: ",oname);
