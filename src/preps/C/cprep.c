@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server C langauge Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 15.08.2019                                  */
+/*   Author: Philipp Brune               Date: 16.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -64,9 +64,13 @@ void DISPLAY(char *buf,char*cmdstr, char *varname, FILE *f) {
   varcount++;
   if (varname != NULL) {
     if (varType == 1) {
-      sprintf(buf,"%s%d%s%s%s%s%s\n","cob_field f_",varcount," = {sizeof(",varname,"),(unsigned char*)&",varname,",&a_6};");
+      sprintf(buf,"%s%d%s%s%s\n","long b_",varcount," = COB_BSWAP_64(",varname,");");
+      fputs(buf, (FILE*)f);
+      sprintf(buf,"%s%d%s%d%s%d%s\n","cob_field f_",varcount," = {sizeof(b_",varcount,"),(unsigned char*)&b_",varcount,",&a_6};");
     } else if (varType == 2) {
-      sprintf(buf,"%s%d%s%s%s%s%s\n","cob_field f_",varcount," = {sizeof(",varname,"),(unsigned char*)&",varname,",&a_3};");
+      sprintf(buf,"%s%d%s%s%s\n","int b_",varcount," = COB_BSWAP_32(",varname,");");
+      fputs(buf, (FILE*)f);
+      sprintf(buf,"%s%d%s%d%s%d%s\n","cob_field f_",varcount," = {sizeof(b_",varcount,"),(unsigned char*)&b_",varcount,",&a_3};");
     } else {
       if (strcmp("dfheiptr->eibaid",varname) == 0) {
         sprintf(buf,"%s%d%s%s%s%s%s\n","cob_field f_",varcount," = {sizeof(",varname,"),(unsigned char*)&",varname,",&a_4};");
