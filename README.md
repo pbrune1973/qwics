@@ -24,7 +24,7 @@ PRE-REQUISITES:
 
 This software has been written and tested under Linux (for S390/z Systems mainframes and x86)!
 
-1. Download and extract a copy of the [GnuCOBOL](https://www.gnu.org/software/gnucobol/) sources in its newest release. Modify the following lines the in the file termio.c in the subdirectory libcob/ (preferably, search for the beginning of the function `cob_display(...)` and modify and extend it accordingly):
+1. Download and extract a copy of the [GnuCOBOL](https://www.gnu.org/software/gnucobol/) sources in its newest release. Modify the following lines the in the file termio.c in the subdirectory libcob/ (preferably, search for the beginning of the function `cob_display(...)` in the file termio.c in the libcob source directory and modify and extend it accordingly):
 
 ```c
 int (*performEXEC)(char*, void*) = NULL;
@@ -65,6 +65,28 @@ cob_display (const int to_stderr,
 // END OF EXEC HANDLER
 ```
 
+In addition, edit the file call.c in the libcob source directory, search for the beginning of the function `cob_resolve_cobol(...)` and modify and extend it as follows:
+
+```c
+// BEGIN OF CALL HANDLER
+void* (*resolveCALL)(char*) = NULL;
+// END OF CALL HANDLER
+
+void *
+cob_resolve_cobol (const char *name, const int fold_case, const int errind)
+{
+        void    *p;
+        char    *entry;
+        char    *dirent;
+
+// BEGIN OF CALL HANDLER
+        p = resolveCALL(name);
+        if (p != NULL) {
+           return p;
+        }
+// END OF CALL HANDLER
+```
+
 2. Afterwards, build and install GnuCOBOL according to its documentation.
 
 3. Download and install a copy of PostgreSQL database including its C client lib
@@ -92,7 +114,7 @@ make
 
 3. The Java sources of the QWICS JDBC driver and the demo Java EE Web App are provided as Eclipse IDE projects in the subdirectory workspace. Please import the projects in your own workspace (using menu items "Import... --> Existing projects into workspace"). Please see http://www.eclipse.org for further information on Eclipse.
 
-4. Download a Java EE-compliant application server and (e.g. JBoss WildFly, see http://wildfly.org) and deploy the JDBC driver with a XA datasource and the Web appliaction there.
+4. Download a Java EE-compliant application server and (e.g. JBoss WildFly, see http://wildfly.org) and deploy the JDBC driver with a XA datasource and the Web application there.
 
 
 USING QWICS
