@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 15.08.2019                                  */
+/*   Author: Philipp Brune               Date: 28.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -46,15 +46,24 @@ int commAreaPresent = 0;
 int allowIntoParam = 0;
 int allowFromParam = 0;
 int inLinkageSection = 0;
+int execCmd = 0;
+int inProcDivision = 0;
+int startProcDivision = 0;
+int linkageSectionPresent = 0;
+int wstorageSectionPresent = 0;
+int execSQLCnt = 0;
 
 
 struct linkageVarDef {
     char name[33];
     int isGroup;
     int level;
-} linkageVars[255];
+} linkageVars[2048];
 
 int numOfLinkageVars = 0;
+char *cbkPath = "../copybooks";
+FILE *declareTmpFile = NULL;
+char declareName[255] = "";
 
 
 void parseLinkageVarDef(char *line) {
@@ -71,7 +80,11 @@ void parseLinkageVarDef(char *line) {
             i++;
         }
         lbuf[i] = 0x00;
-        linkageVars[numOfLinkageVars].level = atoi(lbuf);
+        int level = atoi(lbuf);
+        if ((level < 1) || ((level > 49) && (level != 77))) {
+          return;
+        }
+        linkageVars[numOfLinkageVars].level = level;
 
         if (numOfLinkageVars > 0) {
             if (linkageVars[numOfLinkageVars].level > linkageVars[numOfLinkageVars-1].level) {
@@ -82,14 +95,15 @@ void parseLinkageVarDef(char *line) {
         while ((line[pos] == ' ') && (pos < len)) pos++;
 
         i = 0;
-        while ((line[pos] != ' ') && (line[pos] != '.') && (pos < len) && (i < 32)) {
+        while ((line[pos] != ' ') && (line[pos] != '.') && (line[pos] != '\r') && (line[pos] != '\n')
+                && (pos < len) && (i < 32)) {
             linkageVars[numOfLinkageVars].name[i] = line[pos];
             pos++;
             i++;
         }
         linkageVars[numOfLinkageVars].name[i] = 0x00;
         linkageVars[numOfLinkageVars].isGroup = 0;
-        if ((i > 0) && (!strstr(linkageVars[numOfLinkageVars].name,"filler"))) {
+        if ((i > 0) && (!strstr(linkageVars[numOfLinkageVars].name,"FILLER"))) {
             if (strcmp(linkageVars[numOfLinkageVars].name,"DFHCOMMAREA") == 0) {
                 commAreaPresent = 1;
             }
@@ -99,26 +113,77 @@ void parseLinkageVarDef(char *line) {
 }
 
 
-// Load and insert copybook content
-int includeCbk(char *copybook, FILE *outFile) {
-    char path[255];
-    sprintf(path,"%s%s%s","../copybooks/",copybook,".cpy");
-    FILE *cbk = fopen(path, "r");
-    if (cbk == NULL) {
-        printf("%s%s%s\n","Info: Copybook file not found: ",path," - Looking for I/O suffix files.");
+void processLine(char *buf, FILE *fp2);
+
+
+// Insert declares temp file for db cursors etc. declared not in proc division
+int includeDeclares(FILE *outFile) {
+    FILE *df = fopen("declare.tmp", "r");
+    if (df == NULL) {
+        printf("%s\n","Info: Declare tmp file not found.");
         return -1;
     }
 
     char line[255];
-    int inExec = 0;
+    while (fgets(line, 255, (FILE*)df) != NULL) {
+      fputs(line,outFile);
+    }
+
+    fputs("\n",outFile);
+    fclose(df);
+    unlink("declare.tmp");
+    return 1;
+}
+
+
+// Look for copybook file in different locations given by cbkPath
+FILE *openCbkFile(char *copybook, char *suffix) {
+    char path[255];
+    char strbuf[255];
+    FILE *cbk = NULL;
+    int pathPos = 0;
+    int len = strlen(cbkPath);
+    while ((cbk == NULL) && (pathPos < len)) {
+      int i = pathPos,j = 0;
+      while ((cbkPath[i] != ':') && (cbkPath[i] != 0x00) && (i < len)) {
+        strbuf[j] = cbkPath[i];
+        i++;
+        j++;
+      }
+      strbuf[j] = 0x00;
+      sprintf(path,"%s%s%s%s",strbuf,"/",copybook,suffix);
+      cbk = fopen(path, "r");
+      pathPos = i+1;
+    }
+    return cbk;
+}
+
+
+// Load and insert copybook content
+int includeCbk(char *copybook, FILE *outFile) {
+    FILE *cbk = openCbkFile(copybook,".cpy");
+    if (cbk == NULL) {
+        printf("%s%s%s\n","Info: Copybook file not found: ",copybook," - Looking for I/O suffix files.");
+        return -1;
+    }
+
+    char line[255];
+//    int inExec = 0;
+    sprintf(line,"%s%s%s\n","************ copybook - ",copybook," added");
+    fputs(line,outFile);
+
     while (fgets(line, 255, (FILE*)cbk) != NULL) {
         if (strstr(line,"SQLCODE")) {
             sqlca = 1;
         }
+
         if (!eibPresent && strstr(line,"EIBCALEN")) {
             eibPresent = 1;
         }
+
+        processLine(line,outFile);
         // Avoid inserting other EXEC-Macros
+        /*
         if (!inExec && strstr(line,"EXEC")) {
             inExec = 1;
         }
@@ -131,19 +196,19 @@ int includeCbk(char *copybook, FILE *outFile) {
         if (inExec && strstr(line,"END-EXEC")) {
             inExec = 0;
         }
+        */
     }
 
+    fputs("\n",outFile);
     fclose(cbk);
     return 1;
 }
 
 
 int includeCbkIO(char *copybook, FILE *outFile) {
-    char path[255];
-    sprintf(path,"%s%s%s","../copybooks/",copybook,"I.cpy");
-    FILE *cbk = fopen(path, "r");
+    FILE *cbk = openCbkFile(copybook,"I.cpy");
     if (cbk == NULL) {
-        printf("%s%s\n","Copybook file not found: ",path);
+        printf("%s%s\n","Copybook file not found: ",copybook);
         return -1;
     }
 
@@ -152,12 +217,12 @@ int includeCbkIO(char *copybook, FILE *outFile) {
         fputs(line,outFile);
     }
 
+    fputs("\n",outFile);
     fclose(cbk);
 
-    sprintf(path,"%s%s%s","../copybooks/",copybook,"O.cpy");
-    cbk = fopen(path, "r");
+    cbk = openCbkFile(copybook,"O.cpy");
     if (cbk == NULL) {
-        printf("%s%s\n","Copybook file not found: ",path);
+        printf("%s%s\n","Copybook file not found: ",copybook);
         return -1;
     }
 
@@ -165,6 +230,7 @@ int includeCbkIO(char *copybook, FILE *outFile) {
         fputs(line,outFile);
     }
 
+    fputs("\n",outFile);
     fclose(cbk);
 
     if (numOfLCopybooks < 20) {
@@ -179,10 +245,9 @@ int includeCbkL(FILE *outFile) {
     char path[255];
     int i;
     for (i = 0; i < numOfLCopybooks; i++) {
-        sprintf(path,"%s%s%s","../copybooks/",lcopybookNames[i],"L.cpy");
-        FILE *cbk = fopen(path, "r");
+        FILE *cbk = openCbkFile(lcopybookNames[i],"L.cpy");
         if (cbk == NULL) {
-            printf("%s%s\n","Copybook file not found: ",path);
+            printf("%s%s\n","Copybook file not found: ",lcopybookNames[i]);
             continue;
         }
 
@@ -192,6 +257,7 @@ int includeCbkL(FILE *outFile) {
             parseLinkageVarDef(line);
         }
 
+        fputs("\n",outFile);
         fclose(cbk);
     }
 
@@ -200,15 +266,14 @@ int includeCbkL(FILE *outFile) {
 
 
 int includeMapDisplays(char *mapset, char *map, FILE *outFile, int input) {
-    char path[255];
+    FILE *cbk = NULL;
     if (input) {
-        sprintf(path,"%s%s%s","../copybooks/",mapset,"I.dsp");
+        cbk = openCbkFile(mapset,"I.dsp");
     } else {
-        sprintf(path,"%s%s%s","../copybooks/",mapset,"O.dsp");
+        cbk = openCbkFile(mapset,"O.dsp");
     }
-    FILE *cbk = fopen(path, "r");
     if (cbk == NULL) {
-        printf("%s%s\n","Copybook file not found: ",path);
+        printf("%s%s\n","Copybook file not found: ",mapset);
         return -1;
     }
 
@@ -230,19 +295,24 @@ int includeMapDisplays(char *mapset, char *map, FILE *outFile, int input) {
         }
     }
 
+    fputs("\n",outFile);
     fclose(cbk);
     return 1;
 }
 
 
-// Process EXEC ... END-EXEC statement line in the data division
-void processDataExecLine(char *buf, FILE *fp2) {
+// Process include/coy line
+void processCopyLine(char *buf, FILE *fp2) {
     char execbuf[255];
     int i,m = strlen(buf);
     char token[255];
     int tokenPos = 0;
     int include = 0;
-    for (i = 0; i < m; i++) {
+    if (m > 72) {
+      // Ignore reserved characters
+      m = 72;
+    }
+    for (i = 7; i < m; i++) {
         if ((buf[i] == ' ') || (buf[i] == '\n') ||
             (buf[i] == '\r') || (buf[i] == '.') ||
             (buf[i] == ',')) {
@@ -286,20 +356,29 @@ char *getExecTerminator(int quotes) {
 
 
 // Process EXEC ... END-EXEC statement line in the procedure division
-void processExecLine(int execCmd, char *buf, FILE *fp2) {
+void processExecLine(char *buf, FILE *fp2) {
     char execbuf[255];
     int i,m = strlen(buf);
     char token[255];
     int tokenPos = 0;
     int value = 0;
     int verbatim = 0;
-    for (i = 0; i < m; i++) {
+    if (m > 72) {
+      // Ignore reserved characters
+      m = 72;
+    }
+    for (i = 7; i < m; i++) {
         if ((buf[i] == '\'') && !verbatim) {
             if (tokenPos > 0) {
                 token[tokenPos] = 0x00;
                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
                         token,getExecTerminator(1));
-                fputs(execbuf, (FILE*)fp2);
+                if ((execCmd == 1) || ((execCmd == 2) && (execSQLCnt == 3))) {
+                  fputs(execbuf, (FILE*)fp2);
+                }
+                if (!inProcDivision && (execCmd == 2) && (execSQLCnt == 4)) {
+                  fputs(execbuf, (FILE*)declareTmpFile);
+                }
                 tokenPos = 0;
             }
             verbatim = 1;
@@ -314,14 +393,24 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
             if (mapNameMode == 0) {
                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
                         token,getExecTerminator(1));
-                fputs(execbuf, (FILE*)fp2);
+                if ((execCmd == 1) || ((execCmd == 2) && (execSQLCnt == 3))) {
+                  fputs(execbuf, (FILE*)fp2);
+                }
+                if (!inProcDivision && (execCmd == 2) && (execSQLCnt == 4)) {
+                  fputs(execbuf, (FILE*)declareTmpFile);
+                }
             }
             if (mapNameMode == 1) {
                 token[strlen(token)-1] = 0x00;
                 sprintf(mapName,"%s",token+1);
                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:MAP=",
                         mapName,getExecTerminator(1));
-                fputs(execbuf, (FILE*)fp2);
+                if ((execCmd == 1) || ((execCmd == 2) && (execSQLCnt == 3))) {
+                  fputs(execbuf, (FILE*)fp2);
+                }
+                if (!inProcDivision && (execCmd == 2) && (execSQLCnt == 4)) {
+                  fputs(execbuf, (FILE*)declareTmpFile);
+                }
                 mapNameMode = 0;
             }
             if (mapNameMode == 2) {
@@ -330,7 +419,12 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                 mapNameMode = 0;
                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:MAPSET=",
                         mapsetName,getExecTerminator(1));
-                fputs(execbuf, (FILE*)fp2);
+                if ((execCmd == 1) || ((execCmd == 2) && (execSQLCnt == 3))) {
+                  fputs(execbuf, (FILE*)fp2);
+                }
+                if (!inProcDivision && (execCmd == 2) && (execSQLCnt == 4)) {
+                  fputs(execbuf, (FILE*)declareTmpFile);
+                }
                 includeMapDisplays(mapsetName,mapName,(FILE*)fp2,mapCmd);
             }
             tokenPos = 0;
@@ -679,7 +773,12 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                     token[tokenPos] = 0x00;
                     sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
                             token,getExecTerminator(1));
-                    fputs(execbuf, (FILE*)fp2);
+                    if (inProcDivision && (execSQLCnt == 3)) {
+                        fputs(execbuf, (FILE*)fp2);
+                    }
+                    if (!inProcDivision && (execSQLCnt == 4)) {
+                        fputs(execbuf, (FILE*)declareTmpFile);
+                    }
                     tokenPos = 0;
                 }
                 value = 1;
@@ -688,14 +787,91 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                     (buf[i] == '\r')) {
                     if (tokenPos > 0) {
                         token[tokenPos] = 0x00;
-                        if (value == 1) {
-                            sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
-                                    token,getExecTerminator(0));
-                        } else {
-                            sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
-                                    token,getExecTerminator(1));
+                        if (execSQLCnt == 98) {
+                          if (strcmp("CURSOR",token) == 0) {
+                            if (!inProcDivision) {
+                              execSQLCnt = 4;
+                              sprintf(execbuf,"%s%s\n","           DISPLAY \"TPMI:EXEC\"",getExecTerminator(0));
+                              fputs(execbuf, (FILE*)declareTmpFile);
+                              sprintf(execbuf,"%s%s\n","           DISPLAY \"TPMI:SQL\"",getExecTerminator(0));
+                              fputs(execbuf, (FILE*)declareTmpFile);
+                              sprintf(execbuf,"%s%s\n","           DISPLAY \"TPMI:DECLARE\"",getExecTerminator(0));
+                              fputs(execbuf, (FILE*)declareTmpFile);
+                              sprintf(execbuf,"%s%s%s%s\n","           DISPLAY \"TPMI:",declareName,"\"",getExecTerminator(0));
+                              fputs(execbuf, (FILE*)declareTmpFile);
+                            } else {
+                              execSQLCnt = 3;
+                              sprintf(execbuf,"%s%s\n","           DISPLAY \"TPMI:EXEC\"",getExecTerminator(0));
+                              fputs(execbuf, (FILE*)fp2);
+                              sprintf(execbuf,"%s%s\n","           DISPLAY \"TPMI:SQL\"",getExecTerminator(0));
+                              fputs(execbuf, (FILE*)fp2);
+                              sprintf(execbuf,"%s%s\n","           DISPLAY \"TPMI:DECLARE\"",getExecTerminator(0));
+                              fputs(execbuf, (FILE*)fp2);
+                              sprintf(execbuf,"%s%s%s%s\n","           DISPLAY \"TPMI:",declareName,"\"",getExecTerminator(0));
+                              fputs(execbuf, (FILE*)fp2);
+                            }
+                          } else {
+                              if (strlen(declareName) == 0) {
+                                sprintf(declareName,"%s",token);
+                              }
+                          }
                         }
-                        fputs(execbuf, (FILE*)fp2);
+                        if (execSQLCnt == 2) {
+                          if (strcmp("INCLUDE",token) == 0) {
+                            execCmd = 0;
+                            processCopyLine(buf,fp2);
+                            execCmd = 2;
+                            execSQLCnt = 99;
+                          } else
+                          if (strcmp("DECLARE",token) == 0) {
+                            execSQLCnt = 98;
+                            declareName[0] = 0x00;
+                          } else
+                          if (strcmp("BEGIN",token) == 0) {
+                            execSQLCnt = 99;
+                          } else
+                          if (strcmp("END",token) == 0) {
+                            execSQLCnt = 99;
+                          } else {
+                            sprintf(execbuf,"%s%s\n","           DISPLAY \"TPMI:EXEC\"",getExecTerminator(0));
+                            if (inProcDivision) {
+                              fputs(execbuf, (FILE*)fp2);
+                            }
+                            sprintf(execbuf,"%s%s\n","           DISPLAY \"TPMI:SQL\"",getExecTerminator(0));
+                            if (inProcDivision) {
+                              fputs(execbuf, (FILE*)fp2);
+                            }
+                            execSQLCnt++;
+                          }
+                        }
+                        if (execSQLCnt == 3) {
+                            if (value == 1) {
+                                sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
+                                        token,getExecTerminator(0));
+                            } else {
+                                sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
+                                        token,getExecTerminator(1));
+                            }
+                            if (inProcDivision) {
+                              fputs(execbuf, (FILE*)fp2);
+                            }
+                        }
+                        if (execSQLCnt == 4) {
+                            if (value == 1) {
+                                sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
+                                        token,getExecTerminator(0));
+                            } else {
+                                sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
+                                        token,getExecTerminator(1));
+                            }
+                            fputs(execbuf, (FILE*)declareTmpFile);
+                        }
+                        if (strcmp("EXEC",token) == 0) {
+                          execSQLCnt++;
+                        }
+                        if (strcmp("SQL",token) == 0) {
+                          execSQLCnt++;
+                        }
                         tokenPos = 0;
                     }
                     value = 0;
@@ -711,7 +887,12 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
                                         token,getExecTerminator(1));
                             }
-                            fputs(execbuf, (FILE*)fp2);
+                            if (inProcDivision) {
+                              fputs(execbuf, (FILE*)fp2);
+                            }
+                            if (!inProcDivision && (execSQLCnt == 4)) {
+                                fputs(execbuf, (FILE*)declareTmpFile);
+                            }
                             tokenPos = 0;
                         }
                         value = 0;
@@ -719,7 +900,12 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
                         token[1] = 0x00;
                         sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
                                 token,getExecTerminator(1));
-                        fputs(execbuf, (FILE*)fp2);
+                        if (inProcDivision) {
+                          fputs(execbuf, (FILE*)fp2);
+                        }
+                        if (!inProcDivision && (execSQLCnt == 4)) {
+                            fputs(execbuf, (FILE*)declareTmpFile);
+                        }
                     } else {
                         token[tokenPos] = buf[i];
                         tokenPos++;
@@ -733,8 +919,11 @@ void processExecLine(int execCmd, char *buf, FILE *fp2) {
 
 int hasDotTerminator(char *buf) {
     int l = strlen(buf);
+    if (l > 72) {
+      l = 72;
+    }
     int i = l-1;
-    while ((buf[i] == ' ') || (buf[i] == 10) || (buf[i] == 13)) {
+    while ((i > 7) && ((buf[i] == ' ') || (buf[i] == 10) || (buf[i] == 13))) {
         i--;
     }
     if (buf[i] == '.') {
@@ -746,14 +935,232 @@ int hasDotTerminator(char *buf) {
 
 int isEmptyLine(char *buf) {
     int l = strlen(buf);
+    if (l > 72) {
+      l = 72;
+    }
     int i = l-1;
-    while ((i > 0) && ((buf[i] == ' ') || (buf[i] == 10) || (buf[i] == 13))) {
+    while ((i > 7) && ((buf[i] == ' ') || (buf[i] == 10) || (buf[i] == 13))) {
         i--;
     }
-    if (i <= 0)
+    if (i <= 7)
         return 1;
 
     return 0;
+}
+
+
+void processLine(char *buf, FILE *fp2) {
+  // Handle comments
+  if (buf[6] == '*') {
+    fputs(buf,(FILE*)fp2);
+    return;
+  }
+
+  // Turn everything to caps
+  int verb = 0;
+  for (int i = 0; i < strlen(buf); i++) {
+    if ((verb == 1) && (buf[i] == '\'')) {
+        verb = 0;
+    }
+    if ((verb == 2) && (buf[i] == '"')) {
+        verb = 0;
+    }
+    if ((verb == 0) && (buf[i] == '\'')) {
+        verb = 1;
+    }
+    if ((verb == 0) && (buf[i] == '"')) {
+        verb = 2;
+    }
+    if (verb == 0) {
+       buf[i] = toupper(buf[i]);
+    }
+  }
+
+  if (strstr(buf,"PROCEDURE DIVISION") != NULL) {
+       fclose(declareTmpFile);
+
+       inLinkageSection = 0;
+       inProcDivision = 1;
+       startProcDivision = 1;
+
+       if (!linkageSectionPresent) {
+           if (!wstorageSectionPresent) {
+             fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
+             fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
+             fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
+             fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
+             fputs("       77  DFHRESP-NORMAL PIC S9(8) COMP VALUE 0.\n",(FILE*)fp2);
+             fputs("       77  DFHRESP-INVREQ PIC S9(8) COMP VALUE 16.\n",(FILE*)fp2);
+             fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
+             fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
+           }
+           fputs("       LINKAGE SECTION.\n",(FILE*)fp2);
+           inLinkageSection = 1;
+           if (!eibPresent) {
+               includeCbk("DFHEIBLK",(FILE*)fp2);
+           }
+           includeCbkL((FILE*)fp2);
+           inLinkageSection = 0;
+       }
+       if (!commAreaPresent) {
+           fputs("       01  DFHCOMMAREA PIC X.\n",(FILE*)fp2);
+       }
+       sprintf(&buf[25],"%s"," USING DFHCOMMAREA");
+       fputs(buf,(FILE*)fp2);
+       int n = 0;
+       for (n = 0; n < numOfLinkageVars; n++) {
+           if (((linkageVars[n].level == 1) || (linkageVars[n].level > 49))
+               && (strcmp(linkageVars[n].name,"DFHCOMMAREA") != 0)) {
+               // Top level or elementary variable
+               fputs(",\n",(FILE*)fp2);
+               sprintf(buf,"%s%s","      -     ",linkageVars[n].name);
+               fputs(buf,(FILE*)fp2);
+           }
+       }
+       fputs(".\n",(FILE*)fp2);
+       buf[0] = 0x00;
+       linkageSectionPresent = 0;
+  }
+
+  if (execCmd == 0) {
+      char *cmd = strstr(buf,"EXEC");
+      if ((cmd != NULL) && strstr(buf,"CICS")) {
+          allowIntoParam = 0;
+          allowFromParam = 0;
+          execCmd = 1;
+          isReturn = 0;
+          isXctl = 0;
+          execSQLCnt = 0;
+      }
+      if ((cmd != NULL) && strstr(buf,"SQL")) {
+          allowIntoParam = 0;
+          allowFromParam = 0;
+          execCmd = 2;
+          execSQLCnt = 0;
+      }
+  }
+
+  if (execCmd == 0) {
+      if (strstr(buf,"  COPY ") != NULL) {
+          processCopyLine(buf,fp2);
+      } else {
+          if (strstr(buf,"LINKAGE SECTION") != NULL) {
+            if (!wstorageSectionPresent) {
+              fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
+              fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
+              fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
+              fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
+              fputs("       77  DFHRESP-NORMAL PIC S9(8) COMP VALUE 0.\n",(FILE*)fp2);
+              fputs("       77  DFHRESP-INVREQ PIC S9(8) COMP VALUE 16.\n",(FILE*)fp2);
+              fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
+              fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
+            }
+          }
+
+          char *f = strstr(buf,"DFHRESP");
+          if (f != NULL) {
+            f[7] = '-';
+            int i = 8;
+            while ((f[i] != ')') && (f[i] != 0x00)) {
+              i++;
+            }
+            if (f[i] == ')') {
+              f[i] = ' ';
+            }
+          }
+          fputs(buf,(FILE*)fp2);
+
+          if (linkageSectionPresent) {
+              parseLinkageVarDef(buf);
+          }
+
+          if (startProcDivision) {
+              if (sqlca) {
+                  char buf[80];
+                  sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET SQLCODE\" ",
+                         "SQLCODE",getExecTerminator(0));
+                  fputs(buf,(FILE*)fp2);
+              }
+              sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET DFHEIBLK\" ",
+                      "DFHEIBLK",getExecTerminator(0));
+              fputs(buf,(FILE*)fp2);
+              sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET EIBCALEN\" ",
+                      "EIBCALEN",getExecTerminator(0));
+              fputs(buf,(FILE*)fp2);
+              sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET EIBAID\" ",
+                      "EIBAID",getExecTerminator(0));
+              fputs(buf,(FILE*)fp2);
+
+              int n = 0;
+              for (n = 0; n < numOfLinkageVars; n++) {
+                  if (linkageVars[n].isGroup) {
+                      sprintf(buf,"%s%d%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL1 ",
+                              linkageVars[n].level," ",
+                              linkageVars[n].name,"\" \n",
+                              "      -     ",linkageVars[n].name,getExecTerminator(0));
+                  } else {
+                      sprintf(buf,"%s%d%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL0 ",
+                              linkageVars[n].level," ",
+                              linkageVars[n].name,"\" \n",
+                              "      -     ",linkageVars[n].name,getExecTerminator(0));
+                  }
+                  fputs(buf,(FILE*)fp2);
+              }
+
+              includeDeclares((FILE*)fp2);
+              startProcDivision = 0;
+          }
+
+          if (inProcDivision) {
+               if (!isEmptyLine(buf)) {
+                   if ((buf[6] != '*') && hasDotTerminator(buf)) {
+                       outputDot = 1;
+                   } else {
+                       outputDot = 0;
+                   }
+               }
+          }
+      }
+  } else {
+      processExecLine(buf,fp2);
+
+      char *cmd = strstr(buf,"END-EXEC");
+      if (cmd != NULL) {
+          execCmd = 0;
+          if (hasDotTerminator(buf)) {
+              outputDot = 1;
+          } else {
+              outputDot = 0;
+          }
+          if (isReturn || isXctl) {
+              char gb[30];
+              sprintf(gb,"%s%s\n","           GOBACK",getExecTerminator(0));
+              fputs(gb,(FILE*)fp2);
+              isReturn = 0;
+              isXctl = 0;
+          }
+      }
+  }
+
+  if (strstr(buf,"LINKAGE SECTION") != NULL) {
+       inLinkageSection = 1;
+       linkageSectionPresent = 1;
+       if (!eibPresent) {
+           includeCbk("DFHEIBLK",(FILE*)fp2);
+       }
+       includeCbkL((FILE*)fp2);
+  }
+
+  if (strstr(buf,"WORKING-STORAGE SECTION") != NULL) {
+       wstorageSectionPresent = 1;
+       fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
+       fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
+       fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
+       fputs("       77  DFHRESP-NORMAL PIC S9(8) COMP VALUE 0.\n",(FILE*)fp2);
+       fputs("       77  DFHRESP-INVREQ PIC S9(8) COMP VALUE 16.\n",(FILE*)fp2);
+       fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
+       fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
+  }
 }
 
 
@@ -774,6 +1181,18 @@ int main(int argc, char **argv) {
 	    return -1;
    }
 
+   declareTmpFile = fopen("declare.tmp", "w");
+   if (declareTmpFile == NULL) {
+	    printf("%s\n","Could not write declare tmp file.");
+	    return -1;
+   }
+
+   char *p = getenv("QWICS_CBKPATH");
+   if (p != NULL) {
+     cbkPath = p;
+   }
+   printf("%s%s\n","Searching for copybooks in ",cbkPath);
+
    char *progname = argv[1];
    int i,l = strlen(progname);
    if (l > 8) l = 8;
@@ -793,194 +1212,11 @@ int main(int argc, char **argv) {
         return -1;
    }
 
-   int execCmd = 0;
-   int inProcDivision = 0;
-   int startProcDivision = 0;
-   int linkageSectionPresent = 0;
-   int wstorageSectionPresent = 0;
-
    while (fgets(buf, 255, (FILE*)fp) != NULL) {
-       // Handle comments
-       if (buf[6] == '*') {
-         fputs(buf,(FILE*)fp2);
-         continue;
-       }
-       // Turn everything to caps
-       int verb = 0;
-       for (int i = 0; i < strlen(buf); i++) {
-         if ((verb == 1) && (buf[i] == '\'')) {
-             verb = 0;
-         }
-         if ((verb == 2) && (buf[i] == '"')) {
-             verb = 0;
-         }
-         if ((verb == 0) && (buf[i] == '\'')) {
-             verb = 1;
-         }
-         if ((verb == 0) && (buf[i] == '"')) {
-             verb = 2;
-         }
-         if (verb == 0) {
-            buf[i] = toupper(buf[i]);
-         }
-       }
+      processLine(buf,fp2);
+   }
 
-       if (strstr(buf,"PROCEDURE DIVISION") != NULL) {
-            inLinkageSection = 0;
-            inProcDivision = 1;
-            startProcDivision = 1;
-
-            if (!linkageSectionPresent) {
-                if (!wstorageSectionPresent) {
-                  fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
-                  fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
-                  fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
-                  fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
-                }
-                fputs("       LINKAGE SECTION.\n",(FILE*)fp2);
-                inLinkageSection = 1;
-                if (!eibPresent) {
-                    includeCbk("DFHEIBLK",(FILE*)fp2);
-                }
-                includeCbkL((FILE*)fp2);
-                inLinkageSection = 0;
-            }
-            if (!commAreaPresent) {
-                fputs("       01  DFHCOMMAREA PIC X.\n",(FILE*)fp2);
-            }
-            sprintf(&buf[25],"%s"," USING DFHCOMMAREA");
-            fputs(buf,(FILE*)fp2);
-            int n = 0;
-            for (n = 0; n < numOfLinkageVars; n++) {
-                if (((linkageVars[n].level == 1) || (linkageVars[n].level > 49))
-                    && (strcmp(linkageVars[n].name,"DFHCOMMAREA") != 0)) {
-                    // Top level or elementary variable
-                    fputs(",\n",(FILE*)fp2);
-                    sprintf(buf,"%s%s","      -     ",linkageVars[n].name);
-                    fputs(buf,(FILE*)fp2);
-                }
-            }
-            fputs(".\n",(FILE*)fp2);
-            buf[0] = 0x00;
-            linkageSectionPresent = 0;
-       }
-
-       if (execCmd == 0) {
-           char *cmd = strstr(buf,"EXEC");
-           if ((cmd != NULL) && strstr(buf,"CICS")) {
-               allowIntoParam = 0;
-               allowFromParam = 0;
-               execCmd = 1;
-               isReturn = 0;
-               isXctl = 0;
-           }
-           if ((cmd != NULL) && strstr(buf,"SQL")) {
-               allowIntoParam = 0;
-               allowFromParam = 0;
-               execCmd = 2;
-           }
-       }
-
-       if (execCmd == 0) {
-           if (!inProcDivision && (strstr(buf,"  COPY ") != NULL)) {
-               processDataExecLine(buf,fp2);
-           } else {
-               if (strstr(buf,"LINKAGE SECTION") != NULL) {
-                 if (!wstorageSectionPresent) {
-                   fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
-                   fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
-                   fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
-                   fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
-                 }
-               }
-               fputs(buf,(FILE*)fp2);
-               if (linkageSectionPresent) {
-                   parseLinkageVarDef(buf);
-               }
-               if (startProcDivision) {
-                   if (sqlca) {
-                       char buf[80];
-                       sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET SQLCODE\" ",
-                              "SQLCODE",getExecTerminator(0));
-                       fputs(buf,(FILE*)fp2);
-                   }
-                   sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET DFHEIBLK\" ",
-                           "DFHEIBLK",getExecTerminator(0));
-                   fputs(buf,(FILE*)fp2);
-                   sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET EIBCALEN\" ",
-                           "EIBCALEN",getExecTerminator(0));
-                   fputs(buf,(FILE*)fp2);
-                   sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET EIBAID\" ",
-                           "EIBAID",getExecTerminator(0));
-                   fputs(buf,(FILE*)fp2);
-
-                   int n = 0;
-                   for (n = 0; n < numOfLinkageVars; n++) {
-                       if (linkageVars[n].isGroup) {
-                           sprintf(buf,"%s%d%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL1 ",
-                                   linkageVars[n].level," ",
-                                   linkageVars[n].name,"\" ",linkageVars[n].name,getExecTerminator(0));
-                       } else {
-                           sprintf(buf,"%s%d%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL0 ",
-                                   linkageVars[n].level," ",
-                                   linkageVars[n].name,"\" ",linkageVars[n].name,getExecTerminator(0));
-                       }
-                       fputs(buf,(FILE*)fp2);
-                   }
-
-                   startProcDivision = 0;
-               }
-           }
-           if (inProcDivision) {
-                if (!isEmptyLine(buf)) {
-                    if ((buf[6] != '*') && hasDotTerminator(buf)) {
-                        outputDot = 1;
-                    } else {
-                        outputDot = 0;
-                    }
-                }
-           }
-       } else {
-           if (inProcDivision) {
-               processExecLine(execCmd,buf,fp2);
-           } else {
-               processDataExecLine(buf,fp2);
-           }
-
-           char *cmd = strstr(buf,"END-EXEC");
-           if (cmd != NULL) {
-               execCmd = 0;
-               if (isReturn || isXctl) {
-                   char gb[30];
-                   sprintf(gb,"%s%s\n","           GOBACK",getExecTerminator(0));
-                   fputs(gb,(FILE*)fp2);
-                   isReturn = 0;
-                   isXctl = 0;
-               }
-           }
-       }
-
-       if (strstr(buf,"LINKAGE SECTION") != NULL) {
-            inLinkageSection = 1;
-            linkageSectionPresent = 1;
-            if (!eibPresent) {
-                includeCbk("DFHEIBLK",(FILE*)fp2);
-            }
-            includeCbkL((FILE*)fp2);
-       }
-
-       if (strstr(buf,"WORKING-STORAGE SECTION") != NULL) {
-            wstorageSectionPresent = 1;
-            fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
-            fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
-            fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
-       }
-  }
-
-  fclose(fp);
-  fclose(fp2);
-  return 0;
-
-  // argv[0| = "cobc";
-  // return execv("cobc",argv);
+   fclose(fp);
+   fclose(fp2);
+   return 0;
 }
