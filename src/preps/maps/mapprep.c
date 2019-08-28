@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Mapset Definition Preprocessor                                           */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 20.09.2018                                  */
+/*   Author: Philipp Brune               Date: 28.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -91,10 +91,13 @@ int firstMapOfSet   = 1;
 
 int status = NONE;
 int valCount = 0;
+char *jsDir = "../copybooks";
+char *dspDir= "../copybooks";
+char *cbkDir = "../copybooks";
 
 
 void processToken(char *token) {
-    printf("%s\n",token);
+    // printf("%s\n",token);
 
     // Map definition params
     if (status == LINE) {
@@ -103,20 +106,20 @@ void processToken(char *token) {
         valCount = 0;
         return;
     }
-    
+
     if (status == COLUMN) {
         currentMap.col = atoi(token);
         status = NONE;
         valCount = 0;
         return;
     }
-    
+
     if ((status == SIZE) && (valCount == 0)) {
         currentMap.lines = atoi(token);
         valCount++;
         return;
     }
-    
+
     if ((status == SIZE) && (valCount > 0)) {
         currentMap.cols = atoi(token);
         status = NONE;
@@ -138,7 +141,7 @@ void processToken(char *token) {
             currentMap.ctrl = currentMap.ctrl | CTRL_PRINT;
         }
     }
-    
+
 
     // Field definition params
     if (status == LENGTH) {
@@ -153,14 +156,14 @@ void processToken(char *token) {
         valCount++;
         return;
     }
-    
+
     if ((status == POS) && (valCount > 0)) {
         currentField.x = atoi(token);
         status = NONE;
         valCount = 0;
         return;
     }
-    
+
     if (status == INITIAL) {
         if (strlen(token) > 1) {
             if (token[0] == '\'') {
@@ -175,7 +178,7 @@ void processToken(char *token) {
         valCount = 0;
         return;
     }
-    
+
     if (status == PICOUT) {
         if (strlen(token) > 1) {
             if (token[0] == '\'') {
@@ -190,7 +193,7 @@ void processToken(char *token) {
         valCount = 0;
         return;
     }
-    
+
     if (status == PICIN) {
         if (strlen(token) > 1) {
             if (token[0] == '\'') {
@@ -205,7 +208,7 @@ void processToken(char *token) {
         valCount = 0;
         return;
     }
-    
+
     if (status == ATTRIB) {
         if (strcmp(token,"ASKIP") == 0) {
             currentField.attr = currentField.attr | ATTR_ASKIP;
@@ -235,11 +238,11 @@ void processToken(char *token) {
             currentField.attr = currentField.attr | ATTR_FSET;
         }
     }
-    
+
     if (status != NONE) {
         valCount++;
     }
-    
+
     if (strcmp(token,"LENGTH") == 0) {
         status = LENGTH;
         valCount = 0;
@@ -329,7 +332,7 @@ void tokenize(char *buf, int start) {
             tokenPos++;
             continue;
         }
-        
+
         if ((buf[i] == '(') || (buf[i] == ')') || (buf[i] == ',') || (buf[i] == '=') || (buf[i] == '/') ||
             (buf[i] == ' ') || (buf[i] == '\n') || (buf[i] == '\r')) {
             if (tokenPos > 0) {
@@ -343,9 +346,9 @@ void tokenize(char *buf, int start) {
         }
     }
 }
-    
-    
-int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *fp6, FILE *fp7) { 
+
+
+int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *fp6, FILE *fp7) {
     if (buf[0] == '*') {
         //Comment line
         return -1;
@@ -366,7 +369,7 @@ int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *f
         i++;
     }
     currentMacro[i] = 0x00;
-    printf("%s%s%s\n",currentName,":",currentMacro);
+    // printf("%s%s%s\n",currentName,":",currentMacro);
 
     if (currentMapIsSet) {
         // Output map definition
@@ -380,7 +383,7 @@ int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *f
         fprintf(fp2,"%s%d%s","\"cols\":",currentMap.cols,",");
         fprintf(fp2,"%s%d%s","\"ctrl\":",currentMap.ctrl,",");
         fprintf(fp2,"%s","\"fields\":[");
-        
+
         fprintf(fp3,"%s%s%s\n","       01  ",currentMap.name,"I.");
         fprintf(fp4,"%s%s%s\n","       01  ",currentMap.name,"O.");
         fprintf(fp7,"%s%s%s\n","       01  ",currentMap.name,"L.");
@@ -391,7 +394,7 @@ int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *f
         firstMapOfSet = 0;
     }
     currentMapIsSet = 0;
-    
+
     if (currentFieldSet) {
         // Output field definition
         if (!firstFieldOfMap) {
@@ -436,7 +439,7 @@ int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *f
         firstFieldOfMap = 0;
     }
     currentFieldSet = 0;
-    
+
     if (strstr(currentMacro,"DFHMSD") != NULL) {
         sprintf(currentMapSet,"%s",currentName);
         firstMapOfSet = 1;
@@ -475,60 +478,78 @@ int main(int argc, char **argv) {
    buf[0] = 0x00;
 
    if (argc < 2) {
-	printf("%s\n","Usage: mapprep <Mapset Definition>");
-	return -1;
+	    printf("%s\n","Usage: mapprep <Mapset Definition>");
+	    return -1;
    }
 
    fp = fopen(argv[1], "r");
    if (fp == NULL) {
-	printf("%s%s\n","No input file: ",argv[1]);
-	return -1;
-   }	
-   
-   sprintf(oname,"%s%s%s","../copybooks/",argv[1],".js");
+	    printf("%s%s\n","No input file: ",argv[1]);
+	    return -1;
+   }
+
+   char *p = getenv("QWICS_JSDIR");
+   if (p != NULL) {
+     jsDir = p;
+   }
+   printf("%s%s\n","Writing JSON maps to ",jsDir);
+
+   p = getenv("QWICS_DSPDIR");
+   if (p != NULL) {
+     dspDir = p;
+   }
+   printf("%s%s\n","Writing DISPLAY cmds to ",dspDir);
+
+   p = getenv("QWICS_CBKDIR");
+   if (p != NULL) {
+     cbkDir = p;
+   }
+   printf("%s%s\n","Writing COBOL copybook files to ",cbkDir);
+
+   sprintf(oname,"%s%s%s%s",jsDir,"/",argv[1],".js");
    fp2 = fopen(oname,"w");
    if (fp2 == NULL) {
         printf("%s%s\n","Could not create output file: ",oname);
         return -1;
    }
-    
+
    fprintf(fp2,"%s","{");
 
-   sprintf(oname,"%s%s%s","../copybooks/",argv[1],"I.cpy");
+   sprintf(oname,"%s%s%s%s",cbkDir,"/",argv[1],"I.cpy");
    fp3 = fopen(oname,"w");
    if (fp3 == NULL) {
        printf("%s%s\n","Could not create output file: ",oname);
        return -1;
    }
-    
-   sprintf(oname,"%s%s%s","../copybooks/",argv[1],"O.cpy");
+
+   sprintf(oname,"%s%s%s%s",cbkDir,"/",argv[1],"O.cpy");
    fp4 = fopen(oname,"w");
    if (fp4 == NULL) {
        printf("%s%s\n","Could not create output file: ",oname);
        return -1;
    }
 
-   sprintf(oname,"%s%s%s","../copybooks/",argv[1],"I.dsp");
+   sprintf(oname,"%s%s%s%s",dspDir,"/",argv[1],"I.dsp");
    fp5 = fopen(oname,"w");
    if (fp5 == NULL) {
        printf("%s%s\n","Could not create output file: ",oname);
        return -1;
    }
-    
-   sprintf(oname,"%s%s%s","../copybooks/",argv[1],"O.dsp");
+
+   sprintf(oname,"%s%s%s%s",dspDir,"/",argv[1],"O.dsp");
    fp6 = fopen(oname,"w");
    if (fp6 == NULL) {
        printf("%s%s\n","Could not create output file: ",oname);
        return -1;
    }
-    
-   sprintf(oname,"%s%s%s","../copybooks/",argv[1],"L.cpy");
+
+   sprintf(oname,"%s%s%s%s",cbkDir,"/",argv[1],"L.cpy");
    fp7 = fopen(oname,"w");
    if (fp7 == NULL) {
        printf("%s%s\n","Could not create output file: ",oname);
        return -1;
    }
-    
+
    while (fgets(buf, 255, (FILE*)fp) != NULL) {
        int pos = processMapDef(buf,fp2,fp3,fp4,fp5,fp6,fp7);
        if (pos >= 0) {
@@ -543,7 +564,7 @@ int main(int argc, char **argv) {
    }
 
    fprintf(fp2,"%s","]}}");
- 
+
    fclose(fp);
    fclose(fp2);
    fclose(fp3);
