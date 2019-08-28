@@ -147,8 +147,7 @@ ADDITIONAL CONFIGURATION BY ENVIRONMENT VARIABLES
 You may set some or all of the following shell environment variables at runtime to configure the preprocessors as well as the tpmserver to your setup. You can e.g. change the directories, search path for copybooks or the database connection string by 
 this. There are default values for all of them (shown in brackets below), so setting nothing defaults to the above settings:
 
-* QWICS_MAX_ENQRES
-Number of different, named ENQ/DEQ resources available (100)
+QWICS_MAX_ENQRES - Number of different, named ENQ/DEQ resources available (100)
 
 QWICS_SHM_SIZE - Size in bytes of the shared memory area used (500000)
 
@@ -156,7 +155,7 @@ QWICS_BLOCKNUM - Number of shared memory blocks available. A smaller number incr
 
 QWICS_BLOCKSIZE - Size in bytes of one shared memory block A larger value increases the performance, but may waste required memory (512)
 
-Note: These need to fulfill QWICS_BLOCKNUM * QWICS_BLOCKSIZE < QWICS_SHM_SIZE Tune them to your appliactions needs!
+Note: These need to fulfill QWICS_BLOCKNUM * QWICS_BLOCKSIZE < QWICS_SHM_SIZE Tune them to your applications needs!
 
 QWICS_MEM_POOL_SIZE - Number of available memory blocks for GETMAIN/FREEMAIN. Increase if needed (100)
 
