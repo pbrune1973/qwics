@@ -18,13 +18,27 @@
 /*   along with this project. If not, see <http://www.gnu.org/licenses/>.                  */
 /*******************************************************************************************/
 
-#ifndef _envconf_h
-#define _envconf_h
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-#define GETENV_NUMBER(v,ev,d) ((v < 0) ? (v=getEnvNumber(ev,d)) : v)
-#define GETENV_STRING(v,ev,d) ((v == NULL) ? (v=getEnvString(ev,d)) : v)
 
-int getEnvNumber(char *varname, int def);
-char *getEnvString(char *varname, char *def);
+int getEnvNumber(char *varname, int def) {
+  char *p = getenv(varname);
+  int v = def;
+  if (p != NULL) {
+    v = atoi(p);
+  }
+  printf("%s%s%s%d\n","Using ",varname," = ",v);
+  return v;
+}
 
-#endif
+
+char *getEnvString(char *varname, char *def) {
+  char *p = getenv(varname);
+  if (p == NULL) {
+    p = def;
+  }
+  printf("%s%s%s%s\n","Using ",varname," = ",p);
+  return p;
+}
