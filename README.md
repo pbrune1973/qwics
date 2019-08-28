@@ -7,7 +7,7 @@ Quick Web-Based Interactive COBOL Service (QWICS),
 
 an environment to execute transactional COBOL programs written for traditional mainframe transaction processing monitors (TPM) without these as part of any Java EE-compliant application server.
 
-Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@qwics.org   
+Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@qwics.org   
 
 QWICS is free software, licensed either under the terms of the GNU General Public License or the GNU Lesser General Public License (see respective source files for details), both as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. 
 You should have received a copy of both licenses along with this project. If not, see <http://www.gnu.org/licenses/>.  
@@ -140,6 +140,36 @@ cd bin
 
 4. Start the Java EE application server and use your COBOL code in your EJBs (see example)
  
+ 
+ADDITIONAL CONFIGURATION BY ENVIRONMENT VARIABLES
+-----
+
+You may set some or all of the following shell environment variables at runtime to configure the preprocessors as well as the tpmserver to your setup. You can e.g. change the directories, search path for copybooks or the database connection string by 
+this. There are default values for all of them (shown in brackets below), so setting nothing defaults to the above settings:
+
+QWICS_MAX_ENQRES - Number of different, named ENQ/DEQ resources available (100)
+
+QWICS_SHM_SIZE - Size in bytes of the shared memory area used (500000)
+
+QWICS_BLOCKNUM - Number of shared memory blocks available. A smaller number increases the performance (960)
+
+QWICS_BLOCKSIZE - Size in bytes of one shared memory block A larger value increases the performance, but may waste required memory (512)
+
+Note: These need to fulfill QWICS_BLOCKNUM * QWICS_BLOCKSIZE < QWICS_SHM_SIZE Tune them to your appliactions needs!
+
+QWICS_MEM_POOL_SIZE - NUmber of available memory blocks for GETMAIN/FREEMAIN. Increase if needed (100)
+
+QWICS_DB_CONNECTSTR - Connection string for the PostgreSQL database (dbname=qwics)
+
+QWICS_JSDIR - Directory path, where mapprep puts the JSON map files and tpmserver searches them (../copybooks)
+
+QWICS_CBKDIR - Directory path, where mapprep puts the COBOL copybooks generated from the mapsets (../copybooks)
+
+QWICS_DSPDIR - Directory path, where mapprep puts the COBOL DISPLAY includes generated from the mapsets (../copybooks)
+
+QWICS_CBKPATH - Directory paths (with multiple entries separated by a :), where cobprep searches for copybook files (../copybooks)
+
+
 
 Have fun!
 
