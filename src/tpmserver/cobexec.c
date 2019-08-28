@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 10.08.2019                                  */
+/*   Author: Philipp Brune               Date: 28.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
 /*                                                                                         */
@@ -27,9 +27,9 @@
 
 #include <libcob.h>
 #include <setjmp.h>
-#include <ucontext.h>
 #include "config.h"
 #include "db/conpool.h"
+#include "env/envconf.h"
 #include "msg/queueman.h"
 #include "shm/shmtpm.h"
 #include "enqdeq/enqdeq.h"
@@ -81,7 +81,11 @@ pthread_cond_t  waitForModuleChange;
 
 pthread_mutex_t sharedMemMutex;
 
-#define MEM_POOL_SIZE 1000
+int mem_pool_size = -1;
+#define MEM_POOL_SIZE GETENV_NUMBER(mem_pool_size,"QWICS_MEM_POOL_SIZE",100)
+
+char *jsDir = NULL;
+char *connectStr = NULL;
 
 void **sharedAllocMem;
 int *sharedAllocMemLen;
@@ -149,7 +153,7 @@ void writeJson(char *map, char *mapset, int childfd) {
     int n = 0, l = strlen(map), found = 0, brackets = 0;
     write(childfd,"JSON=",5);
     char jsonFile[255];
-    sprintf(jsonFile,"%s%s%s","../copybooks/",mapset,".js");
+    sprintf(jsonFile,"%s%s%s%s",GETENV_STRING(jsDir,"QWICS_JSDIR","../copybooks"),"/",mapset,".js");
     FILE *js = fopen(jsonFile,"rb");
     if (js != NULL) {
         while (1) {
@@ -311,7 +315,7 @@ void *getmain(int length, int shared) {
       }
   }
   if (i < MEM_POOL_SIZE) {
-    void *p = NULL;malloc(length);
+    void *p = NULL;
     if (shared) {
       p = sharedMalloc(0,length);
       sharedAllocMemLen[i] = length;
@@ -1219,7 +1223,7 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"CONTROL") || strstr(cmd,"FREEKB") || strstr(cmd,"PROGRAM") || strstr(cmd,"XCTL") ||
             strstr(cmd,"ABEND") || strstr(cmd,"ABCODE") || strstr(cmd,"NODUMP") || strstr(cmd,"LINK") ||
             strstr(cmd,"FLENGTH") || strstr(cmd,"DATA") || strstr(cmd,"DATAPOINTER") || strstr(cmd,"SHARED") ||
-            strstr(cmd,"CWA") || strstr(cmd,"TWA") || strstr(cmd,"TCTUA") || strstr(cmd,"PUT") || strstr(cmd,"GET") ||
+            strstr(cmd,"CWA") || strstr(cmd,"TWA") || strstr(cmd,"TCTUA") || strstr(cmd,"TCTUALENG") || strstr(cmd,"PUT") || strstr(cmd,"GET") ||
             strstr(cmd,"CONTAINER") || strstr(cmd,"CHANNEL") || strstr(cmd,"BYTEOFFSET") || strstr(cmd,"NODATA-FLENGTH") ||
             strstr(cmd,"INTOCCSID") || strstr(cmd,"INTOCODEPAGE") || strstr(cmd,"CONVERTST") || strstr(cmd,"CCSID") ||
             strstr(cmd,"FROMCCSID") || strstr(cmd,"FROMCODEPAGE") || strstr(cmd,"DATATYPE") ||
@@ -1381,6 +1385,9 @@ int execCallback(char *cmd, void *var) {
                 }
                 if (strcmp(cmd,"TCTUA") == 0) {
                     (*memParamsState) = 3;
+                }
+                if (strcmp(cmd,"TCTUALENG") == 0) {
+                    (*memParamsState) = 4;
                 }
             }
             if (((*cmdState) == -9) && ((*memParamsState) == 1)) {
@@ -1810,6 +1817,10 @@ int execCallback(char *cmd, void *var) {
                   (*((unsigned char**)cobvar->data)) = (unsigned char*)tua;
                   (*memParamsState) = 10;
                 }
+                if (((*cmdState) == -8) && ((*memParamsState) == 4)) {
+                  (*((unsigned char**)cobvar->data)) = (unsigned char*)tua;
+                  (*memParamsState) = 10;
+                }
                 if (((*cmdState) == -9) && ((*memParamsState) == 1)) {
                     // PUT FLENGTH param value
                     sprintf(end,"%s%s",cmd,"=");
@@ -2116,7 +2127,7 @@ void initExec(int initCons) {
     pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
     pthread_mutex_init(&sharedMemMutex,&attr);
 
-    setUpPool(10, "dbname=qwics", initCons);
+    setUpPool(10, GETENV_STRING(connectStr,"QWICS_DB_CONNECTSTR","dbname=qwics"), initCons);
     currentMap[0] = 0x00;
     cob_get_global_ptr ()->cob_call_params = 1;
 }

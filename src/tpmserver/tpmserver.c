@@ -34,6 +34,7 @@
 #include <errno.h>
 
 #include "shm/shmtpm.h"
+#include "env/envconf.h"
 #include "config.h"
 #include "cobexec.h"
 
