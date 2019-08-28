@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL ENQ/DEQ Synchonisation                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.08.2019                                  */
+/*   Author: Philipp Brune               Date: 28.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -21,7 +21,7 @@
 #ifndef _enqdeq_h
 #define _enqdeq_h
 
-#define MAX_ENQRES 100
+#define MAX_ENQRES GETENV_NUMBER(max_enqres,"QWICS_MAX_ENQRES",100)
 #define UOW  0
 #define TASK 1
 

@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL ENQ/DEQ Synchonisation                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.08.2019                                  */
+/*   Author: Philipp Brune               Date: 28.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -28,6 +28,9 @@
 #include <sys/shm.h>
 #include "enqdeq.h"
 #include "../shm/shmtpm.h"
+#include "../env/envconf.h"
+
+int max_enqres = -1;
 
 struct enqRes {
   char resource[256];
@@ -75,7 +78,7 @@ void initEnqResources(int initRes) {
 
 int enq(char *resource, int len, int nosuspend, int type, struct taskLock *taskLocks) {
   cm(pthread_mutex_lock(&enqResourceMutex));
-  printf("%s %x %d %d\n","enq ",resource,len,type);
+  printf("%s %x %d %d\n","enq ",(unsigned int)resource,len,type);
   int i = 0;
   for (i = 0; i < MAX_ENQRES; i++) {
     int c = 0;
@@ -135,7 +138,7 @@ int enq(char *resource, int len, int nosuspend, int type, struct taskLock *taskL
 
 int deq(char *resource, int len, int type, struct taskLock *taskLocks) {
   cm(pthread_mutex_lock(&enqResourceMutex));
-  printf("%s %x %d %d\n","deq ",resource,len,type);
+  printf("%s %x %d %d\n","deq ",(unsigned int)resource,len,type);
   int i = 0;
   for (i = 0; i < MAX_ENQRES; i++) {
     int c = 0;
