@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.08.2019                                  */
+/*   Author: Philipp Brune               Date: 29.08.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
 /*                                                                                         */
@@ -85,6 +85,7 @@ int mem_pool_size = -1;
 #define MEM_POOL_SIZE GETENV_NUMBER(mem_pool_size,"QWICS_MEM_POOL_SIZE",100)
 
 char *jsDir = NULL;
+char *loadmodDir = NULL;
 char *connectStr = NULL;
 
 void **sharedAllocMem;
@@ -484,7 +485,11 @@ void execLoadModule(char *name, int mode) {
     int childfd = *((int*)pthread_getspecific(childfdKey));
     char *commArea = (char*)pthread_getspecific(commAreaKey);
 
-    sprintf(fname,"%s%s%s","../loadmod/",name,".dylib");
+    #ifdef __APPLE__
+    sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".dylib");
+    #else
+    sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".so");
+    #endif
     void* sdl_library = dlopen(fname, RTLD_LAZY);
     if (sdl_library == NULL) {
         sprintf(response,"%s%s%s\n","ERROR: Load module ",fname," not found!");
