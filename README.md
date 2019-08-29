@@ -161,6 +161,8 @@ QWICS_MEM_POOL_SIZE - Number of available memory blocks for GETMAIN/FREEMAIN. In
 
 QWICS_DB_CONNECTSTR - Connection string for the PostgreSQL database (dbname=qwics)
 
+QWICS_LOADMODDIR - Directory, where tpmserver searches for load modules (../loadmod)
+
 QWICS_JSDIR - Directory path, where mapprep puts the JSON map files and tpmserver searches them (../copybooks)
 
 QWICS_CBKDIR - Directory path, where mapprep puts the COBOL copybooks generated from the mapsets (../copybooks)
