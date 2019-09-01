@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.08.2019                                  */
+/*   Author: Philipp Brune               Date: 01.09.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -301,9 +301,41 @@ int includeMapDisplays(char *mapset, char *map, FILE *outFile, int input) {
 }
 
 
+int hasDotTerminator(char *buf) {
+    int l = strlen(buf);
+    if (l > 72) {
+      l = 72;
+    }
+    int i = l-1;
+    while ((i > 7) && ((buf[i] == ' ') || (buf[i] == 10) || (buf[i] == 13))) {
+        i--;
+    }
+    if (buf[i] == '.') {
+        return 1;
+    }
+    return 0;
+}
+
+
+int isEmptyLine(char *buf) {
+    int l = strlen(buf);
+    if (l > 72) {
+      l = 72;
+    }
+    int i = l-1;
+    while ((i > 7) && ((buf[i] == ' ') || (buf[i] == 10) || (buf[i] == 13))) {
+        i--;
+    }
+    if (i <= 7)
+        return 1;
+
+    return 0;
+}
+
+
 // Process include/coy line
 void processCopyLine(char *buf, FILE *fp2) {
-    char execbuf[255];
+    char linebuf[255];
     int i,m = strlen(buf);
     char token[255];
     int tokenPos = 0;
@@ -316,17 +348,36 @@ void processCopyLine(char *buf, FILE *fp2) {
         if ((buf[i] == ' ') || (buf[i] == '\n') ||
             (buf[i] == '\r') || (buf[i] == '.') ||
             (buf[i] == ',')) {
+            if ((include == 2) && (buf[i] == '.')) {
+                i++;
+                int j = 0;
+                for (j = 0; j < i; j++) {
+                    linebuf[j] = ' ';
+                }
+                while (i < m) {
+                  linebuf[i] = buf[i];
+                  i++;
+                }
+                linebuf[m] = 0x00;
+                fputs(linebuf,fp2);
+                if (hasDotTerminator(linebuf)) {
+                    outputDot = 1;
+                } else {
+                    outputDot = 0;
+                }
+                continue;
+            }
             if (tokenPos > 0) {
                 token[tokenPos] = 0x00;
                 if ((strstr(token,"INCLUDE") != NULL) || (strstr(token,"COPY") != NULL)) {
                     include = 1;
                 } else {
-                    if (include) {
+                    if (include == 1) {
                         if (includeCbk(token,fp2) < 0) {
                             includeCbkIO(token,fp2);
                         }
+                        include = 2;
                     }
-                    include = 0;
                 }
                 tokenPos = 0;
             }
@@ -917,38 +968,6 @@ void processExecLine(char *buf, FILE *fp2) {
 }
 
 
-int hasDotTerminator(char *buf) {
-    int l = strlen(buf);
-    if (l > 72) {
-      l = 72;
-    }
-    int i = l-1;
-    while ((i > 7) && ((buf[i] == ' ') || (buf[i] == 10) || (buf[i] == 13))) {
-        i--;
-    }
-    if (buf[i] == '.') {
-        return 1;
-    }
-    return 0;
-}
-
-
-int isEmptyLine(char *buf) {
-    int l = strlen(buf);
-    if (l > 72) {
-      l = 72;
-    }
-    int i = l-1;
-    while ((i > 7) && ((buf[i] == ' ') || (buf[i] == 10) || (buf[i] == 13))) {
-        i--;
-    }
-    if (i <= 7)
-        return 1;
-
-    return 0;
-}
-
-
 void processLine(char *buf, FILE *fp2) {
   // Handle comments
   if (buf[6] == '*') {
@@ -1122,16 +1141,19 @@ void processLine(char *buf, FILE *fp2) {
           }
       }
   } else {
-      processExecLine(buf,fp2);
-
       char *cmd = strstr(buf,"END-EXEC");
       if (cmd != NULL) {
+        if (hasDotTerminator(buf)) {
+            outputDot = 1;
+        } else {
+            outputDot = 0;
+        }
+      }
+
+      processExecLine(buf,fp2);
+
+      if (cmd != NULL) {
           execCmd = 0;
-          if (hasDotTerminator(buf)) {
-              outputDot = 1;
-          } else {
-              outputDot = 0;
-          }
           if (isReturn || isXctl) {
               char gb[30];
               sprintf(gb,"%s%s\n","           GOBACK",getExecTerminator(0));
