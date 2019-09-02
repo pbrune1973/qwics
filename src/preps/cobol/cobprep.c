@@ -69,7 +69,7 @@ char declareName[255] = "";
 void parseLinkageVarDef(char *line) {
     char lbuf[4];
     int len = strlen(line);
-    if ((line[6] != '*') && (line[6] != '-')) {
+    if ((line[6] != '*') && (line[6] != '-') && (strstr(line,"REDEFINES") == NULL)) {
         int pos = 7;
         while ((line[pos] == ' ') && (pos < len)) pos++;
 
@@ -403,6 +403,37 @@ char *getExecTerminator(int quotes) {
     } else {
         return "";
     }
+}
+
+
+void prepareSqlHostVar(char *token) {
+  char varbuf[255];
+  int i,j,pos = 0,m = 0,n = 0;
+  m = strlen(token);
+  n = m;
+  for (i = m-1; i >= 0; i--) {
+    if ((i == 0) || (token[i] == '.')) {
+      if (pos > 0) {
+        varbuf[pos] = ' '; pos++;
+        varbuf[pos] = 'I'; pos++;
+        varbuf[pos] = 'N'; pos++;
+        varbuf[pos] = ' '; pos++;
+      }
+      if (i > 0) {
+        j = i+1;
+      } else {
+        j = i;
+      }
+      while (j < n) {
+        varbuf[pos] = token[j];
+        pos++;
+        j++;
+      }
+      n = i;
+    }
+  }
+  varbuf[pos] = 0x00;
+  sprintf(token,"%s",varbuf);
 }
 
 
@@ -897,6 +928,7 @@ void processExecLine(char *buf, FILE *fp2) {
                         }
                         if (execSQLCnt == 3) {
                             if (value == 1) {
+                                prepareSqlHostVar(token);
                                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
                                         token,getExecTerminator(0));
                             } else {
@@ -909,6 +941,7 @@ void processExecLine(char *buf, FILE *fp2) {
                         }
                         if (execSQLCnt == 4) {
                             if (value == 1) {
+                                prepareSqlHostVar(token);
                                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
                                         token,getExecTerminator(0));
                             } else {
@@ -932,6 +965,7 @@ void processExecLine(char *buf, FILE *fp2) {
                         if (tokenPos > 0) {
                             token[tokenPos] = 0x00;
                             if (value == 1) {
+                                prepareSqlHostVar(token);
                                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
                                         token,getExecTerminator(0));
                             } else {
@@ -1013,11 +1047,11 @@ void processLine(char *buf, FILE *fp2) {
              fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
            }
-           fputs("       LINKAGE SECTION.\n",(FILE*)fp2);
-           inLinkageSection = 1;
            if (!eibPresent) {
                includeCbk("DFHEIBLK",(FILE*)fp2);
            }
+           fputs("       LINKAGE SECTION.\n",(FILE*)fp2);
+           inLinkageSection = 1;
            includeCbkL((FILE*)fp2);
            inLinkageSection = 0;
        }
@@ -1073,6 +1107,9 @@ void processLine(char *buf, FILE *fp2) {
               fputs("       77  DFHRESP-INVREQ PIC S9(8) COMP VALUE 16.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
+            }
+            if (!eibPresent) {
+                includeCbk("DFHEIBLK",(FILE*)fp2);
             }
           }
 
@@ -1167,9 +1204,6 @@ void processLine(char *buf, FILE *fp2) {
   if (strstr(buf,"LINKAGE SECTION") != NULL) {
        inLinkageSection = 1;
        linkageSectionPresent = 1;
-       if (!eibPresent) {
-           includeCbk("DFHEIBLK",(FILE*)fp2);
-       }
        includeCbkL((FILE*)fp2);
   }
 
