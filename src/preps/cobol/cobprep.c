@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.09.2019                                  */
+/*   Author: Philipp Brune               Date: 02.09.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
