@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 02.09.2019                                  */
+/*   Author: Philipp Brune               Date: 24.09.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -1029,7 +1029,7 @@ void processLine(char *buf, FILE *fp2) {
     }
   }
 
-  if (strstr(buf,"PROCEDURE DIVISION") != NULL) {
+  if ((strstr(buf,"PROCEDURE") != NULL) && (strstr(buf,"DIVISION") != NULL)) {
        fclose(declareTmpFile);
 
        inLinkageSection = 0;
@@ -1058,7 +1058,7 @@ void processLine(char *buf, FILE *fp2) {
        if (!commAreaPresent) {
            fputs("       01  DFHCOMMAREA PIC X.\n",(FILE*)fp2);
        }
-       sprintf(&buf[25],"%s"," USING DFHCOMMAREA");
+       sprintf(buf,"%s","       PROCEDURE DIVISION USING DFHCOMMAREA");
        fputs(buf,(FILE*)fp2);
        int n = 0;
        for (n = 0; n < numOfLinkageVars; n++) {
@@ -1094,10 +1094,10 @@ void processLine(char *buf, FILE *fp2) {
   }
 
   if (execCmd == 0) {
-      if (strstr(buf,"  COPY ") != NULL) {
+      if ((strstr(buf,"  COPY ") != NULL) || (strstr(buf,"COPY ") == (char*)&buf[7])) {
           processCopyLine(buf,fp2);
       } else {
-          if (strstr(buf,"LINKAGE SECTION") != NULL) {
+          if ((strstr(buf,"LINKAGE") != NULL) && (strstr(buf,"SECTION") != NULL)) {
             if (!wstorageSectionPresent) {
               fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
               fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
@@ -1201,13 +1201,13 @@ void processLine(char *buf, FILE *fp2) {
       }
   }
 
-  if (strstr(buf,"LINKAGE SECTION") != NULL) {
+  if ((strstr(buf,"LINKAGE") != NULL) && (strstr(buf,"SECTION") != NULL)) {
        inLinkageSection = 1;
        linkageSectionPresent = 1;
        includeCbkL((FILE*)fp2);
   }
 
-  if (strstr(buf,"WORKING-STORAGE SECTION") != NULL) {
+  if ((strstr(buf,"WORKING-STORAGE") != NULL) && (strstr(buf,"SECTION") != NULL)) {
        wstorageSectionPresent = 1;
        fputs("       77  QWICSPTR USAGE IS POINTER.\n",(FILE*)fp2);
        fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
