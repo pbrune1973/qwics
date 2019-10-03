@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 24.09.2019                                  */
+/*   Author: Philipp Brune               Date: 03.10.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -526,6 +526,7 @@ void processExecLine(char *buf, FILE *fp2) {
                   i++;
                 }
                 i--;
+                int old_i = i;
 
                 if (tokenPos > 0) {
                     token[tokenPos] = 0x00;
@@ -734,6 +735,26 @@ void processExecLine(char *buf, FILE *fp2) {
                         isLengthField = 0;
                         tokenPos = 0;
                     }
+                }
+
+                if (i == old_i) {
+                    tokenPos = 0;
+                    int bracketLevel = 0;
+                    i++;
+                    if (buf[i] == '\'') {
+                        i--;
+                        continue;
+                    }
+                    while ((buf[i] != ')') || (bracketLevel > 0)) {
+                        if (buf[i] == '(') bracketLevel++;
+                        if (buf[i] == ')') bracketLevel--;
+                        if (buf[i] != ' ') {
+                            token[tokenPos] = toupper(buf[i]);
+                            tokenPos++;
+                        }
+                        i++;
+                    }
+                    i--;
                 }
                 value = 1;
             } else {
