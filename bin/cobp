@@ -3,5 +3,16 @@
 ../bin/cobprep $1
 PROG=${1%.*}
 PROG=$(echo $PROG | tr a-z A-Z)
-cobc exec_$PROG.cob
-mv exec_$PROG.so ../loadmod/$PROG.so
+cobc -std=mf exec_$PROG.cob
+
+var=$QWICS_LOADMODDIR
+
+if [ -z ${var} ]; then
+  var='../loadmod'
+fi
+
+echo 'Copying to load module dir ' $var
+ 
+#mv exec_$PROG.dylib $var/$PROG.dylib
+mv exec_$PROG.so $var/$PROG.so
+
