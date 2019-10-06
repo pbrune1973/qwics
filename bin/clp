@@ -4,5 +4,14 @@
 PROG=${1%.*}
 PROG=$(echo $PROG | tr a-z A-Z)
 cobc exec_$PROG.c
-mv exec_$PROG.so ../loadmod/$PROG.so
+
+var=$QWICS_LOADMODDIR
+
+if [ -z ${var} ]; then
+  var='../loadmod'
+fi
+
+echo 'Copying to load module dir ' $var
+ 
+mv exec_$PROG.so $var/$PROG.so
 
