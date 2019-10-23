@@ -26,9 +26,10 @@ import java.sql.ResultSet;
 import java.util.HashMap;
 
 import javax.annotation.Resource;
-import javax.ejb.Asynchronous;
 import javax.ejb.LocalBean;
 import javax.ejb.Stateless;
+import javax.ejb.TransactionAttribute;
+import javax.ejb.TransactionAttributeType;
 import javax.ejb.TransactionManagement;
 import javax.ejb.TransactionManagementType;
 import javax.sql.DataSource;
@@ -48,7 +49,7 @@ public class QwicsWS {
 	@Resource
 	private UserTransaction utx;
 
-	@Resource(name = "jdbc/QwicsCobolDS")
+	@Resource(mappedName="java:jboss/datasources/QwicsDS")
 	DataSource datasource;
 
 	private Connection con;
@@ -137,12 +138,12 @@ public class QwicsWS {
 
 	@GET
 	@Path("call/{transId}")
-//	@TransactionAttribute(TransactionAttributeType.REQUIRED)
-	@Asynchronous
-	public void callTransId(@PathParam("transId") String transId) {
+	@Produces(MediaType.APPLICATION_JSON)
+	@TransactionAttribute(TransactionAttributeType.REQUIRED)
+	public boolean callTransId(@PathParam("transId") String transId) {
 		String program = transactionProgNames.get(transId);
 		if (program == null) {
-			return;
+			return false;
 		}
 		try {
 			utx.begin();
@@ -158,8 +159,9 @@ public class QwicsWS {
 			} catch (Exception ex) {
 				ex.printStackTrace();
 			}
+			return false;
 		}
-		return;
+		return true;
 	}
 
 }
