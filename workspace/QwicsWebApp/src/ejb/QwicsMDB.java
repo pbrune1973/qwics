@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Java EE Web Application                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 21.11.2018                                  */
+/*   Author: Philipp Brune               Date: 23.10.2019                                */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -48,7 +48,7 @@ public class QwicsMDB implements MessageListener, QueueManager {
 	@Resource(mappedName = "java:/JmsXA")
 	private ConnectionFactory cf;
 
-	@Resource(name= "jdbc/QwicsCobolDS")
+	@Resource(mappedName="java:jboss/datasources/QwicsDS")
 	DataSource datasource;
 
 	private Connection con;

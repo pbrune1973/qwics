@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Java EE Web Application                                             */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.03.2018                                  */
+/*   Author: Philipp Brune               Date: 23.10.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -51,7 +51,7 @@ public class QwicsEJB {
 //	@PersistenceContext( unitName = "QWICS" )
 //	private EntityManager em;
 	
-	@Resource(name="jdbc/QwicsCobolDS") 
+	@Resource(mappedName="java:jboss/datasources/QwicsDS") 
 	DataSource datasource;	
 	
 	private int state = 0;
