@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2018,2019 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -82,7 +82,16 @@ public class QwicsXADataSource extends QwicsDataSource implements XADataSource {
 				return cons.get(user);
 			}
 		}
-		return getXAConnection();
+		QwicsXAConnection con = new QwicsXAConnection(host, port);
+		synchronized (cons) {
+			cons.put(user,con);
+		}
+		try {
+			con.open();
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
+		return con;
 	}
 
 }

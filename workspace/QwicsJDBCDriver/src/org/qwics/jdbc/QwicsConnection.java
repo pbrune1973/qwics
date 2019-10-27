@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018 Philipp Brune    Email: Philipp.Brune@hqwics.org
+Copyright (c) 2018,2019 Philipp Brune    Email: Philipp.Brune@hqwics.org
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -230,15 +230,14 @@ public class QwicsConnection implements Connection {
 
 	@Override
 	public synchronized void close() throws SQLException {
-		sendCmd("quit");
+		if (!closed) {
+			sendCmd("quit");				
+		}		
 		try {
 			closed = true;
 			socketWriter.close();
 			socketReader.close();
-			socket.close();
-			if (this instanceof QwicsPooledConnection) {
-				((QwicsPooledConnection)this).connectionClosed();
-			}
+			socket.close();				
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new SQLException(e);

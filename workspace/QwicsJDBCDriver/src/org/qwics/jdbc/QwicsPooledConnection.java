@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2018,2019 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -56,6 +56,7 @@ import javax.sql.StatementEventListener;
 public class QwicsPooledConnection extends QwicsConnection implements PooledConnection {
     List<ConnectionEventListener> connectionEventListeners;
     List<StatementEventListener> statementEventListeners;
+    private boolean inUse = false;
     
     public QwicsPooledConnection(String host, int port) {
 		super(host, port);
@@ -65,6 +66,7 @@ public class QwicsPooledConnection extends QwicsConnection implements PooledConn
    
 	@Override
 	public Connection getConnection() throws SQLException {
+		this.inUse = true;
 		return this;
 	}
 
@@ -92,6 +94,16 @@ public class QwicsPooledConnection extends QwicsConnection implements PooledConn
 		ConnectionEvent event = new ConnectionEvent(this);
 		for (ConnectionEventListener l : connectionEventListeners) {
 			l.connectionClosed(event);
+		}
+	}
+
+	@Override
+	public void close() throws SQLException {
+		if (inUse) {
+			connectionClosed();
+			inUse = false;
+		} else {
+			super.close();
 		}
 	}
 
