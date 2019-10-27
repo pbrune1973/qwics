@@ -3,7 +3,7 @@
 /*                                                                                         */
 /*   Author: Philipp Brune               Date: 27.10.2019                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -84,6 +84,7 @@ public class QwicsEJB {
 					try {
 						utx.commit();
 						utx.begin();
+						con.close();
 						con = datasource.getConnection(conId, "");
 						maps.updateString("SYNCPOINTRESULT", "COMMIT");
 					} catch (Exception e) {
@@ -91,12 +92,14 @@ public class QwicsEJB {
 						maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 						utx.rollback();
 						utx.begin();
+						con.close();
 						con = datasource.getConnection(conId, "");
 					}
 				} else {
 					maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 					utx.rollback();
 					utx.begin();
+					con.close();
 					con = datasource.getConnection(conId, "");
 				}
 				continue;
@@ -115,11 +118,13 @@ public class QwicsEJB {
 				try {
 					utx.commit();
 					utx.begin();
+					con.close();
 					con = datasource.getConnection(conId, "");
 				} catch (Exception e) {
 					e.printStackTrace();
 					utx.rollback();
 					utx.begin();
+					con.close();
 					con = datasource.getConnection(conId, "");
 					return false;
 				}
