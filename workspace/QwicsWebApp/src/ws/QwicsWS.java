@@ -79,6 +79,7 @@ public class QwicsWS {
 					try {
 						utx.commit();
 						utx.begin();
+						con.close();
 						con = datasource.getConnection(conId, "");
 						maps.updateString("SYNCPOINTRESULT", "COMMIT");
 					} catch (Exception e) {
@@ -86,12 +87,14 @@ public class QwicsWS {
 						maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 						utx.rollback();
 						utx.begin();
+						con.close();
 						con = datasource.getConnection(conId, "");
 					}
 				} else {
 					maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 					utx.rollback();
 					utx.begin();
+					con.close();
 					con = datasource.getConnection(conId, "");
 				}
 				continue;
@@ -109,11 +112,13 @@ public class QwicsWS {
 				try {
 					utx.commit();
 					utx.begin();
+					con.close();
 					con = datasource.getConnection(conId, "");
 				} catch (Exception e) {
 					e.printStackTrace();
 					utx.rollback();
 					utx.begin();
+					con.close();
 					con = datasource.getConnection(conId, "");
 					return false;
 				}
