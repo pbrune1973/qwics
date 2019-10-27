@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Java EE Web Application                                             */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 23.10.2019                                  */
+/*   Author: Philipp Brune               Date: 27.10.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -24,6 +24,7 @@ import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.HashMap;
+import java.util.Random;
 
 import javax.annotation.Resource;
 import javax.ejb.LocalBean;
@@ -39,7 +40,6 @@ import javax.websocket.OnMessage;
 import javax.websocket.Session;
 import javax.websocket.server.ServerEndpoint;
 
-
 @Stateful
 @LocalBean
 @ServerEndpoint("/endpoints/qwicsejb")
@@ -47,13 +47,13 @@ import javax.websocket.server.ServerEndpoint;
 public class QwicsEJB {
 	@Resource
 	private UserTransaction utx;
-	
+
 //	@PersistenceContext( unitName = "QWICS" )
 //	private EntityManager em;
-	
-	@Resource(mappedName="java:jboss/datasources/QwicsDS") 
-	DataSource datasource;	
-	
+
+	@Resource(mappedName = "java:jboss/datasources/QwicsDS")
+	DataSource datasource;
+
 	private int state = 0;
 	private boolean isValue = false;
 	private String name = "";
@@ -61,12 +61,18 @@ public class QwicsEJB {
 	private Connection con;
 	private CallableStatement call;
 	private ResultSet maps;
-	private HashMap<String,String> transactionProgNames = new HashMap<String,String>();
+	private HashMap<String, String> transactionProgNames = new HashMap<String, String>();
+	private String conId = ""; // Unique identifier for the QWICsconnection per EJB instance
 
-		
 	public QwicsEJB() {
+		// Create unique identifier for the QWICsconnection of this EJB instance
+		Random rand = new Random();
+		conId = "";
+		for (int i = 0; i < 10; i++) {
+			char c = (char) (65 + rand.nextInt(25));
+			conId = conId + c;
+		}
 	}
-
 
 	public boolean nextSend(Session session) throws Exception {
 		boolean isSend = false;
@@ -78,50 +84,50 @@ public class QwicsEJB {
 					try {
 						utx.commit();
 						utx.begin();
-						con = datasource.getConnection(con.getClientInfo("conId"),"");
+						con = datasource.getConnection(conId, "");
 						maps.updateString("SYNCPOINTRESULT", "COMMIT");
 					} catch (Exception e) {
 						e.printStackTrace();
 						maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 						utx.rollback();
 						utx.begin();
-						con = datasource.getConnection(con.getClientInfo("conId"),"");
+						con = datasource.getConnection(conId, "");
 					}
 				} else {
 					maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 					utx.rollback();
 					utx.begin();
-					con = datasource.getConnection(con.getClientInfo("conId"),"");
+					con = datasource.getConnection(conId, "");
 				}
 				continue;
-			}			
+			}
 			if (isSend && "SEND".equals(maps.getString("MAP_CMD"))) {
 				session.getBasicRemote().sendText(maps.getString("JSON"));
 				return true;
-			}			
+			}
 			String program = "";
 			if (!isSend) {
 				// RETURN
 				String transId = maps.getString("TRANSID");
-				//System.out.println("Return with transId "+transId);
+				// System.out.println("Return with transId "+transId);
 				program = transactionProgNames.get(transId);
-				//System.out.println("Program name "+program);
+				// System.out.println("Program name "+program);
 				try {
 					utx.commit();
 					utx.begin();
-					con = datasource.getConnection(con.getClientInfo("conId"),"");
+					con = datasource.getConnection(conId, "");
 				} catch (Exception e) {
 					e.printStackTrace();
 					utx.rollback();
 					utx.begin();
-					con = datasource.getConnection(con.getClientInfo("conId"),"");
+					con = datasource.getConnection(conId, "");
 					return false;
 				}
 				if ((transId != null) && (transId.length() > 0)) {
 					String aidStr = maps.getString("EIBAID");
 					long calen = maps.getLong("EIBCALEN");
 					call.close();
-					call = con.prepareCall("PROGRAM "+program);
+					call = con.prepareCall("PROGRAM " + program);
 					call.setLong("EIBCALEN", calen);
 					call.setString("EIBAID", aidStr);
 					maps = call.executeQuery();
@@ -132,24 +138,23 @@ public class QwicsEJB {
 		} while (!isSend);
 		return true;
 	}
-	
-	
+
 	@OnMessage
-	//@TransactionAttribute(TransactionAttributeType.REQUIRED)
+	@TransactionAttribute(TransactionAttributeType.REQUIRED)
 	public void onMessage(Session session, String msg) {
-		try {		
+		try {
 			if ((state == 0) && msg.startsWith("DEFINE")) {
 				String params[] = msg.split(" ");
 				if (params.length == 3) {
-					System.out.println("params "+params[1]+" "+params[2]);
+					System.out.println("params " + params[1] + " " + params[2]);
 					this.transactionProgNames.put(params[1], params[2]);
 				}
 			}
 			if ((state == 0) && msg.startsWith("GETMAP")) {
 				String program = msg.substring(7);
 				utx.begin();
-				con = datasource.getConnection();
-				call = con.prepareCall("PROGRAM "+program);
+				con = datasource.getConnection(conId, "");
+				call = con.prepareCall("PROGRAM " + program);
 				maps = call.executeQuery();
 				if (nextSend(session)) {
 					state = 1;
@@ -178,26 +183,26 @@ public class QwicsEJB {
 			if (state == 2) {
 				if (!isValue) {
 					name = msg;
-					isValue = true;					
+					isValue = true;
 				} else {
 					value = msg;
 					maps.updateString(name, value);
-					isValue = false;					
+					isValue = false;
 				}
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
-	
+
 	@OnClose
-	//@TransactionAttribute(TransactionAttributeType.REQUIRED)
+	@TransactionAttribute(TransactionAttributeType.REQUIRED)
 	public void onClose(Session session) {
 		try {
 			utx.commit();
 		} catch (Exception e) {
 			try {
-				utx.rollback(); 
+				utx.rollback();
 			} catch (Exception ex) {
 			}
 		}

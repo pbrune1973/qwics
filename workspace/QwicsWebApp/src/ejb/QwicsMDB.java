@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Java EE Web Application                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 23.10.2019                                */
+/*   Author: Philipp Brune               Date: 27.10.2019                                */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -23,6 +23,7 @@ package ejb;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.util.Random;
 
 import javax.annotation.Resource;
 import javax.ejb.ActivationConfigProperty;
@@ -55,8 +56,16 @@ public class QwicsMDB implements MessageListener, QueueManager {
 	private CallableStatement call;
 	private ResultSet maps;
 	private Message triggerMessage = null;
-
+	private String conId = ""; // Unique identifier for the QWICsconnection per EJB instance
+	
 	public QwicsMDB() {
+		// Create unique identifier for the QWICsconnection of this EJB instance
+		Random rand = new Random();
+		conId = "";
+		for (int i = 0; i < 10; i++) {
+			char c = (char)(65+rand.nextInt(25));
+			conId = conId + c;
+		}
 	}
 
 	public QueueWrapper getQueue(String name, int type, int opts) {
@@ -86,7 +95,7 @@ public class QwicsMDB implements MessageListener, QueueManager {
 	public void onMessage(Message message) {
 		try {
 			triggerMessage = message;
-			con = datasource.getConnection();
+			con = datasource.getConnection(conId, "");
 			call = con.prepareCall("PROGRAM QPUBCBL");
 			maps = call.executeQuery();
 			maps.updateString("QNAME", "MyQueue");
@@ -100,6 +109,12 @@ public class QwicsMDB implements MessageListener, QueueManager {
 			}
 		} catch (Exception e) {
 			throw new QwicsException(e);
+		} finally {
+			try {
+				con.close();
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}			
 		}
 	}
 
