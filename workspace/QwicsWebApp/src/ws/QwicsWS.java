@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Java EE Web Application                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 11.08.2019                                  */
+/*   Author: Philipp Brune               Date: 27.10.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2019 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -24,6 +24,7 @@ import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.HashMap;
+import java.util.Random;
 
 import javax.annotation.Resource;
 import javax.ejb.LocalBean;
@@ -56,8 +57,16 @@ public class QwicsWS {
 	private CallableStatement call;
 	private ResultSet maps;
 	private static HashMap<String, String> transactionProgNames = new HashMap<String, String>();
-
+	private String conId = ""; // Unique identifier for the QWICsconnection per EJB instance
+	
 	public QwicsWS() {
+		// Create unique identifier for the QWICsconnection of this EJB instance
+		Random rand = new Random();
+		conId = "";
+		for (int i = 0; i < 10; i++) {
+			char c = (char)(65+rand.nextInt(25));
+			conId = conId + c;
+		}
 	}
 
 	public boolean nextSend() throws Exception {
@@ -70,20 +79,20 @@ public class QwicsWS {
 					try {
 						utx.commit();
 						utx.begin();
-						con = datasource.getConnection(con.getClientInfo("conId"), "");
+						con = datasource.getConnection(conId, "");
 						maps.updateString("SYNCPOINTRESULT", "COMMIT");
 					} catch (Exception e) {
 						e.printStackTrace();
 						maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 						utx.rollback();
 						utx.begin();
-						con = datasource.getConnection(con.getClientInfo("conId"), "");
+						con = datasource.getConnection(conId, "");
 					}
 				} else {
 					maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 					utx.rollback();
 					utx.begin();
-					con = datasource.getConnection(con.getClientInfo("conId"), "");
+					con = datasource.getConnection(conId, "");
 				}
 				continue;
 			}
@@ -100,12 +109,12 @@ public class QwicsWS {
 				try {
 					utx.commit();
 					utx.begin();
-					con = datasource.getConnection(con.getClientInfo("conId"), "");
+					con = datasource.getConnection(conId, "");
 				} catch (Exception e) {
 					e.printStackTrace();
 					utx.rollback();
 					utx.begin();
-					con = datasource.getConnection(con.getClientInfo("conId"), "");
+					con = datasource.getConnection(conId, "");
 					return false;
 				}
 				if ((transId != null) && (transId.length() > 0)) {
@@ -127,7 +136,7 @@ public class QwicsWS {
 	@POST
 	@Path("define/{transId}/{program}")
 	@Produces(MediaType.APPLICATION_JSON)
-//	@TransactionAttribute(TransactionAttributeType.REQUIRED)
+	@TransactionAttribute(TransactionAttributeType.REQUIRED)
 	public boolean defineTransId(@PathParam("transId") String transId, @PathParam("program") String program) {
 		if ((transId.length() == 4) && (program.length() <= 8)) {
 			transactionProgNames.put(transId.toUpperCase(), program.toUpperCase());
@@ -139,15 +148,17 @@ public class QwicsWS {
 	@GET
 	@Path("call/{transId}")
 	@Produces(MediaType.APPLICATION_JSON)
-	@TransactionAttribute(TransactionAttributeType.REQUIRED)
+	@TransactionAttribute(TransactionAttributeType.REQUIRES_NEW)
 	public boolean callTransId(@PathParam("transId") String transId) {
+		System.err.println("call "+transId);
 		String program = transactionProgNames.get(transId);
 		if (program == null) {
 			return false;
 		}
 		try {
 			utx.begin();
-			con = datasource.getConnection();
+			con = datasource.getConnection(conId, "");
+			System.err.println("call2 "+transId);
 			call = con.prepareCall("PROGRAM " + program);
 			maps = call.executeQuery();
 			while (nextSend()) {
@@ -160,6 +171,13 @@ public class QwicsWS {
 				ex.printStackTrace();
 			}
 			return false;
+		} finally {
+			try {
+				con.close();
+			} catch (Exception ex) {
+				ex.printStackTrace();
+				return false;
+			}			
 		}
 		return true;
 	}
