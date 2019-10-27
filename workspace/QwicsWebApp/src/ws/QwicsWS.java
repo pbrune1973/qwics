@@ -150,7 +150,6 @@ public class QwicsWS {
 	@Produces(MediaType.APPLICATION_JSON)
 	@TransactionAttribute(TransactionAttributeType.REQUIRES_NEW)
 	public boolean callTransId(@PathParam("transId") String transId) {
-		System.err.println("call "+transId);
 		String program = transactionProgNames.get(transId);
 		if (program == null) {
 			return false;
@@ -158,7 +157,6 @@ public class QwicsWS {
 		try {
 			utx.begin();
 			con = datasource.getConnection(conId, "");
-			System.err.println("call2 "+transId);
 			call = con.prepareCall("PROGRAM " + program);
 			maps = call.executeQuery();
 			while (nextSend()) {
