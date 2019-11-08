@@ -1,9 +1,9 @@
 /*******************************************************************************************/
-/*   QWICS Server C langauge Preprocessor                                                       */
+/*   QWICS Server C langauge Preprocessor                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 16.08.2019                                  */
+/*   Author: Philipp Brune               Date: 07.11.2019                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org                   */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -59,6 +59,10 @@ void DISPLAY(char *buf,char*cmdstr, char *varname, FILE *f) {
   if (strstr(cmdstr,"RESP") != NULL) {
       varType = 2;
   }
+  if (strstr(cmdstr,"COMMAREA") != NULL) {
+      varType = 3;
+  }
+
   sprintf(buf,"%s%d%s%s%s%s%s\n","cob_field f_",varcount," = {strlen(\"",cmdstr,"\")+5,\"TPMI:",cmdstr,"\",&a_4};");
   fputs(buf,f);
   varcount++;
@@ -71,7 +75,12 @@ void DISPLAY(char *buf,char*cmdstr, char *varname, FILE *f) {
       sprintf(buf,"%s%d%s%s%s\n","int b_",varcount," = COB_BSWAP_32(",varname,");");
       fputs(buf, (FILE*)f);
       sprintf(buf,"%s%d%s%d%s%d%s\n","cob_field f_",varcount," = {sizeof(b_",varcount,"),(unsigned char*)&b_",varcount,",&a_3};");
+    } else if (varType == 3) {
+        sprintf(buf,"%s%d%s%s%s\n","cob_field f_",varcount," = {4096,(unsigned char*)&",varname,",&a_4};");
     } else {
+      if (strcmp("dfheiptr",varname) == 0) {
+        sprintf(buf,"%s%d%s%s%s\n","cob_field f_",varcount," = {sizeof(DFHEIBLK),(unsigned char*)&",varname,",&a_4};");
+      } else 
       if (strcmp("dfheiptr->eibaid",varname) == 0) {
         sprintf(buf,"%s%d%s%s%s%s%s\n","cob_field f_",varcount," = {sizeof(",varname,"),(unsigned char*)&",varname,",&a_4};");
       } else {
@@ -705,7 +714,7 @@ int main(int argc, char **argv) {
        if (!commAreaPresent && strstr(buf,"pCOMM_AREA") != NULL) {
          commAreaPresent = 1;
        }
-       if (strstr(buf," main(") != NULL) {
+       if ((strstr(buf," main") != NULL) && (strstr(buf,"(") != NULL)) {
           fputs("#define COB_KEYWORD_INLINE __inline\n",(FILE*)fp2);
           fputs("#include <libcob.h>\n",(FILE*)fp2);
           fputs("#include <setjmp.h>\n\n",(FILE*)fp2);
@@ -724,6 +733,13 @@ int main(int argc, char **argv) {
           fputs("jmp_buf QWICSJMP;\n",(FILE*)fp2);
           fputs("jmp_buf RETURNJMP;\n",(FILE*)fp2);
 
+          fputs("#define NORMAL 0\n",(FILE*)fp2);
+          fputs("#define INVREQ 16\n",(FILE*)fp2);
+          fputs("#define LENGERR 22\n",(FILE*)fp2);
+          fputs("#define QIDERR 44\n",(FILE*)fp2);
+          fputs("#define NOTFND 13\n",(FILE*)fp2);
+          fputs("int DFHRESP(int x) { return x; }\n",(FILE*)fp2);
+          
           while (strstr(buf,"{") == NULL) {
             fgets(buf, 255, (FILE*)fp);
           }
