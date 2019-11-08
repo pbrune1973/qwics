@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 29.08.2019                                  */
+/*   Author: Philipp Brune               Date: 07.11.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
 /*                                                                                         */
@@ -1228,7 +1228,7 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"CONTROL") || strstr(cmd,"FREEKB") || strstr(cmd,"PROGRAM") || strstr(cmd,"XCTL") ||
             strstr(cmd,"ABEND") || strstr(cmd,"ABCODE") || strstr(cmd,"NODUMP") || strstr(cmd,"LINK") ||
             strstr(cmd,"FLENGTH") || strstr(cmd,"DATA") || strstr(cmd,"DATAPOINTER") || strstr(cmd,"SHARED") ||
-            strstr(cmd,"CWA") || strstr(cmd,"TWA") || strstr(cmd,"TCTUA") || strstr(cmd,"TCTUALENG") || strstr(cmd,"PUT") || strstr(cmd,"GET") ||
+            strstr(cmd,"CWA") || strstr(cmd,"TWA") || strstr(cmd,"EIB") || strstr(cmd,"TCTUA") || strstr(cmd,"TCTUALENG") || strstr(cmd,"PUT") || strstr(cmd,"GET") ||
             strstr(cmd,"CONTAINER") || strstr(cmd,"CHANNEL") || strstr(cmd,"BYTEOFFSET") || strstr(cmd,"NODATA-FLENGTH") ||
             strstr(cmd,"INTOCCSID") || strstr(cmd,"INTOCODEPAGE") || strstr(cmd,"CONVERTST") || strstr(cmd,"CCSID") ||
             strstr(cmd,"FROMCCSID") || strstr(cmd,"FROMCODEPAGE") || strstr(cmd,"DATATYPE") ||
@@ -1393,6 +1393,12 @@ int execCallback(char *cmd, void *var) {
                 }
                 if (strcmp(cmd,"TCTUALENG") == 0) {
                     (*memParamsState) = 4;
+                }
+                if (strcmp(cmd,"COMMAREA") == 0) {
+                    (*memParamsState) = 5;
+                }
+                if (strcmp(cmd,"EIB") == 0) {
+                    (*memParamsState) = 6;
                 }
             }
             if (((*cmdState) == -9) && ((*memParamsState) == 1)) {
@@ -1824,6 +1830,14 @@ int execCallback(char *cmd, void *var) {
                 }
                 if (((*cmdState) == -8) && ((*memParamsState) == 4)) {
                   (*((unsigned char**)cobvar->data)) = (unsigned char*)tua;
+                  (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -8) && ((*memParamsState) == 5)) {
+                  (*((unsigned char**)cobvar->data)) = (unsigned char*)commArea;
+                  (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -8) && ((*memParamsState) == 6)) {
+                  (*((unsigned char**)cobvar->data)) = (unsigned char*)eibbuf;
                   (*memParamsState) = 10;
                 }
                 if (((*cmdState) == -9) && ((*memParamsState) == 1)) {
