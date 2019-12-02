@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 06.10.2019                                  */
+/*   Author: Philipp Brune               Date: 02.12.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -1068,6 +1068,7 @@ void processLine(char *buf, FILE *fp2) {
              fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
+             fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
            }
            if (!eibPresent) {
                includeCbk("DFHEIBLK",(FILE*)fp2);
@@ -1130,6 +1131,7 @@ void processLine(char *buf, FILE *fp2) {
               fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
+              fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
             }
             if (!eibPresent) {
                 includeCbk("DFHEIBLK",(FILE*)fp2);
@@ -1240,6 +1242,7 @@ void processLine(char *buf, FILE *fp2) {
        fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
        fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
        fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
+       fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
   }
 }
 
