@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server C langauge Preprocessor                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 07.11.2019                                  */
+/*   Author: Philipp Brune               Date: 02.12.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org                   */
 /*                                                                                         */
@@ -738,6 +738,7 @@ int main(int argc, char **argv) {
           fputs("#define LENGERR 22\n",(FILE*)fp2);
           fputs("#define QIDERR 44\n",(FILE*)fp2);
           fputs("#define NOTFND 13\n",(FILE*)fp2);
+          fputs("#define PGMIDERR 27\n",(FILE*)fp2);
           fputs("int DFHRESP(int x) { return x; }\n",(FILE*)fp2);
           
           while (strstr(buf,"{") == NULL) {
