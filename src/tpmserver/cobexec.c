@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 07.11.2019                                  */
+/*   Author: Philipp Brune               Date: 02.12.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
 /*                                                                                         */
@@ -478,12 +478,13 @@ void abend(int resp, int resp2) {
 
 
 // Execute COBOL loadmod in transaction
-void execLoadModule(char *name, int mode) {
+int execLoadModule(char *name, int mode) {
     int (*loadmod)();
     char fname[255];
     char response[1024];
     int childfd = *((int*)pthread_getspecific(childfdKey));
     char *commArea = (char*)pthread_getspecific(commAreaKey);
+    int res = 0;
 
     #ifdef __APPLE__
     sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".dylib");
@@ -497,6 +498,7 @@ void execLoadModule(char *name, int mode) {
             write(childfd,&response,strlen(response));
         }
         printf("%s",response);
+        res = -1;
     } else {
         dlerror();
         *(void**)(&loadmod) = dlsym(sdl_library,name);
@@ -507,6 +509,7 @@ void execLoadModule(char *name, int mode) {
                 write(childfd,&response,strlen(response));
             }
             printf("%s",response);
+            res = -2;
             if (mode == 1) {
               abend(27,1);
             }
@@ -535,6 +538,7 @@ void execLoadModule(char *name, int mode) {
         }
         dlclose(sdl_library);
     }
+    return res;
 }
 
 
@@ -710,6 +714,7 @@ int execCallback(char *cmd, void *var) {
             cmdbuf[0] = 0x00;
             (*cmdState) = -5;
             (*xctlState) = 0;
+            xctlParams[1] = NULL;
             (*respFieldsState) = 0;
             respFields[0] = NULL;
             respFields[1] = NULL;
@@ -952,7 +957,32 @@ int execCallback(char *cmd, void *var) {
                 if ((*linkStackPtr) < 99) {
                   (*linkStackPtr)++;
                 }
-                execLoadModule(xctlParams[0],1);
+                if (xctlParams[1] != NULL) {
+                    cob_field *cobvar = (cob_field*)xctlParams[1];
+                    if (((int)cobvar->size < 0) || (cobvar->size > 32768)) {
+                        resp = 22;
+                        resp2 = 11;
+                    }
+                }
+                if (resp == 0) {
+                    int r = execLoadModule(xctlParams[0],1);
+                    if (r < 0) {
+                        resp = 27;
+                        resp2 = 3;
+                    }
+                    if ((resp == 0) && (xctlParams[1] != NULL)) {
+                        cob_field *cobvar = (cob_field*)xctlParams[1];
+                        for (int i = 0; i < cobvar->size; i++) {
+                            cobvar->data[i] = commArea[i];
+                        }
+                    }
+                }
+                if ((*linkStackPtr) > 0) {
+                  (*linkStackPtr)--;
+                }
+                if (resp > 0) {
+                  abend(resp,resp2);
+                }
             }
             if (((*cmdState) == -6) && ((*memParamsState) >= 1)) {
                 cob_field *cobvar = (cob_field*)memParams[1];
@@ -1752,8 +1782,11 @@ int execCallback(char *cmd, void *var) {
                     }
                 }
                 if (((*cmdState) == -5) && ((*xctlState) == 2)) {
-                    for (int i = 0; i < cobvar->size; i++) {
-                      commArea[i] = cobvar->data[i];
+                    xctlParams[1] = (char*)cobvar;
+                    if (((int)cobvar->size >= 0) && (cobvar->size < 32768)) {
+                        for (int i = 0; i < cobvar->size; i++) {
+                          commArea[i] = cobvar->data[i];
+                        }
                     }
                     (*xctlState) = 10;
                 }
