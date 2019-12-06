@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 02.12.2019                                  */
+/*   Author: Philipp Brune               Date: 06.12.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
 /*                                                                                         */
@@ -580,6 +580,9 @@ int execCallback(char *cmd, void *var) {
     char *tua = (char*)pthread_getspecific(tuaKey);
     int *respFieldsState = (int*)pthread_getspecific(respFieldsStateKey);
     void **respFields = (void**)pthread_getspecific(respFieldsKey);
+    int respFieldsStateLocal = 0;
+    void *respFieldsLocal[2];
+
     struct taskLock *taskLocks = (struct taskLock *)pthread_getspecific(taskLocksKey);
 
     // printf("%s %s %d %d %x\n","execCallback",cmd,*cmdState,*memParamsState,var);
@@ -965,13 +968,23 @@ int execCallback(char *cmd, void *var) {
                     }
                 }
                 if (resp == 0) {
+                    respFieldsStateLocal = *respFieldsState;
+                    respFieldsLocal[0] = respFields[0];
+                    respFieldsLocal[1] = respFields[1];
+                    cob_field *cobvar = (cob_field*)xctlParams[1];
+
                     int r = execLoadModule(xctlParams[0],1);
+
+                    *respFieldsState = respFieldsStateLocal;
+                    respFields[0] = respFieldsLocal[0];
+                    respFields[1] = respFieldsLocal[1];
+                    *cmdState = -5;
+
                     if (r < 0) {
                         resp = 27;
                         resp2 = 3;
                     }
-                    if ((resp == 0) && (xctlParams[1] != NULL)) {
-                        cob_field *cobvar = (cob_field*)xctlParams[1];
+                    if ((resp == 0) && (cobvar != NULL)) {
                         for (int i = 0; i < cobvar->size; i++) {
                             cobvar->data[i] = commArea[i];
                         }
