@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 06.12.2019                                  */
+/*   Author: Philipp Brune               Date: 31.12.2019                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
 /*                                                                                         */
@@ -329,7 +329,7 @@ void *getmain(int length, int shared) {
         (*allocMemPtr)++;
       }
     }
-    printf("%s %d %x %d\n","getmain",length,(unsigned int)p,shared);
+    printf("%s %d %lx %d\n","getmain",length,(unsigned long)p,shared);
     if (shared) {
       cm(pthread_mutex_unlock(&sharedMemMutex));
     }
@@ -347,7 +347,7 @@ void freemain(void *p) {
   int *allocMemPtr = (int*)pthread_getspecific(allocMemPtrKey);
   for (int i = 0; i < (*allocMemPtr); i++) {
       if ((p != NULL) && (allocMem[i] == p)) {
-          printf("%s %x\n","freemain",(unsigned int)p);
+          printf("%s %lx\n","freemain",(unsigned long)p);
           free(allocMem[i]);
           allocMem[i] = NULL;
           if (i == (*allocMemPtr)-1) {
