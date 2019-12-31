@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 02.12.2019                                  */
+/*   Author: Philipp Brune               Date: 29.12.2019                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -64,6 +64,7 @@ int numOfLinkageVars = 0;
 char *cbkPath = "../copybooks";
 FILE *declareTmpFile = NULL;
 char declareName[255] = "";
+char setptrbuf[255] = "";
 
 
 void parseLinkageVarDef(char *line) {
@@ -687,9 +688,8 @@ void processExecLine(char *buf, FILE *fp2) {
                           sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
                                   "QWICSPTR",getExecTerminator(0));
                           fputs(execbuf, (FILE*)fp2);
-                          sprintf(execbuf,"%s%s%s%s\n","           SET ADDRESS OF ",
+                          sprintf(setptrbuf,"%s%s%s%s\n","           SET ADDRESS OF ",
                                   token," TO QWICSPTR",getExecTerminator(0));
-                          fputs(execbuf, (FILE*)fp2);
                         } else {
                           sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
                                   token,getExecTerminator(0));
@@ -1107,12 +1107,14 @@ void processLine(char *buf, FILE *fp2) {
           isReturn = 0;
           isXctl = 0;
           execSQLCnt = 0;
+          setptrbuf[0] = 0;
       }
       if ((cmd != NULL) && strstr(buf,"SQL")) {
           allowIntoParam = 0;
           allowFromParam = 0;
           execCmd = 2;
           execSQLCnt = 0;
+          setptrbuf[0] = 0;
       }
   }
 
@@ -1222,6 +1224,9 @@ void processLine(char *buf, FILE *fp2) {
               fputs(gb,(FILE*)fp2);
               isReturn = 0;
               isXctl = 0;
+          }
+          if (strlen(setptrbuf) > 0) {
+            fputs(setptrbuf,(FILE*)fp2);            
           }
       }
   }
