@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2018, 2019 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -50,7 +50,8 @@ import javax.transaction.xa.XAResource;
 
 public class QwicsXAConnection extends QwicsPooledConnection implements
 		XAConnection {
-
+	private XAResource xaResource = null;
+	
 	public QwicsXAConnection(String host, int port) {
 		super(host, port);
 	}
@@ -58,7 +59,10 @@ public class QwicsXAConnection extends QwicsPooledConnection implements
 	@Override
 	public XAResource getXAResource() throws SQLException {
 		//System.out.println("XAConnection.getXAResource()");
-		return new QwicsXAResource(this);
+		if (xaResource == null) {
+			xaResource = new QwicsXAResource(this);
+		}
+		return xaResource;
 	}
 
 }

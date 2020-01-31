@@ -101,6 +101,7 @@ public class QwicsConnection implements Connection {
 	}
 
 	public void open() throws Exception {
+		System.err.println("con.open "+conId);
 		try {
 			socket = new Socket(host, port);
 			socketWriter = new BufferedWriter(new OutputStreamWriter(
@@ -219,12 +220,30 @@ public class QwicsConnection implements Connection {
 	@Override
 	public void commit() throws SQLException {
 		this.sendSql("COMMIT");
+		try {
+			String res = this.readResult();
+			System.err.println("COMMIT result: "+res);
+			if (res.startsWith("ERROR")) {
+				throw new Exception("QWICS: COMMIT error");
+			}
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
 		this.sendSql("BEGIN");
 	}
 
 	@Override
 	public void rollback() throws SQLException {
 		this.sendSql("ROLLBACK");
+		try {
+			String res = this.readResult();
+			System.err.println("ROLLBACK result: "+res);
+			if (res.startsWith("ERROR")) {
+				throw new Exception("QWICS: ROLLBACK error");
+			}
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
 		this.sendSql("BEGIN");
 	}
 

@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2018,2019 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -388,7 +388,10 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 							}
 						}
 					}
-					System.err.println("ABEND: ABCODE=" + getString("ABOCDE"));
+					while (!"STOP".equals(name = conn.readResult())) {
+						System.err.println("ABEND read: "+name);
+					}
+					throw new SQLException("QWICS: ABEND: ABCODE=" + getString("ABCODE"));
 				} else if (mapCmd.startsWith("SYNCPOINT")) {
 					String name = "";
 					while (!"".equals(name = conn.readResult())) {
@@ -725,7 +728,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 					}
 					conn.sendCmd("" + resp);
 					conn.sendCmd("" + resp2);
-				} else if (mapCmd.startsWith("GET")) {
+				} else if (mapCmd.startsWith("GET") && !mapCmd.contains("MAIN")) {
 					String name = "";
 					String container = "";
 					String channel = "";
@@ -1441,8 +1444,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	@Override
 	public void close() throws SQLException {
 		// Read remaining data and ignore it
-		while (next())
-			;
+		while (next());
 	}
 
 	@Override
@@ -1735,6 +1737,42 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	@Override
 	public Object getObject(String columnLabel) throws SQLException {
+		if ((columnLabel != null) && columnLabel.startsWith("TDQUEUES")) {
+			String opt = columnLabel.substring(8).trim();
+			if (opt.startsWith("LIST")) {
+				String queue = opt.substring(4).trim();
+				if (!"".equals(queue)) {
+					synchronized (tdQueues) {
+						ArrayList<char[]> q = tdQueues.get(queue);
+						if (q != null) {
+							ArrayList<char[]> q2 = new ArrayList<char[]>();
+							for  (char[] arr : q) {
+								q2.add(arr.clone());
+							}
+							return q2;
+						}
+					}
+				}
+			}
+			if (opt.startsWith("READQ")) {
+				String queue = opt.substring(5).trim();
+				if (!"".equals(queue)) {
+					synchronized (tdQueues) {
+						ArrayList<char[]> q = tdQueues.get(queue);
+						if (q != null) {
+							int item = tdQueuesLastRead.get(queue) + 1;
+							if (item < tdQueues.size()) {
+								char buf[] = tdQueues.get(queue).get(item);
+								tdQueues.get(queue).remove(item);
+								tdQueuesLastRead.put(queue, item - 1);
+								return buf;
+							}
+						}
+					}
+				}
+			}
+			return null;
+		}
 		return getObject(nameIndices.get(columnLabel));
 	}
 

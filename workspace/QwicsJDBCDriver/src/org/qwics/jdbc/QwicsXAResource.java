@@ -44,6 +44,7 @@ OF SUCH DAMAGE.
 package org.qwics.jdbc;
 
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 
@@ -54,6 +55,7 @@ import javax.transaction.xa.Xid;
 public class QwicsXAResource implements XAResource {
 	private QwicsXAConnection conn;
 	private int timeout = 0;
+	private boolean onePhase = true;
 	
 	public QwicsXAResource(QwicsXAConnection conn) {
 		super();
@@ -89,12 +91,23 @@ public class QwicsXAResource implements XAResource {
 	@Override
 	public void commit(Xid xid, boolean onePhase) throws XAException {
 		try {
-			// System.out.println("XA commit "+xid+" "+onePhase);
+			System.err.println("XA commit "+xid+" "+onePhase);
+			this.onePhase = true;
 			if (onePhase) {
 				conn.commit();
 				return;
 			}
 			conn.sendSql("COMMIT PREPARED "+xidToString(xid));
+			try {
+				String res = conn.readResult();
+				System.err.println("COMMIT PREPARED result: "+res);
+				if (res.startsWith("ERROR")) {
+					throw new SQLException("QWICS: COMMIT PREPARED error");
+				}
+			} catch (Exception e) {
+				conn.rollback();
+				throw new XAException(e.getMessage());
+			}
 			conn.sendSql("BEGIN");
 		} catch (Exception e) {
 			throw new XAException(e.toString());
@@ -135,7 +148,19 @@ public class QwicsXAResource implements XAResource {
 	@Override
 	public int prepare(Xid xid) throws XAException {
 		try {
+			System.err.println("XA prepare "+xid);
 			conn.sendSql("PREPARE TRANSACTION "+xidToString(xid));
+			try {
+				String res = conn.readResult();
+				System.err.println("PREPARED TRANSACTION result: "+res);
+				if (res.startsWith("ERROR")) {
+					throw new SQLException("QWICS: PREPARE TRANSACTION error");
+				}
+			} catch (Exception e) {
+				conn.rollback();
+				throw new XAException(e.getMessage());
+			}
+			onePhase = false;
 		} catch (Exception e) {
 			throw new XAException(e.toString());
 		}
@@ -171,7 +196,22 @@ public class QwicsXAResource implements XAResource {
 	@Override
 	public void rollback(Xid xid) throws XAException {
 		try {
+			System.err.println("XA rollback "+xid+" "+this.onePhase);
+			if (this.onePhase) {
+				conn.rollback();
+				return;
+			}
+			this.onePhase = true;
 			conn.sendSql("ROLLBACK PREPARED "+xidToString(xid));
+			try {
+				String res = conn.readResult();
+				System.err.println("ROLLBACK PREPARED result: "+res);
+				if (res.startsWith("ERROR")) {
+					throw new SQLException("QWICS: ROLLBACK PREPARED error");
+				}
+			} catch (Exception e) {
+				throw new XAException(e.getMessage());
+			}
 			conn.sendSql("BEGIN");
 		} catch (Exception e) {
 			throw new XAException(e.toString());
