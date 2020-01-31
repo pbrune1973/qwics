@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Java EE Web Application                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 27.10.2019                                  */
+/*   Author: Philipp Brune               Date: 31.01.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2019 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -23,7 +23,9 @@ package ws;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Random;
 
 import javax.annotation.Resource;
@@ -50,7 +52,7 @@ public class QwicsWS {
 	@Resource
 	private UserTransaction utx;
 
-	@Resource(mappedName="java:jboss/datasources/QwicsDS")
+	@Resource(mappedName = "java:jboss/datasources/QwicsDS")
 	DataSource datasource;
 
 	private Connection con;
@@ -58,22 +60,49 @@ public class QwicsWS {
 	private ResultSet maps;
 	private static HashMap<String, String> transactionProgNames = new HashMap<String, String>();
 	private String conId = ""; // Unique identifier for the QWICsconnection per EJB instance
-	
+	private ArrayList<String> logQueues = new ArrayList<String>(); 
+
 	public QwicsWS() {
 		// Create unique identifier for the QWICsconnection of this EJB instance
 		Random rand = new Random();
 		conId = "";
 		for (int i = 0; i < 10; i++) {
-			char c = (char)(65+rand.nextInt(25));
+			char c = (char) (65 + rand.nextInt(25));
 			conId = conId + c;
 		}
 	}
 
+	private void logQueue(String qName) {
+		try {
+			List<char[]> q = (List<char[]>) maps.getObject("TDQUEUES LIST "+qName);
+			if (q != null) {
+				int i = 0;
+				for (char[] msg : q) {
+					System.err.printf("%s%s%d",qName," ",i);
+					String s = "";
+					for (int n = 0; n < msg.length; n++) {
+						System.err.printf(" %x",(byte)msg[n]);
+						s = s + msg[n];
+						if (n > 0 && n < msg.length-1 && (n % 16) == 0) {
+							System.err.printf(" %s\n%s%s%d",s,qName," ",i);
+							s = "";
+						}
+					}
+					System.err.printf(" %s\n",s);
+					System.err.printf("\n");
+					i++;
+				}						
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}						
+	}
+	
 	public boolean nextSend() throws Exception {
 		boolean isSend = false;
 		do {
 			isSend = maps.next();
-
+	
 			if (isSend && maps.getBoolean("SYNCPOINT")) {
 				if (!maps.getBoolean("ROLLBACK")) {
 					try {
@@ -105,6 +134,9 @@ public class QwicsWS {
 			String program = "";
 			if (!isSend) {
 				// RETURN
+				for (String qn : logQueues) {
+					logQueue(qn);
+				}
 				String transId = maps.getString("TRANSID");
 				// System.out.println("Return with transId "+transId);
 				program = transactionProgNames.get(transId);
@@ -180,8 +212,17 @@ public class QwicsWS {
 			} catch (Exception ex) {
 				ex.printStackTrace();
 				return false;
-			}			
+			}
 		}
+		return true;
+	}
+
+	@POST
+	@Path("logqueue/{qName}")
+	@Produces(MediaType.APPLICATION_JSON)
+	@TransactionAttribute(TransactionAttributeType.REQUIRED)
+	public boolean defineLogQueue(@PathParam("qName") String qName) {
+		logQueues.add(qName.toUpperCase());
 		return true;
 	}
 
