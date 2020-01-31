@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.12.2019                                  */
+/*   Author: Philipp Brune               Date: 30.01.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
 /*                                                                                         */
@@ -37,6 +37,8 @@
 #ifdef __APPLE__
 #include "macosx/fmemopen.h"
 #endif
+
+#define execSql(sql, fd) _execSql(sql, fd, 1)
 
 // Keys for thread specific data
 pthread_key_t connKey;
@@ -342,7 +344,7 @@ void *getmain(int length, int shared) {
 }
 
 
-void freemain(void *p) {
+int freemain(void *p) {
   void **allocMem = (void**)pthread_getspecific(allocMemKey);
   int *allocMemPtr = (int*)pthread_getspecific(allocMemPtrKey);
   for (int i = 0; i < (*allocMemPtr); i++) {
@@ -353,25 +355,28 @@ void freemain(void *p) {
           if (i == (*allocMemPtr)-1) {
             (*allocMemPtr)--;
           }
-          return;
+          return 0;
       }
   }
   // Free shared mem
+  int r = -1;
   cm(pthread_mutex_lock(&sharedMemMutex));
   allocMem = sharedAllocMem;
   allocMemPtr = sharedAllocMemPtr;
   for (int i = 0; i < (*allocMemPtr); i++) {
       if ((p != NULL) && (allocMem[i] == p)) {
-          printf("%s %x\n","freemain shared",(unsigned int)p);
+          printf("%s %lx\n","freemain shared",(unsigned long)p);
           sharedFree(allocMem[i],sharedAllocMemLen[i]);
           allocMem[i] = NULL;
           if (i == (*allocMemPtr)-1) {
             (*allocMemPtr)--;
           }
+          r = 0;
           break;
       }
   }
   cm(pthread_mutex_unlock(&sharedMemMutex));
+  return r;  
 }
 
 
@@ -389,7 +394,7 @@ void clearMain() {
 
 
 // Execute SQL pure instruction
-void execSql(char *sql, void *fd) {
+void _execSql(char *sql, void *fd, int sendRes) {
     char response[1024];
     pthread_setspecific(childfdKey, fd);
     if (strstr(sql,"BEGIN")) {
@@ -399,16 +404,30 @@ void execSql(char *sql, void *fd) {
     }
     if (strstr(sql,"COMMIT")) {
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
-        if (strstr(sql,"PREPARED")) {
-            execSQLCmd(conn, sql);
+        char *r = execSQLCmd(conn, sql);
+        if (sendRes == 1) {
+            if (r == NULL) {
+                sprintf(response,"%s\n","ERROR");
+                write(*((int*)fd),&response,strlen(response));
+            } else {
+                sprintf(response,"%s\n","OK");
+                write(*((int*)fd),&response,strlen(response));
+            }
         }
         returnDBConnection(conn, 1);
         return;
     }
     if (strstr(sql,"ROLLBACK")) {
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
-        if (strstr(sql,"PREPARED")) {
-            execSQLCmd(conn, sql);
+        char *r = execSQLCmd(conn, sql);
+        if (sendRes == 1) {
+            if (r == NULL) {
+                sprintf(response,"%s\n","ERROR");
+                write(*((int*)fd),&response,strlen(response));
+            } else {
+                sprintf(response,"%s\n","OK");
+                write(*((int*)fd),&response,strlen(response));
+            }
         }
         returnDBConnection(conn, 0);
         return;
@@ -467,7 +486,19 @@ int setJmpAbend(int *errcond, char *bufVar) {
 
 
 void abend(int resp, int resp2) {
-  fprintf(stderr,"%s %d %s %d\n","ABEND RESP=",resp," RESP2=",resp2);
+  int *cmdState = (int*)pthread_getspecific(cmdStateKey);
+  if ((*cmdState) != -17) {
+    // ABEND not triggered by explicit ABEND command
+    char buf[56];
+    int childfd = *((int*)pthread_getspecific(childfdKey));
+    sprintf(buf,"%s","ABEND\n");
+    write(childfd,buf,strlen(buf));
+    sprintf(buf,"%s","ABCODE\n");
+    write(childfd,buf,strlen(buf));
+    sprintf(buf,"%s","='AAQU'\n\n");
+    write(childfd,buf,strlen(buf));
+  }
+  fprintf(stderr,"%s%d%s%d\n","ABEND RESP=",resp," RESP2=",resp2);
   jmp_buf *h = condHandler[resp];
   if (h != NULL) {
     longjmp(*h,1);
@@ -1017,7 +1048,11 @@ int execCallback(char *cmd, void *var) {
                 }
             }
             if (((*cmdState) == -7) && ((*memParamsState) >= 1)) {
-                freemain(memParams[1]);
+                if (freemain(memParams[1]) < 0) {
+                    resp = 16;
+                    resp2 = 1;
+                    abend(resp,resp2);
+                }
             }
             if (((*cmdState) == -9) && ((*memParamsState) >= 1)) {
                 int len = *((int*)memParams[0]);

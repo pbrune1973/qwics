@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Main Tcp Connection Handler                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 09.08.2019                                  */
+/*   Author: Philipp Brune               Date: 30.01.20120                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
 /*                                                                                         */
@@ -87,7 +87,7 @@ void *handle_client(void *fd) {
       }
     }
   }
-  execSql("COMMIT", &childfd);
+  _execSql("COMMIT", &childfd, 0);
   close(childfd);
   return NULL;
 }
@@ -227,6 +227,7 @@ int main(int argc, char **argv) {
 
   while (1) {
     childfd = accept(parentfd, (struct sockaddr *) &clientaddr, (socklen_t*)&clientlen);
+    printf("%s %d\n","Accepted ",childfd);
     if (childfd == -1) {
       if (errno == EINTR) {
         break;

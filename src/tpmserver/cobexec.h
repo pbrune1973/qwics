@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 03.08.2019                                  */
+/*   Author: Philipp Brune               Date: 29.01.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
 /*                                                                                         */
@@ -32,6 +32,7 @@ void execTransaction(char *name, void *fd, int setCommArea);
 void execInTransaction(char *name, void *fd, int setCommArea);
 
 // Execute SQL pure instruction
-void execSql(char *sql, void *fd);
+void _execSql(char *sql, void *fd, int sendRes);
+#define execSql(sql, fd) _execSql(sql, fd, 1)
 
 #endif
