@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server Java EE Web Application                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.01.2020                                  */
+/*   Author: Philipp Brune               Date: 17.02.2020                                  */
 /*                                                                                         */
-/*   Copyright (C) 2019 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2019,2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de          */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -194,6 +194,46 @@ public class QwicsWS {
 		try {
 			utx.begin();
 			con = datasource.getConnection(conId, "");
+			con.setClientInfo("TRANSID", transId);
+			con.setClientInfo("STARTERID", null);
+			call = con.prepareCall("PROGRAM " + program);
+			maps = call.executeQuery();
+			while (nextSend()) {
+			}
+			utx.commit();
+		} catch (Exception e) {
+			try {
+				utx.rollback();
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+			return false;
+		} finally {
+			try {
+				con.close();
+			} catch (Exception ex) {
+				ex.printStackTrace();
+				return false;
+			}
+		}
+		return true;
+	}
+
+	@GET
+	@Path("start/{transId}/{starterId}")
+	@Produces(MediaType.APPLICATION_JSON)
+	@TransactionAttribute(TransactionAttributeType.REQUIRES_NEW)
+	public boolean startTransId(@PathParam("transId") String transId,
+							@PathParam("starterId") String starterId) {
+		String program = transactionProgNames.get(transId);
+		if (program == null) {
+			return false;
+		}
+		try {
+			utx.begin();
+			con = datasource.getConnection(conId, "");
+			con.setClientInfo("TRANSID", transId);
+			con.setClientInfo("STARTERID", starterId);
 			call = con.prepareCall("PROGRAM " + program);
 			maps = call.executeQuery();
 			while (nextSend()) {
