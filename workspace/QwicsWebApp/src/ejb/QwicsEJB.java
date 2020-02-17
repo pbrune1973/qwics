@@ -1,9 +1,9 @@
 /*******************************************************************************************/
-/*   QWICS Server Java EE Web Application                                             */
+/*   QWICS Server Java EE Web Application                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 27.10.2019                                  */
+/*   Author: Philipp Brune               Date: 17.02.2020                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018-2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de          */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -24,7 +24,9 @@ import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.HashMap;
+import java.util.Map.Entry;
 import java.util.Random;
+import java.util.Set;
 
 import javax.annotation.Resource;
 import javax.ejb.LocalBean;
@@ -74,6 +76,16 @@ public class QwicsEJB {
 		}
 	}
 
+	private String getTransIdForProg(String program) {
+		Set<Entry<String,String>> l = transactionProgNames.entrySet();
+		for (Entry<String,String> e : l) {
+			if (program.equals(e.getValue())) {
+				return e.getKey();
+			}
+		}
+		return "    ";
+	}
+	
 	public boolean nextSend(Session session) throws Exception {
 		boolean isSend = false;
 		do {
@@ -120,12 +132,14 @@ public class QwicsEJB {
 					utx.begin();
 					con.close();
 					con = datasource.getConnection(conId, "");
+					con.setClientInfo("TRANSID", transId);
 				} catch (Exception e) {
 					e.printStackTrace();
 					utx.rollback();
 					utx.begin();
 					con.close();
 					con = datasource.getConnection(conId, "");
+					con.setClientInfo("TRANSID", transId);
 					return false;
 				}
 				if ((transId != null) && (transId.length() > 0)) {
@@ -159,6 +173,7 @@ public class QwicsEJB {
 				String program = msg.substring(7);
 				utx.begin();
 				con = datasource.getConnection(conId, "");
+				con.setClientInfo("TRANSID", this.getTransIdForProg(program));
 				call = con.prepareCall("PROGRAM " + program);
 				maps = call.executeQuery();
 				if (nextSend(session)) {
