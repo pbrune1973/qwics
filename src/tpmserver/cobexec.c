@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 30.01.2020                                  */
+/*   Author: Philipp Brune               Date: 17.02.2020                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@qwics.org             */
+/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -24,6 +24,9 @@
 #include <string.h>
 #include <pthread.h>
 #include <dlfcn.h>
+#include <signal.h>
+#include <errno.h>
+#include <time.h>
 
 #include <libcob.h>
 #include <setjmp.h>
@@ -45,6 +48,7 @@ pthread_key_t connKey;
 pthread_key_t childfdKey;
 pthread_key_t cmdbufKey;
 pthread_key_t cmdStateKey;
+pthread_key_t runStateKey;
 pthread_key_t cobFieldKey;
 pthread_key_t xctlStateKey;
 pthread_key_t retrieveStateKey;
@@ -486,19 +490,56 @@ int setJmpAbend(int *errcond, char *bufVar) {
 
 
 void abend(int resp, int resp2) {
+  char response[1024];
+  char *abcode = "ASRA";
+  switch (resp) {
+      case 16: abcode = "A47B"; 
+               break;
+      case 22: abcode = "AEIV"; 
+               break;
+      case 23: abcode = "AEIW"; 
+               break;
+      case 26: abcode = "AEIZ"; 
+               break;
+      case 27: abcode = "AEI0"; 
+               break;
+      case 28: abcode = "AEI1"; 
+               break;
+      case 44: abcode = "AEYH"; 
+               break;
+      case 55: abcode = "ASRA"; 
+               break;
+      case 82: abcode = "ASRA"; 
+               break;
+      case 110: abcode = "ASRA"; 
+               break;
+      case 122: abcode = "ASRA"; 
+               break;
+  }
+  int *respFieldsState = (int*)pthread_getspecific(respFieldsStateKey);
   int *cmdState = (int*)pthread_getspecific(cmdStateKey);
   if ((*cmdState) != -17) {
     // ABEND not triggered by explicit ABEND command
+    if ((*respFieldsState) > 0) {
+      // RESP param set, continue
+      return;      
+    }
     char buf[56];
     int childfd = *((int*)pthread_getspecific(childfdKey));
     sprintf(buf,"%s","ABEND\n");
     write(childfd,buf,strlen(buf));
     sprintf(buf,"%s","ABCODE\n");
     write(childfd,buf,strlen(buf));
-    sprintf(buf,"%s","='AAQU'\n\n");
+    sprintf(buf,"%s%s%s","='",abcode,"'\n\n");
     write(childfd,buf,strlen(buf));
+
+    int *runState = (int*)pthread_getspecific(runStateKey);
+    if ((*runState) == 3) {   // SEGV ABEND
+        sprintf(response,"\n%s\n","STOP");
+        write(childfd,&response,strlen(response));
+    }
   }
-  fprintf(stderr,"%s%d%s%d\n","ABEND RESP=",resp," RESP2=",resp2);
+  fprintf(stderr,"%s%s%s%d%s%d\n","ABEND ABCODE=",abcode," RESP=",resp," RESP2=",resp2);
   jmp_buf *h = condHandler[resp];
   if (h != NULL) {
     longjmp(*h,1);
@@ -562,7 +603,8 @@ int execLoadModule(char *name, int mode) {
 #ifndef _USE_ONLY_PROCESSES_
             endModule(name);
 #endif
-            if (mode == 0) {
+            int *runState = (int*)pthread_getspecific(runStateKey);
+            if ((mode == 0) && ((*runState) < 3)) {
                 sprintf(response,"\n%s\n","STOP");
                 write(childfd,&response,strlen(response));
             }
@@ -592,6 +634,7 @@ int execCallback(char *cmd, void *var) {
     int childfd = *((int*)pthread_getspecific(childfdKey));
     char *cmdbuf = (char*)pthread_getspecific(cmdbufKey);
     int *cmdState = (int*)pthread_getspecific(cmdStateKey);
+    int *runState = (int*)pthread_getspecific(runStateKey);
     cob_field **outputVars = (cob_field**)pthread_getspecific(cobFieldKey);
     char *end = &cmdbuf[strlen(cmdbuf)];
     int *xctlState = (int*)pthread_getspecific(xctlStateKey);
@@ -624,7 +667,6 @@ int execCallback(char *cmd, void *var) {
     }
     if (strstr(cmd,"SET EIBCALEN") && ((*linkStackPtr) == 0)) {
         cob_field *cobvar = (cob_field*)var;
-//        cobvar->data = (unsigned char*)(eibbuf+24);
         // Read in client response value
         char buf[2048];
         buf[0] = 0x00;
@@ -649,7 +691,6 @@ int execCallback(char *cmd, void *var) {
         (*areaMode) = 0;
         // Handle EIBAID
         cob_field *cobvar = (cob_field*)var;
-//        cobvar->data = (unsigned char*)(eibbuf+26);
         // Read in client response value
         char buf[2048];
         buf[0] = 0x00;
@@ -668,9 +709,86 @@ int execCallback(char *cmd, void *var) {
     }
     if (strstr(cmd,"SET DFHEIBLK") && ((*linkStackPtr) == 0)) {
         cob_field *cobvar = (cob_field*)var;
-        cobvar->data = (unsigned char*)eibbuf;
+        if (cobvar->data != NULL) {
+            eibbuf = (char*)cobvar->data;
+            pthread_setspecific(eibbufKey, &eibbuf);
+        }
+        // Read in TRNID from client
+        char c = 0x00;
+        int pos = 8;
+        while (c != '\n') {
+            int n = read(childfd,&c,1);
+            if ((n == 1) && (pos < 12) && (c != '\n') && (c != '\r') && (c != '\'')) {
+                eibbuf[pos] = c;
+                pos++;
+            }
+        }
+        while (pos < 12) {
+            eibbuf[pos] = ' ';
+            pos++;
+        }
+        // Read in REQID from client
+        c = 0x00;
+        pos = 43;
+        while (c != '\n') {
+            int n = read(childfd,&c,1);
+            if ((n == 1) && (pos < 51) && (c != '\n') && (c != '\r') && (c != '\'')) {
+                eibbuf[pos] = c;
+                pos++;
+            }
+        }
+        while (pos < 51) {
+            eibbuf[pos] = ' ';
+            pos++;
+        }
+        // Read in TERMID from client
+        c = 0x00;
+        pos = 16;
+        while (c != '\n') {
+            int n = read(childfd,&c,1);
+            if ((n == 1) && (pos < 20) && (c != '\n') && (c != '\r') && (c != '\'')) {
+                eibbuf[pos] = c;
+                pos++;
+            }
+        }
+        while (pos < 20) {
+            eibbuf[pos] = '0';
+            pos++;
+        }
+        // Read in TASKID from client
+        char idbuf[9];
+        c = 0x00;
+        pos = 0;
+        while (c != '\n') {
+            int n = read(childfd,&c,1);
+            if ((n == 1) && (pos < 8) && (c != '\n') && (c != '\r') && (c != '\'')) {
+                idbuf[pos] = c;
+                pos++;
+            }
+        }
+        idbuf[pos] = 0x00;
+        int id = atoi(idbuf);
+        cob_put_s64_comp3(id,(void*)&eibbuf[12],4);
+        // SET EIBDATE and EIBTIME
+        time_t t = time(NULL);
+        struct tm now = *localtime(&t);
+        int ti = now.tm_hour*10000 + now.tm_min*100 + now.tm_sec;
+        cob_put_s64_comp3(ti,(void*)&eibbuf[0],4);
+        int da = now.tm_year*1000 + now.tm_yday;
+        cob_put_s64_comp3(da,(void*)&eibbuf[4],4);
         return 1;
+    } else 
+    if (strstr(cmd,"SET DFHEIBLK") && ((*linkStackPtr) > 0)) {
+        // Called by LINk inside transaction, pass through EIB
+        cob_field *cobvar = (cob_field*)var;
+        if (cobvar->data != NULL) {
+            int n = 0;
+            for (n = 0; n < 150; n++) {
+                ((char*)cobvar->data)[n] = eibbuf[n];
+            }
+        }
     }
+
     if (strstr(cmd,"SETL1 1") || strstr(cmd,"SETL0 1") || strstr(cmd,"SETL0 77")) {
         (*areaMode) = 0;
     }
@@ -932,6 +1050,21 @@ int execCallback(char *cmd, void *var) {
             respFields[1] = NULL;
             return 1;
         }
+        if (strcmp(cmd,"RETURN") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -20; // RETURN
+            (*memParamsState) = 0;
+            *((int*)memParams[0]) = -1;
+            memParams[1] = NULL;
+            memParams[2] = NULL;
+            (*respFieldsState) = 0;
+            respFields[0] = NULL;
+            respFields[1] = NULL;
+            (*runState) = 2; // TASK ENDED
+            return 1;
+        }
 
         if (strstr(cmd,"END-EXEC")) {
             int resp = 0;
@@ -963,6 +1096,7 @@ int execCallback(char *cmd, void *var) {
                       i++;
                   }
                 }
+
                 char buf[2048];
                 readLine((char*)&buf,childfd);
                 resp = atoi(buf);
@@ -982,6 +1116,15 @@ int execCallback(char *cmd, void *var) {
             if (((*cmdState) == -4) && ((*retrieveState) >= 1)) {
                 // RETRIEVE
                 (*retrieveState) = 0;
+
+                char buf[2048];
+                readLine((char*)&buf,childfd);
+                resp = atoi(buf);
+                readLine((char*)&buf,childfd);
+                resp2 = atoi(buf);
+                if (resp > 0) {
+                  abend(resp,resp2);
+                }
             }
             if (((*cmdState) == -5) && ((*xctlState) >= 1)) {
                 // LINK
@@ -1288,7 +1431,7 @@ int execCallback(char *cmd, void *var) {
                 }
             }
             if ((*respFieldsState) == 1) {
-              cob_put_u64_compx(resp,((cob_field*)respFields[0])->data,4);
+              cob_put_u64_compx((long)resp,((cob_field*)respFields[0])->data,2);
             }
             if ((*respFieldsState) == 2) {
               cob_put_u64_compx(resp,((cob_field*)respFields[0])->data,4);
@@ -1847,6 +1990,7 @@ int execCallback(char *cmd, void *var) {
                     !(((*cmdState) == -14) && ((*memParamsState) == 1)) &&
                     !(((*cmdState) == -15) && ((*memParamsState) == 1)) &&
                     !(((*cmdState) == -19) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -19) && ((*memParamsState) == 2)) &&
                     !(((*cmdState) == -19) && ((*memParamsState) == 3))) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
@@ -2095,6 +2239,7 @@ int execCallback(char *cmd, void *var) {
                 }
                 if (((*cmdState) == -19) && ((*memParamsState) == 3)) {
                     // START TRANSID REQID
+                    write(childfd,"=",1);
                     write(childfd,"'",1);
                     write(childfd,cobvar->data,8);
                     write(childfd,"'\n",2);
@@ -2180,6 +2325,20 @@ int execCallback(char *cmd, void *var) {
 }
 
 
+static void segv_handler(int signo)
+{
+    if (signo == SIGSEGV) {
+        printf("Segmentation fault in QWICS tpmserver, abending task\n");
+        int *runState = (int*)pthread_getspecific(runStateKey);
+        (*runState) = 3;
+        int *respFieldsState = (int*)pthread_getspecific(respFieldsStateKey);
+        (*respFieldsState) = 0;
+        abend(16,1);
+    }
+    exit(0);
+}
+
+
 // Manage load module executor
 void initExec(int initCons) {
     performEXEC = &execCallback;
@@ -2189,6 +2348,7 @@ void initExec(int initCons) {
     pthread_key_create(&connKey, NULL);
     pthread_key_create(&cmdbufKey, NULL);
     pthread_key_create(&cmdStateKey, NULL);
+    pthread_key_create(&runStateKey, NULL);
     pthread_key_create(&cobFieldKey, NULL);
     pthread_key_create(&xctlStateKey, NULL);
     pthread_key_create(&xctlParamsKey, NULL);
@@ -2254,6 +2414,7 @@ void clearExec(int initCons) {
 void execTransaction(char *name, void *fd, int setCommArea) {
     char cmdbuf[2048];
     int cmdState = 0;
+    int runState = 0;
     int xctlState = 0;
     char progname[9];
     char *xctlParams[10];
@@ -2285,6 +2446,7 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     pthread_setspecific(childfdKey, fd);
     pthread_setspecific(cmdbufKey, &cmdbuf);
     pthread_setspecific(cmdStateKey, &cmdState);
+    pthread_setspecific(runStateKey, &runState);
     pthread_setspecific(cobFieldKey, &outputVars);
     pthread_setspecific(xctlStateKey, &xctlState);
     pthread_setspecific(xctlParamsKey, &xctlParams);
@@ -2317,6 +2479,13 @@ void execTransaction(char *name, void *fd, int setCommArea) {
         }
       }
     }
+    // Set signal handler for SIGSEGV (in case of mem leak in load module)
+    struct sigaction a;
+    a.sa_handler = segv_handler;
+    a.sa_flags = 0;
+    sigemptyset( &a.sa_mask );
+    sigaction( SIGSEGV, &a, NULL );
+
     PGconn *conn = getDBConnection();
     pthread_setspecific(connKey, (void*)conn);
     initMain();
@@ -2325,6 +2494,9 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     clearMain();
     free(allocMem);
     returnDBConnection(conn,1);
+    // Flush output buffers
+    fflush(stdout);
+    fflush(stderr);
 }
 
 
@@ -2332,6 +2504,7 @@ void execTransaction(char *name, void *fd, int setCommArea) {
 void execInTransaction(char *name, void *fd, int setCommArea) {
     char cmdbuf[2048];
     int cmdState = 0;
+    int runState = 0;
     int xctlState = 0;
     char *xctlParams[10];
     char eibbuf[150];
@@ -2363,6 +2536,7 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     pthread_setspecific(childfdKey, fd);
     pthread_setspecific(cmdbufKey, &cmdbuf);
     pthread_setspecific(cmdStateKey, &cmdState);
+    pthread_setspecific(runStateKey, &runState);
     pthread_setspecific(cobFieldKey, &outputVars);
     pthread_setspecific(xctlStateKey, &xctlState);
     pthread_setspecific(xctlParamsKey, &xctlParams);
@@ -2395,9 +2569,19 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
         }
       }
     }
+    // Set signal handler for SIGSEGV (in case of mem leak in load module)
+    struct sigaction a;
+    a.sa_handler = segv_handler;
+    a.sa_flags = 0;
+    sigemptyset( &a.sa_mask );
+    sigaction( SIGSEGV, &a, NULL );
+
     initMain();
     execLoadModule(name,0);
     releaseLocks(TASK,taskLocks);
     clearMain();
     free(allocMem);
+    // Flush output buffers
+    fflush(stdout);
+    fflush(stderr);
 }

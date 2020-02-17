@@ -227,7 +227,6 @@ int main(int argc, char **argv) {
 
   while (1) {
     childfd = accept(parentfd, (struct sockaddr *) &clientaddr, (socklen_t*)&clientlen);
-    printf("%s %d\n","Accepted ",childfd);
     if (childfd == -1) {
       if (errno == EINTR) {
         break;
