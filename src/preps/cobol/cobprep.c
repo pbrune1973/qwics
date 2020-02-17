@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 29.12.2019                                  */
+/*   Author: Philipp Brune               Date: 02.02.2020                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018, 2019 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -589,6 +589,9 @@ void processExecLine(char *buf, FILE *fp2) {
                     if (strstr(token,"WRITEQ") != NULL) {
                         allowFromParam = 1;
                     }
+                    if (strstr(token,"START") != NULL) {
+                        allowFromParam = 1;
+                    }
                     if (strstr(token,"MAP") != NULL) {
                         mapNameMode = 1;
                     }
@@ -818,6 +821,9 @@ void processExecLine(char *buf, FILE *fp2) {
                                 allowIntoParam = 1;
                             }
                             if (strstr(token,"WRITEQ") != NULL) {
+                                allowFromParam = 1;
+                            }
+                            if (strstr(token,"START") != NULL) {
                                 allowFromParam = 1;
                             }
                             if (strstr(token,"MAP") != NULL) {
