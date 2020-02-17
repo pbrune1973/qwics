@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2019 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2019,2020 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -85,7 +85,7 @@ public class ScheduleTimer extends Thread {
 						}
 					}
 					if (taStarter != null) {
-						taStarter.start(scheduledTa.get(0).getTransId());						
+						taStarter.start(scheduledTa.get(0).getTransId(),scheduledTa.get(0).getReqId());						
 					}
 					scheduledTa.remove(0);
 				}

@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2019 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2019,2020 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -50,11 +50,9 @@ import java.net.URL;
 public class TaStarter {
 	private String baseUrl = System.getProperty("org.qwics.jdbc.scheduler.baseUrl");
 
-	void start(String transId) {
+	void start(String transId, String starterId) {
 		try {
-			System.out.println("Starting transaction "+transId);
-
-			URL qwics = new URL(baseUrl + "/QwicsWebApp/services/ta/call/" + transId);
+			URL qwics = new URL(baseUrl + "/QwicsWebApp/services/ta/start/" + transId + "/" + starterId);
 			BufferedReader in = new BufferedReader(new InputStreamReader(qwics.openStream()));
 
 			String inputLine;

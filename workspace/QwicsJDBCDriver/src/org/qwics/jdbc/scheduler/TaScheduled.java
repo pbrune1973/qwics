@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2019 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2019,2020 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -53,7 +53,6 @@ public class TaScheduled implements Comparable {
 		this.transId = transId;
 		this.reqId = reqId;
 		this.data = data;
-
 		try {
 			int hour = Integer.parseInt(time.substring(0, 2));
 			int min = Integer.parseInt(time.substring(2, 4));
