@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018,2019 Philipp Brune    Email: Philipp.Brune@hqwics.org
+Copyright (c) 2018-2020 Philipp Brune    Email: Philipp.Brune@hqwics.org
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -83,12 +83,14 @@ public class QwicsConnection implements Connection {
 	private ArrayList<String> mapValues = new ArrayList<String>();
 	private HashMap<String, Integer> nameIndices = new HashMap<String, Integer>();
 	private String conId = "";
+	private HashMap<String, String> clientInfo = new HashMap<String, String>();
+	private static Integer termIdCounter = 1;
 
 	private void createConId() {
 		Random rand = new Random();
 		conId = "";
 		for (int i = 0; i < 10; i++) {
-			char c = (char)(65+rand.nextInt(25));
+			char c = (char) (65 + rand.nextInt(25));
 			conId = conId + c;
 		}
 	}
@@ -96,18 +98,28 @@ public class QwicsConnection implements Connection {
 	public QwicsConnection(String host, int port) {
 		this.host = host;
 		this.port = port;
-		metaData = new QwicsDatabaseMetaData(host,port,this);
+		metaData = new QwicsDatabaseMetaData(host, port, this);
 		createConId();
+		String termId = "";
+		try {
+			synchronized (termIdCounter) {
+				termId = "" + termIdCounter;
+				termIdCounter++;
+			}
+			if (termId.length() > 3) {
+				termId = termId.substring(0, 3);
+			}
+			termId = "T" + "000".substring(termId.length()) + termId;
+			clientInfo.put("TERMID", termId);
+		} catch (Exception e) {
+		}
 	}
 
 	public void open() throws Exception {
-		System.err.println("con.open "+conId);
 		try {
 			socket = new Socket(host, port);
-			socketWriter = new BufferedWriter(new OutputStreamWriter(
-					socket.getOutputStream()));
-			socketReader = new BufferedReader(new InputStreamReader(
-					socket.getInputStream()));
+			socketWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+			socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			sendSql("BEGIN");
 			closed = false;
 		} catch (Exception e) {
@@ -157,10 +169,10 @@ public class QwicsConnection implements Connection {
 			int l = buf.length;
 			int n = -1;
 			do {
-				n = socketReader.read(buf,off,l);
+				n = socketReader.read(buf, off, l);
 				off = off + n;
 				l = l - n;
-			} while ((off < buf.length) && (n >= 0)); 	
+			} while ((off < buf.length) && (n >= 0));
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw e;
@@ -169,7 +181,7 @@ public class QwicsConnection implements Connection {
 	}
 
 	public String readResult() throws Exception {
-		String line = socketReader.readLine(); 
+		String line = socketReader.readLine();
 		if (line == null) {
 			throw new Exception("Connection to tpmserver lost");
 		}
@@ -222,7 +234,6 @@ public class QwicsConnection implements Connection {
 		this.sendSql("COMMIT");
 		try {
 			String res = this.readResult();
-			System.err.println("COMMIT result: "+res);
 			if (res.startsWith("ERROR")) {
 				throw new Exception("QWICS: COMMIT error");
 			}
@@ -237,7 +248,6 @@ public class QwicsConnection implements Connection {
 		this.sendSql("ROLLBACK");
 		try {
 			String res = this.readResult();
-			System.err.println("ROLLBACK result: "+res);
 			if (res.startsWith("ERROR")) {
 				throw new Exception("QWICS: ROLLBACK error");
 			}
@@ -250,13 +260,13 @@ public class QwicsConnection implements Connection {
 	@Override
 	public synchronized void close() throws SQLException {
 		if (!closed) {
-			sendCmd("quit");				
-		}		
+			sendCmd("quit");
+		}
 		try {
 			closed = true;
 			socketWriter.close();
 			socketReader.close();
-			socket.close();				
+			socket.close();
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new SQLException(e);
@@ -322,21 +332,19 @@ public class QwicsConnection implements Connection {
 	}
 
 	@Override
-	public Statement createStatement(int resultSetType, int resultSetConcurrency)
-			throws SQLException {
+	public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
 		return new QwicsStatement(this);
 	}
 
 	@Override
-	public PreparedStatement prepareStatement(String sql, int resultSetType,
-			int resultSetConcurrency) throws SQLException {
-		return new QwicsStatement(this,sql);
+	public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency)
+			throws SQLException {
+		return new QwicsStatement(this, sql);
 	}
 
 	@Override
-	public CallableStatement prepareCall(String sql, int resultSetType,
-			int resultSetConcurrency) throws SQLException {
-		return new QwicsCallableStatement(this,sql);
+	public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
+		return new QwicsCallableStatement(this, sql);
 	}
 
 	@Override
@@ -388,42 +396,36 @@ public class QwicsConnection implements Connection {
 	}
 
 	@Override
-	public Statement createStatement(int resultSetType,
-			int resultSetConcurrency, int resultSetHoldability)
+	public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability)
 			throws SQLException {
 		return new QwicsStatement(this);
 	}
 
 	@Override
-	public PreparedStatement prepareStatement(String sql, int resultSetType,
-			int resultSetConcurrency, int resultSetHoldability)
-			throws SQLException {
-		return new QwicsStatement(this,sql);
+	public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency,
+			int resultSetHoldability) throws SQLException {
+		return new QwicsStatement(this, sql);
 	}
 
 	@Override
-	public CallableStatement prepareCall(String sql, int resultSetType,
-			int resultSetConcurrency, int resultSetHoldability)
-			throws SQLException {
+	public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency,
+			int resultSetHoldability) throws SQLException {
 		return new QwicsCallableStatement(this, sql);
 	}
 
 	@Override
-	public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys)
-			throws SQLException {
-		return new QwicsStatement(this,sql);
+	public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
+		return new QwicsStatement(this, sql);
 	}
 
 	@Override
-	public PreparedStatement prepareStatement(String sql, int[] columnIndexes)
-			throws SQLException {
-		return new QwicsStatement(this,sql);
+	public PreparedStatement prepareStatement(String sql, int[] columnIndexes) throws SQLException {
+		return new QwicsStatement(this, sql);
 	}
 
 	@Override
-	public PreparedStatement prepareStatement(String sql, String[] columnNames)
-			throws SQLException {
-		return new QwicsStatement(this,sql);
+	public PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
+		return new QwicsStatement(this, sql);
 	}
 
 	@Override
@@ -457,15 +459,12 @@ public class QwicsConnection implements Connection {
 	}
 
 	@Override
-	public void setClientInfo(String name, String value)
-			throws SQLClientInfoException {
-		// TODO Auto-generated method stub
-
+	public void setClientInfo(String name, String value) throws SQLClientInfoException {
+		clientInfo.put(name, value);
 	}
 
 	@Override
-	public void setClientInfo(Properties properties)
-			throws SQLClientInfoException {
+	public void setClientInfo(Properties properties) throws SQLClientInfoException {
 		// TODO Auto-generated method stub
 
 	}
@@ -475,7 +474,7 @@ public class QwicsConnection implements Connection {
 		if ("conId".equals(name)) {
 			return conId;
 		}
-		return null;
+		return clientInfo.get(name);
 	}
 
 	@Override
@@ -485,15 +484,13 @@ public class QwicsConnection implements Connection {
 	}
 
 	@Override
-	public Array createArrayOf(String typeName, Object[] elements)
-			throws SQLException {
+	public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public Struct createStruct(String typeName, Object[] attributes)
-			throws SQLException {
+	public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -517,8 +514,7 @@ public class QwicsConnection implements Connection {
 	}
 
 	@Override
-	public void setNetworkTimeout(Executor executor, int milliseconds)
-			throws SQLException {
+	public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
 		// TODO Auto-generated method stub
 
 	}
@@ -540,5 +536,5 @@ public class QwicsConnection implements Connection {
 	public HashMap<String, Integer> getNameIndices() {
 		return nameIndices;
 	}
-	
+
 }

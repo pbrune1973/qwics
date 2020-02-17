@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018,2019 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2018-2020 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -88,6 +88,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private long eibCALen = 0;
 	private char eibAID = '"';
 	private String transId = "";
+	private String progId = "";
 	private String lastMapName = "";
 	private QueueManager queueManager = null;
 	private QueueHandler queueHandler = null;
@@ -96,12 +97,15 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private static HashMap<String, Integer> tsQueuesLastRead = new HashMap<String, Integer>();
 	private static HashMap<String, ArrayList<char[]>> tdQueues = new HashMap<String, ArrayList<char[]>>();
 	private static HashMap<String, Integer> tdQueuesLastRead = new HashMap<String, Integer>();
+	private static Integer reqIdCounter = 1;
+	private static Integer taskIdCounter = 1;
 
-	public QwicsMapResultSet(QwicsConnection conn, long eibCALen, char eibAID) {
+	public QwicsMapResultSet(QwicsConnection conn, long eibCALen, char eibAID, String progId) {
 		this.conn = conn;
 		this.mapCmd = "";
 		this.eibCALen = eibCALen;
 		this.eibAID = eibAID;
+		this.progId = progId;
 		this.mapValues = conn.getMapValues();
 		this.mapNames = conn.getMapNames();
 		this.nameIndices = conn.getNameIndices();
@@ -109,6 +113,67 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 		channelStack.add(new HashMap<String, HashMap<String, char[]>>());
 		channelStack.get(0).put("DFHTRANSACTION", new HashMap<String, char[]>());
 		try {
+			String trnId = "    ";
+			try {
+				trnId = conn.getClientInfo("TRANSID");
+				if (trnId == null) {
+					trnId = "    ";
+				}
+				if (trnId.length() < 4) {
+					trnId = trnId + "    ".substring(trnId.length());
+				}
+				if (trnId.length() > 4) {
+					trnId = trnId.substring(0, 4);
+				}
+			} catch (Exception e) {
+			}
+			String reqId = "00000000";
+			try {
+				reqId = conn.getClientInfo("STARTERID");
+				if (reqId == null) {
+					synchronized (reqIdCounter) {
+						reqId = "" + reqIdCounter;
+						reqIdCounter++;
+					}
+					reqId = "00000000".substring(reqId.length()) + reqId;
+				}
+				if (reqId.length() < 8) {
+					reqId = reqId + "        ".substring(reqId.length());
+				}
+				if (reqId.length() > 8) {
+					reqId = reqId.substring(0, 8);
+				}
+			} catch (Exception e) {
+			}
+			String termId = "T000";
+			try {
+				termId = conn.getClientInfo("TERMID");
+				if (termId == null) {
+					termId = "T000";
+				}
+				if (termId.length() < 4) {
+					termId = "000T".substring(termId.length()) + termId;
+				}
+				if (termId.length() > 4) {
+					termId = termId.substring(0, 4);
+				}
+			} catch (Exception e) {
+			}
+			String taskId = "";
+			try {
+				synchronized (taskIdCounter) {
+					taskId = "" + taskIdCounter;
+					taskIdCounter++;
+				}
+				if (taskId.length() > 7) {
+					taskId = taskId.substring(0, 7);
+				}
+			} catch (Exception e) {
+			}
+			conn.sendCmd("" + trnId);
+			conn.sendCmd("" + reqId);
+			conn.sendCmd("" + termId);
+			conn.sendCmd("" + taskId);
 			conn.sendCmd("" + eibCALen);
 			conn.sendCmd("" + eibAID);
 		} catch (Exception e) {
@@ -389,7 +454,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 						}
 					}
 					while (!"STOP".equals(name = conn.readResult())) {
-						System.err.println("ABEND read: "+name);
+						System.err.println("ABEND read: " + name);
 					}
 					throw new SQLException("QWICS: ABEND: ABCODE=" + getString("ABCODE"));
 				} else if (mapCmd.startsWith("SYNCPOINT")) {
@@ -426,63 +491,91 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 							try {
 								int n = Integer.parseInt(name);
 								char startMsg[] = new char[n];
-								startMsg[0] = ' ';
-								startMsg[1] = ' ';
-								startMsg[2] = ' ';
-								startMsg[3] = ' ';
-
-								startMsg[4] = 0x01;
-								startMsg[5] = 0x00;
-								startMsg[6] = 0x00;
-								startMsg[7] = 0x00;
-
-								String qn = getString("QNAME");
-								int l = qn.length();
-								if (l > 48)
-									l = 48;
-								for (int i = 0; i < l; i++) {
-									startMsg[i + 8] = qn.charAt(i);
-								}
-								for (int i = l + 8; i < n; i++) {
-									startMsg[i] = ' ';
-								}
-
-								startMsg[168] = 0x00;
-								startMsg[169] = 0x00;
-								startMsg[170] = 0x00;
-								startMsg[171] = 0x00;
-
 								try {
-									String data = getString("TRIGGERDATA");
-									l = data.length();
-									if (l > 64)
-										l = 64;
-									for (int i = 0; i < l; i++) {
-										startMsg[i + 104] = data.charAt(i);
-									}
-								} catch (Exception e) {
-								}
+									String qn = getString("QNAME");
 
-								try {
-									String data = getString("ENVDATA");
-									l = data.length();
-									if (l > 128)
-										l = 128;
-									for (int i = 0; i < l; i++) {
-										startMsg[i + 428] = data.charAt(i);
-									}
-								} catch (Exception e) {
-								}
+									startMsg[0] = ' ';
+									startMsg[1] = ' ';
+									startMsg[2] = ' ';
+									startMsg[3] = ' ';
 
-								try {
-									String data = getString("USERDATA");
-									l = data.length();
-									if (l > 128)
-										l = 128;
+									startMsg[4] = 0x01;
+									startMsg[5] = 0x00;
+									startMsg[6] = 0x00;
+									startMsg[7] = 0x00;
+
+									int l = qn.length();
+									if (l > 48)
+										l = 48;
 									for (int i = 0; i < l; i++) {
-										startMsg[i + 556] = data.charAt(i);
+										startMsg[i + 8] = qn.charAt(i);
 									}
-								} catch (Exception e) {
+									for (int i = l + 8; i < n; i++) {
+										startMsg[i] = ' ';
+									}
+
+									startMsg[168] = 0x00;
+									startMsg[169] = 0x00;
+									startMsg[170] = 0x00;
+									startMsg[171] = 0x00;
+
+									try {
+										String data = getString("TRIGGERDATA");
+										l = data.length();
+										if (l > 64)
+											l = 64;
+										for (int i = 0; i < l; i++) {
+											startMsg[i + 104] = data.charAt(i);
+										}
+									} catch (Exception e) {
+									}
+
+									try {
+										String data = getString("ENVDATA");
+										l = data.length();
+										if (l > 128)
+											l = 128;
+										for (int i = 0; i < l; i++) {
+											startMsg[i + 428] = data.charAt(i);
+										}
+									} catch (Exception e) {
+									}
+
+									try {
+										String data = getString("USERDATA");
+										l = data.length();
+										if (l > 128)
+											l = 128;
+										for (int i = 0; i < l; i++) {
+											startMsg[i + 556] = data.charAt(i);
+										}
+									} catch (Exception e) {
+									}
+								} catch (Exception e2) {
+									// No queue specified, use default
+									synchronized (tsQueues) {
+										String reqId = conn.getClientInfo("STARTERID");
+										ArrayList<char[]> q = tsQueues.get(reqId);
+										if (q != null) {
+											int item = tsQueuesLastRead.get(reqId) + 1;
+											if (item >= tsQueues.size()) {
+												resp = 26;
+											} else {
+												tsQueuesLastRead.put(reqId, item);
+												char buf[] = tsQueues.get(reqId).get(item);
+												int l = buf.length;
+												if (l > startMsg.length) {
+													resp = 22;
+													l = startMsg.length;
+												}
+												for (int i = 0; i < l; i++) {
+													startMsg[i] = buf[i];
+												}
+											}
+										} else {
+											resp = 44;
+										}
+									}
 								}
 
 								conn.sendBuf(startMsg);
@@ -495,6 +588,9 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 							into = true;
 						}
 					}
+
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
 				} else if (mapCmd.startsWith("QOPEN")) {
 					String name = "";
 					int mode = 0;
@@ -1325,11 +1421,11 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 										e.printStackTrace();
 									}
 								}
-								if ("FROM".equals(vals[0])) {
-									hasFrom = true;
-								}
 							}
 						} else {
+							if ("FROM".equals(name)) {
+								hasFrom = true;
+							}
 							lastMapName = name;
 						}
 					}
@@ -1364,10 +1460,12 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 								}
 							}
 
-							if (mapCmd.startsWith("START")) {
-								ScheduleTimer.getScheduleTimer().scheduleTa(ta);
-							} else {
-								if (ScheduleTimer.getScheduleTimer().cancelTa(ta) < 0) {
+							if (resp == 0) {
+								if (mapCmd.startsWith("START")) {
+									ScheduleTimer.getScheduleTimer().scheduleTa(ta);
+								} else {
+									if (ScheduleTimer.getScheduleTimer().cancelTa(ta) < 0) {
+									}
 								}
 							}
 						} else {
@@ -1444,7 +1542,8 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	@Override
 	public void close() throws SQLException {
 		// Read remaining data and ignore it
-		while (next());
+		while (next())
+			;
 	}
 
 	@Override
@@ -1746,7 +1845,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 						ArrayList<char[]> q = tdQueues.get(queue);
 						if (q != null) {
 							ArrayList<char[]> q2 = new ArrayList<char[]>();
-							for  (char[] arr : q) {
+							for (char[] arr : q) {
 								q2.add(arr.clone());
 							}
 							return q2;
@@ -2132,7 +2231,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 						channels.put(channel, chn);
 					}
 				}
-				chn.put(container, (char[])x);				
+				chn.put(container, (char[]) x);
 			}
 			return;
 		}
@@ -2164,7 +2263,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 						channels.put(channel, chn);
 					}
 				}
-				chn.put(container, (char[])x);				
+				chn.put(container, (char[]) x);
 			}
 			return;
 		}

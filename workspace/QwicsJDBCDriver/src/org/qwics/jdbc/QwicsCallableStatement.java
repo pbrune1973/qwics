@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de  
+Copyright (c) 2018-2020 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de  
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -156,7 +156,8 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 			try {
 				String resp = conn.readResult();
 				if ("OK".equals(resp)) {
-					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID);
+					String progId = preparedSql.substring(8).trim();
+					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID, progId);
 					return resultSet;
 				}
 			} catch (Exception e) {
@@ -172,7 +173,8 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 					resp = conn.readResult();
 				}
 				if ("OK".equals(resp)) {
-					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID);
+					String progId = preparedSql.substring(7).trim();
+					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID, progId);
 					return resultSet;
 				}
 			} catch (Exception e) {
@@ -546,7 +548,8 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 			try {
 				String resp = conn.readResult();
 				if ("OK".equals(resp)) {
-					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID);
+					String progId = preparedSql.substring(8).trim();
+					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID, progId);
 					return resultSet;
 				}
 			} catch (Exception e) {

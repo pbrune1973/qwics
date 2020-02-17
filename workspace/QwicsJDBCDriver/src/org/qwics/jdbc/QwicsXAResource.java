@@ -91,7 +91,7 @@ public class QwicsXAResource implements XAResource {
 	@Override
 	public void commit(Xid xid, boolean onePhase) throws XAException {
 		try {
-			System.err.println("XA commit "+xid+" "+onePhase);
+			// System.err.println("XA commit "+xid+" "+onePhase);
 			this.onePhase = true;
 			if (onePhase) {
 				conn.commit();
@@ -100,7 +100,6 @@ public class QwicsXAResource implements XAResource {
 			conn.sendSql("COMMIT PREPARED "+xidToString(xid));
 			try {
 				String res = conn.readResult();
-				System.err.println("COMMIT PREPARED result: "+res);
 				if (res.startsWith("ERROR")) {
 					throw new SQLException("QWICS: COMMIT PREPARED error");
 				}
@@ -148,11 +147,10 @@ public class QwicsXAResource implements XAResource {
 	@Override
 	public int prepare(Xid xid) throws XAException {
 		try {
-			System.err.println("XA prepare "+xid);
+			// System.err.println("XA prepare "+xid);
 			conn.sendSql("PREPARE TRANSACTION "+xidToString(xid));
 			try {
 				String res = conn.readResult();
-				System.err.println("PREPARED TRANSACTION result: "+res);
 				if (res.startsWith("ERROR")) {
 					throw new SQLException("QWICS: PREPARE TRANSACTION error");
 				}
@@ -196,7 +194,7 @@ public class QwicsXAResource implements XAResource {
 	@Override
 	public void rollback(Xid xid) throws XAException {
 		try {
-			System.err.println("XA rollback "+xid+" "+this.onePhase);
+			// System.err.println("XA rollback "+xid+" "+this.onePhase);
 			if (this.onePhase) {
 				conn.rollback();
 				return;
@@ -205,7 +203,6 @@ public class QwicsXAResource implements XAResource {
 			conn.sendSql("ROLLBACK PREPARED "+xidToString(xid));
 			try {
 				String res = conn.readResult();
-				System.err.println("ROLLBACK PREPARED result: "+res);
 				if (res.startsWith("ERROR")) {
 					throw new SQLException("QWICS: ROLLBACK PREPARED error");
 				}
