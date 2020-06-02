@@ -1,9 +1,9 @@
 /*******************************************************************************************/
-/*   QWICS Server COBOL shared memory handling                                               */
+/*   QWICS Server COBOL shared memory handling                                             */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 03.08.2019                                  */
+/*   Author: Philipp Brune               Date: 28.08.2019                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -24,6 +24,11 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include "shmtpm.h"
+#include "../env/envconf.h"
+
+int shm_size = -1;
+int blocknum = -1;
+int blocksize = -1;
 
 unsigned char *blocks;
 pthread_mutex_t sharedMallocMutex;

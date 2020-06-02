@@ -3,7 +3,7 @@
 /*                                                                                         */
 /*   Author: Philipp Brune               Date: 03.08.2019                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018-2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de          */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -21,11 +21,12 @@
 #ifndef _shmtpm_h
 #define _shmtpm_h
 
-#define SHM_SIZE 500000
+extern int shm_size;
+#define SHM_SIZE GETENV_NUMBER(shm_size,"QWICS_SHM_SIZE",500000)
 #define SHM_ID 4711
 
-#define BLOCKNUM  960
-#define BLOCKSIZE 512
+#define BLOCKNUM GETENV_NUMBER(blocknum,"QWICS_BLOCKNUM",960)
+#define BLOCKSIZE GETENV_NUMBER(blocksize,"QWICS_BLOCKSIZE",512)
 
 // Global shared memory area for all workers
 extern int shmId;
