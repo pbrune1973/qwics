@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 02.02.2020                                  */
+/*   Author: Philipp Brune               Date: 03.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -160,8 +160,25 @@ FILE *openCbkFile(char *copybook, char *suffix) {
 }
 
 
+void strrep(char *line, char *s, char *r) {
+    char lineCpy[255];
+    char *occ = strstr(line,s);
+    if (occ != NULL) {
+        int len = (int)(occ-line);
+        strncpy(lineCpy,line,len);
+        int l = strlen(r);
+        strncpy(&lineCpy[len],r,l);
+        strcpy(&lineCpy[len+l],&occ[strlen(s)]);
+        lineCpy[len+l+strlen(&occ[strlen(s)])] = 0x00;
+        strcpy(line,lineCpy);
+        line[strlen(lineCpy)] = 0x00;
+        strrep(line,s,r);
+    }
+}
+
+
 // Load and insert copybook content
-int includeCbk(char *copybook, FILE *outFile) {
+int includeCbk(char *copybook, FILE *outFile, char *findStr, char *replStr, int raw) {
     FILE *cbk = openCbkFile(copybook,".cpy");
     if (cbk == NULL) {
         printf("%s%s%s\n","Info: Copybook file not found: ",copybook," - Looking for I/O suffix files.");
@@ -182,7 +199,14 @@ int includeCbk(char *copybook, FILE *outFile) {
             eibPresent = 1;
         }
 
-        processLine(line,outFile);
+        if ((findStr != NULL) && (replStr != NULL)) {
+            strrep(line,findStr,replStr);
+        }
+        if (raw == 1) {
+            fputs(line,outFile);
+        } else {
+            processLine(line,outFile);
+        }
         // Avoid inserting other EXEC-Macros
         /*
         if (!inExec && strstr(line,"EXEC")) {
@@ -334,13 +358,57 @@ int isEmptyLine(char *buf) {
 }
 
 
-// Process include/coy line
+// Extract search/replace string
+void processReplacingClause(char *buf, int *pos, char *pattern) {
+    int i = *pos;
+    int pseudo = 0;
+    while (buf[i] == ' ') {
+        i++;
+    }
+    int j = 0;
+    while ((buf[i] == '=') && (j < 2)) {
+        i++;
+        j++;
+    }
+    if (j == 2) {
+        pseudo = 1;
+    }
+    if (pseudo) {
+        int j = 0;
+        while ((buf[i] != '=') || (buf[i+1] != '=')) {
+            pattern[j] = buf[i];
+            i++;
+            j++;
+        }
+        pattern[j] = 0x00;
+    } else {
+        int j = 0;
+        while (buf[i] != ' ') {
+            pattern[j] = buf[i];
+            i++;
+            j++;
+        }
+        pattern[j] = 0x00;
+    }
+    while ((buf[i] != ' ') && (buf[i] != '.')) {
+        i++;
+    }
+    i--;
+    (*pos) = i;
+}
+
+
+// Process include/copy line
 void processCopyLine(char *buf, FILE *fp2) {
     char linebuf[255];
     int i,m = strlen(buf);
     char token[255];
     int tokenPos = 0;
     int include = 0;
+    char cbkFile[255];
+    char findStr[255];
+    char replStr[255];
+
     if (m > 72) {
       // Ignore reserved characters
       m = 72;
@@ -349,7 +417,17 @@ void processCopyLine(char *buf, FILE *fp2) {
         if ((buf[i] == ' ') || (buf[i] == '\n') ||
             (buf[i] == '\r') || (buf[i] == '.') ||
             (buf[i] == ',')) {
-            if ((include == 2) && (buf[i] == '.')) {
+            if ((include >= 2) && (buf[i] == '.')) {
+                if (include >= 4) {
+                    if (includeCbk(cbkFile,fp2,findStr,replStr,0) < 0) {
+                        includeCbkIO(cbkFile,fp2);
+                    }
+                } else {
+                    if (includeCbk(cbkFile,fp2,NULL,NULL,0) < 0) {
+                        includeCbkIO(cbkFile,fp2);
+                   }
+                }
+
                 i++;
                 int j = 0;
                 for (j = 0; j < i; j++) {
@@ -370,16 +448,25 @@ void processCopyLine(char *buf, FILE *fp2) {
             }
             if (tokenPos > 0) {
                 token[tokenPos] = 0x00;
-                if ((strstr(token,"INCLUDE") != NULL) || (strstr(token,"COPY") != NULL)) {
-                    include = 1;
-                } else {
-                    if (include == 1) {
-                        if (includeCbk(token,fp2) < 0) {
-                            includeCbkIO(token,fp2);
-                        }
-                        include = 2;
+                if (include == 3) {
+                    if (strstr(token,"BY") != NULL) {
+                        processReplacingClause(buf,&i,replStr);
+                        include = 4;
                     }
                 }
+                if (include == 2) {
+                    if (strstr(token,"REPLACING") != NULL) {
+                        processReplacingClause(buf,&i,findStr);
+                        include = 3;
+                    }
+                }
+                if (include == 1) {
+                    sprintf(cbkFile,"%s",token);
+                    include = 2;
+                }
+                if ((include == 0) && ((strstr(token,"INCLUDE") != NULL) || (strstr(token,"COPY") != NULL))) {
+                    include = 1;
+                } 
                 tokenPos = 0;
             }
         } else {
@@ -1038,11 +1125,15 @@ void processLine(char *buf, FILE *fp2) {
 
   // Turn everything to caps
   int verb = 0;
-  for (int i = 0; i < strlen(buf); i++) {
+  int bl = strlen(buf);
+  for (int i = 0; i < bl; i++) {
     if ((verb == 1) && (buf[i] == '\'')) {
         verb = 0;
     }
     if ((verb == 2) && (buf[i] == '"')) {
+        verb = 0;
+    }
+    if ((verb == 3) && (buf[i] == '=') && (buf[(i+1) % bl] == '=')) {
         verb = 0;
     }
     if ((verb == 0) && (buf[i] == '\'')) {
@@ -1050,6 +1141,10 @@ void processLine(char *buf, FILE *fp2) {
     }
     if ((verb == 0) && (buf[i] == '"')) {
         verb = 2;
+    }
+    if ((verb == 0) && (buf[i] == '=') && (buf[(i+1) % bl] == '=')) {
+        i++;
+        verb = 3;
     }
     if (verb == 0) {
        buf[i] = toupper(buf[i]);
@@ -1077,7 +1172,7 @@ void processLine(char *buf, FILE *fp2) {
              fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
            }
            if (!eibPresent) {
-               includeCbk("DFHEIBLK",(FILE*)fp2);
+               includeCbk("DFHEIBLK",(FILE*)fp2,NULL,NULL,1);
            }
            fputs("       LINKAGE SECTION.\n",(FILE*)fp2);
            inLinkageSection = 1;
@@ -1142,7 +1237,7 @@ void processLine(char *buf, FILE *fp2) {
               fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
             }
             if (!eibPresent) {
-                includeCbk("DFHEIBLK",(FILE*)fp2);
+                includeCbk("DFHEIBLK",(FILE*)fp2,NULL,NULL,1);
             }
           }
 
