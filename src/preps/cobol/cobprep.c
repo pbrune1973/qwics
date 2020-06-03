@@ -68,6 +68,24 @@ char declareName[255] = "";
 char setptrbuf[255] = "";
 
 
+void getVarInSuffix(int n, char *suffix) {
+    int i = n;
+    if (n < numOfLinkageVars) {
+        while (i >= 0) {
+            if (linkageVars[i].level > 49) {
+                return;
+            }
+            if (linkageVars[i].isGroup && (linkageVars[i].level < linkageVars[n].level)) {
+                sprintf(&suffix[strlen(suffix)],"%s%s"," IN ",linkageVars[i].name);
+                getVarInSuffix(i,suffix);
+                break;
+            }
+            i--;
+        }
+    }
+}
+
+
 void parseLinkageVarDef(char *line) {
     char lbuf[4];
     int len = strlen(line);
@@ -1308,28 +1326,20 @@ void processLine(char *buf, FILE *fp2) {
               fputs(buf,(FILE*)fp2);
 
               int n = 0;
-              char groupName[80];
-              groupName[0] = 0x00;
+              char inSuffix[255];
               for (n = 0; n < numOfLinkageVars; n++) {
+                  inSuffix[0] = 0x00;
+                  getVarInSuffix(n,inSuffix);
                   if (linkageVars[n].isGroup) {
-                      sprintf(groupName,"%s",linkageVars[n].name);
-                      sprintf(buf,"%s%d%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL1 ",
+                      sprintf(buf,"%s%d%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL1 ",
                               linkageVars[n].level," ",
                               linkageVars[n].name,"\" \n",
-                              "      -     ",linkageVars[n].name,getExecTerminator(0));
+                              "      -     ",linkageVars[n].name,inSuffix,getExecTerminator(0));
                   } else {
-                      if ((linkageVars[n].level > 1) && (linkageVars[n].level <= 49) && (strlen(groupName) > 0)) {
-                          sprintf(buf,"%s%d%s%s%s%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL0 ",
-                                  linkageVars[n].level," ",
-                                  linkageVars[n].name," IN ",groupName,"\" \n",
-                                  "      -     ",linkageVars[n].name," IN ",groupName,getExecTerminator(0));
-                      } else {
-                          groupName[0] = 0x00;        
-                          sprintf(buf,"%s%d%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL0 ",
-                                  linkageVars[n].level," ",
-                                  linkageVars[n].name,"\" \n",
-                                  "      -     ",linkageVars[n].name,getExecTerminator(0));
-                      }
+                      sprintf(buf,"%s%d%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL0 ",
+                              linkageVars[n].level," ",
+                              linkageVars[n].name,"\" \n",
+                              "      -     ",linkageVars[n].name,inSuffix,getExecTerminator(0));
                   }
                   fputs(buf,(FILE*)fp2);
               }
