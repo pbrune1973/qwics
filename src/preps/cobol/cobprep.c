@@ -76,7 +76,12 @@ void getVarInSuffix(int n, char *suffix) {
                 return;
             }
             if (linkageVars[i].isGroup && (linkageVars[i].level < linkageVars[n].level)) {
-                sprintf(&suffix[strlen(suffix)],"%s%s"," IN ",linkageVars[i].name);
+                int l = strlen(suffix);
+                if (l == 0) {
+                  sprintf(&suffix[l],"%s%s"," IN ",linkageVars[i].name);
+                } else {
+                  sprintf(&suffix[l],"%s%s","\n            IN  ",linkageVars[i].name);
+                }
                 getVarInSuffix(i,suffix);
                 break;
             }
