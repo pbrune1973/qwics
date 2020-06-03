@@ -52,6 +52,7 @@ int startProcDivision = 0;
 int linkageSectionPresent = 0;
 int wstorageSectionPresent = 0;
 int execSQLCnt = 0;
+int skipLinesMode = 0;
 
 
 struct linkageVarDef {
@@ -1122,6 +1123,13 @@ void processLine(char *buf, FILE *fp2) {
     fputs(buf,(FILE*)fp2);
     return;
   }
+  if (skipLinesMode == 1) {
+      if (hasDotTerminator(buf)) {
+          skipLinesMode = 0;
+          outputDot = 1;
+      }
+      return;
+  }
 
   // Turn everything to caps
   int verb = 0;
@@ -1182,6 +1190,10 @@ void processLine(char *buf, FILE *fp2) {
        if (!commAreaPresent) {
            fputs("       01  DFHCOMMAREA PIC X.\n",(FILE*)fp2);
        }
+       if (!(strstr(buf,".") >= &buf[7])) {
+           // USING clause is multi-line
+           skipLinesMode = 1;
+       } 
        sprintf(buf,"%s","       PROCEDURE DIVISION USING DFHCOMMAREA");
        fputs(buf,(FILE*)fp2);
        int n = 0;
@@ -1197,6 +1209,7 @@ void processLine(char *buf, FILE *fp2) {
        fputs(".\n",(FILE*)fp2);
        buf[0] = 0x00;
        linkageSectionPresent = 0;
+       outputDot = 1;
   }
 
   if (execCmd == 0) {
@@ -1220,9 +1233,26 @@ void processLine(char *buf, FILE *fp2) {
   }
 
   if (execCmd == 0) {
-      if ((strstr(buf,"  COPY ") != NULL) || (strstr(buf,"COPY ") == (char*)&buf[7])) {
-          processCopyLine(buf,fp2);
-      } else {
+      char copyBuf[255];
+      int copyOnly = 0;
+      copyBuf[0] = 0x00;
+      if ((strstr(buf,". COPY ") != NULL) || (strstr(buf,"  COPY ") != NULL) || (strstr(buf,"COPY ") == (char*)&buf[7])) {
+          copyOnly = 1;
+          int m = (int)(strstr(buf,"COPY")-buf); 
+          memset(copyBuf,' ',255);
+          strncpy(&copyBuf[7],&buf[m],72-m);
+          copyBuf[80] = 0x00; 
+          buf[m] = 0x00;
+          int n = m-1;
+          while (n >= 7) {
+              if (buf[n] != ' ') {
+                  copyOnly = 0;
+                  break;
+              }
+              n--;
+          }
+      }
+      if (!copyOnly) {
           if ((strstr(buf,"LINKAGE") != NULL) && (strstr(buf,"SECTION") != NULL)) {
             if (!wstorageSectionPresent) {
               fputs("       WORKING-STORAGE SECTION.\n",(FILE*)fp2);
@@ -1304,6 +1334,10 @@ void processLine(char *buf, FILE *fp2) {
                    }
                }
           }
+      }
+      if (strlen(copyBuf) > 0) {
+          fputs("\n",fp2);
+          processCopyLine(copyBuf,fp2);
       }
   } else {
       char *cmd = strstr(buf,"END-EXEC");
