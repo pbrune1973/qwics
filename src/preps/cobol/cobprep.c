@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 03.06.2020                                  */
+/*   Author: Philipp Brune               Date: 04.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -53,12 +53,16 @@ int linkageSectionPresent = 0;
 int wstorageSectionPresent = 0;
 int execSQLCnt = 0;
 int skipLinesMode = 0;
+int skipFillerDefs = 0;
+int fillerDefLevel = 0;
 
 
 struct linkageVarDef {
     char name[33];
     int isGroup;
     int level;
+    int occurs;
+    int index;
 } linkageVars[2048];
 
 int numOfLinkageVars = 0;
@@ -68,21 +72,30 @@ char declareName[255] = "";
 char setptrbuf[255] = "";
 
 
-void getVarInSuffix(int n, char *suffix) {
+void getVarInSuffix(int n, char *suffix, char *subscript) {
     int i = n;
+    char prevSubscript[80]; 
     if (n < numOfLinkageVars) {
         while (i >= 0) {
             if (linkageVars[i].level > 49) {
                 return;
             }
             if (linkageVars[i].isGroup && (linkageVars[i].level < linkageVars[n].level)) {
+                if (linkageVars[i].index > 0) {
+                    sprintf(prevSubscript,"%s",subscript);
+                    if (strlen(prevSubscript) > 0) {
+                        sprintf(subscript,"%d,%s",linkageVars[i].index,prevSubscript);
+                    } else {
+                        sprintf(subscript,"%d",linkageVars[i].index);
+                    }
+                }
                 int l = strlen(suffix);
                 if (l == 0) {
                   sprintf(&suffix[l],"%s%s"," IN ",linkageVars[i].name);
                 } else {
                   sprintf(&suffix[l],"%s%s","\n            IN  ",linkageVars[i].name);
                 }
-                getVarInSuffix(i,suffix);
+                getVarInSuffix(i,suffix,subscript);
                 break;
             }
             i--;
@@ -94,7 +107,8 @@ void getVarInSuffix(int n, char *suffix) {
 void parseLinkageVarDef(char *line) {
     char lbuf[4];
     int len = strlen(line);
-    if ((line[6] != '*') && (line[6] != '-') && (strstr(line,"REDEFINES") == NULL)) {
+    
+    if ((line[6] != '*') && (line[6] != '-')) {
         int pos = 7;
         while ((line[pos] == ' ') && (pos < len)) pos++;
 
@@ -109,31 +123,69 @@ void parseLinkageVarDef(char *line) {
         if ((level < 1) || ((level > 49) && (level != 77))) {
           return;
         }
-        linkageVars[numOfLinkageVars].level = level;
 
-        if (numOfLinkageVars > 0) {
-            if ((linkageVars[numOfLinkageVars].level <= 49) && 
-                (linkageVars[numOfLinkageVars].level > linkageVars[numOfLinkageVars-1].level)) {
-                linkageVars[numOfLinkageVars-1].isGroup = 1;
+        if (skipFillerDefs) {
+            if (level <= fillerDefLevel) {
+                skipFillerDefs = 0;
+            } else {
+                return;
             }
         }
 
-        while ((line[pos] == ' ') && (pos < len)) pos++;
+        if ((strstr(line,"REDEFINES") == NULL) && (strstr(line,"FILLER") == NULL)) {
+            linkageVars[numOfLinkageVars].level = level;
 
-        i = 0;
-        while ((line[pos] != ' ') && (line[pos] != '.') && (line[pos] != '\r') && (line[pos] != '\n')
-                && (pos < len) && (i < 32)) {
-            linkageVars[numOfLinkageVars].name[i] = line[pos];
-            pos++;
-            i++;
-        }
-        linkageVars[numOfLinkageVars].name[i] = 0x00;
-        linkageVars[numOfLinkageVars].isGroup = 0;
-        if ((i > 0) && (!strstr(linkageVars[numOfLinkageVars].name,"FILLER"))) {
-            if (strcmp(linkageVars[numOfLinkageVars].name,"DFHCOMMAREA") == 0) {
-                commAreaPresent = 1;
+            if (numOfLinkageVars > 0) {
+                if ((linkageVars[numOfLinkageVars].level <= 49) && 
+                    (linkageVars[numOfLinkageVars].level > linkageVars[numOfLinkageVars-1].level)) {
+                    linkageVars[numOfLinkageVars-1].isGroup = 1;
+                }
             }
-            numOfLinkageVars++;
+
+            while ((line[pos] == ' ') && (pos < len)) pos++;
+
+            i = 0;
+            while ((line[pos] != ' ') && (line[pos] != '.') && (line[pos] != '\r') && (line[pos] != '\n')
+                    && (pos < len) && (i < 32)) {
+                linkageVars[numOfLinkageVars].name[i] = line[pos];
+                pos++;
+                i++;
+            }
+            linkageVars[numOfLinkageVars].name[i] = 0x00;
+            linkageVars[numOfLinkageVars].isGroup = 0;
+            linkageVars[numOfLinkageVars].occurs = 0;
+            linkageVars[numOfLinkageVars].index = 0;
+
+            char *occrs = strstr(line,"OCCURS");
+            if (occrs != NULL) {
+                int l = strlen(occrs);
+                int pos = 6;
+                while ((occrs[pos] == ' ') && (pos < l)) pos++;
+
+                int i = 0;
+                char timesStr[32];  
+                while ((occrs[pos] != ' ') && (occrs[pos] != '.') && (occrs[pos] != '\r') && (occrs[pos] != '\n')
+                    && (pos < l) && (i < 32)) {
+                    timesStr[i] = occrs[pos];    
+                    pos++;
+                    i++;
+                }
+                timesStr[i] = 0x00;
+                linkageVars[numOfLinkageVars].occurs = atoi(timesStr);
+                if (linkageVars[numOfLinkageVars].occurs < 1) {
+                    linkageVars[numOfLinkageVars].occurs = 1;
+                }
+            }
+
+            if ((i > 0) && (!strstr(linkageVars[numOfLinkageVars].name,"FILLER"))) {
+                if (strcmp(linkageVars[numOfLinkageVars].name,"DFHCOMMAREA") == 0) {
+                    commAreaPresent = 1;
+                }
+                numOfLinkageVars++;
+            }
+        } else {
+            skipFillerDefs = 1;
+            fillerDefLevel = level;
         }
     }
 }
@@ -1142,6 +1194,53 @@ void processExecLine(char *buf, FILE *fp2) {
 }
 
 
+void outputLinkageVar(int *idx, FILE *fp2) {
+    char buf[255];
+    int i,n = *idx,m;
+    char inSuffix[255];
+    int max = linkageVars[n].occurs;
+    if (max < 1) max = 1;
+    char subscript[80];
+    char subscript2[80];
+
+    for (i = 0; i < max; i++) {
+        subscript[0] = 0x00;
+        if (linkageVars[n].occurs > 0) {
+            linkageVars[n].index = i+1;
+            sprintf(subscript,"%d",i+1);
+        }
+        inSuffix[0] = 0x00;
+        getVarInSuffix(n,inSuffix,subscript);
+        subscript2[0] = 0x00;
+        if (strlen(subscript) > 0) {
+            sprintf(subscript2,"(%s)",subscript);
+        }
+
+        if (linkageVars[n].isGroup) {
+            sprintf(buf,"%s%d%s%s%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL1 ",
+                    linkageVars[n].level," ",
+                    linkageVars[n].name,subscript2,"\" \n",
+                    "      -     ",linkageVars[n].name,inSuffix,subscript2,getExecTerminator(0));
+        } else {
+            sprintf(buf,"%s%d%s%s%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL0 ",
+                    linkageVars[n].level," ",
+                    linkageVars[n].name,subscript2,"\" \n",
+                    "      -     ",linkageVars[n].name,inSuffix,subscript2,getExecTerminator(0));
+        }
+        fputs(buf,(FILE*)fp2);
+
+        m = n+1;
+        if (linkageVars[n].isGroup) {            
+            while ((linkageVars[m].level <= 49) && (linkageVars[m].level > linkageVars[n].level) && (m < numOfLinkageVars)) {
+                outputLinkageVar(&m,fp2);
+                m++;
+            }
+        }
+        m--;
+    }
+    *idx = m;
+}
+
 void processLine(char *buf, FILE *fp2) {
   // Handle comments
   if (buf[6] == '*') {
@@ -1331,22 +1430,8 @@ void processLine(char *buf, FILE *fp2) {
               fputs(buf,(FILE*)fp2);
 
               int n = 0;
-              char inSuffix[255];
               for (n = 0; n < numOfLinkageVars; n++) {
-                  inSuffix[0] = 0x00;
-                  getVarInSuffix(n,inSuffix);
-                  if (linkageVars[n].isGroup) {
-                      sprintf(buf,"%s%d%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL1 ",
-                              linkageVars[n].level," ",
-                              linkageVars[n].name,"\" \n",
-                              "      -     ",linkageVars[n].name,inSuffix,getExecTerminator(0));
-                  } else {
-                      sprintf(buf,"%s%d%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL0 ",
-                              linkageVars[n].level," ",
-                              linkageVars[n].name,"\" \n",
-                              "      -     ",linkageVars[n].name,inSuffix,getExecTerminator(0));
-                  }
-                  fputs(buf,(FILE*)fp2);
+                  outputLinkageVar(&n,fp2);
               }
 
               includeDeclares((FILE*)fp2);
