@@ -55,6 +55,7 @@ int execSQLCnt = 0;
 int skipLinesMode = 0;
 int skipFillerDefs = 0;
 int fillerDefLevel = 0;
+int xmlBlock = 0;
 
 
 struct linkageVarDef {
@@ -1406,6 +1407,85 @@ void processLine(char *buf, FILE *fp2) {
               f[i] = ' ';
             }
           }
+
+          if (inProcDivision) {
+            if ((xmlBlock == 0) && (strstr(buf," XML ") != 0) && (strstr(buf," GENERATE ") != 0)) {
+                xmlBlock = 1;
+            }
+            if (xmlBlock > 0) {
+                char xmlBuf[255];
+                char *start = buf, *end = NULL;
+                int l = 0;
+                if (xmlBlock == 1) {
+                    l = (int)(strstr(buf,"XML")-buf); 
+                    strncpy(xmlBuf,buf,l);
+                    strcpy(&xmlBuf[l],"CALL");
+                    l = l+4;
+                    xmlBlock = 2;
+                }
+                if (xmlBlock == 2) {
+                    start = strstr(buf,"GENERATE");
+                    if (start != NULL) {
+                        strcpy(&xmlBuf[l]," 'xmlGenerate' USING ");    
+                        l = l + 21;
+                        start = start + 8;
+                        xmlBlock = 3;
+                    } else {
+                        xmlBlock = 0;
+                    }
+                }
+                if (xmlBlock == 3) {
+                    end = strstr(buf,"FROM");
+                    if (end != NULL) {
+                        strncpy(&xmlBuf[l],start,(int)(end-start));    
+                        l = l + (int)(end-start);
+                        strcpy(&xmlBuf[l],",");    
+                        l++;
+                        start = end + 4;
+                        xmlBlock = 4;
+                    } else {
+                        strcpy(&xmlBuf[l],start);  
+                        xmlBuf[l+strlen(start)] = 0x00;
+                        sprintf(buf,"%s",xmlBuf);
+                    }
+                }
+                if (xmlBlock == 4) {
+                    end = strstr(buf,"COUNT IN");
+                    if (end != NULL) {
+                        strncpy(&xmlBuf[l],start,(int)(end-start));    
+                        l = l + (int)(end-start);
+                        strcpy(&xmlBuf[l],",");    
+                        l++;
+                        start = end + 8;
+                        xmlBlock = 5;
+                    } else {
+                        strcpy(&xmlBuf[l],start); 
+                        l = l + strlen(start);
+                        xmlBuf[l] = 0x00;
+                        sprintf(buf,"%s",xmlBuf);
+                    }
+                }                
+                if (xmlBlock == 5) {
+                    end = strstr(buf,"END-XML");
+                    if (end != NULL) {
+                        strncpy(&xmlBuf[l],start,(int)(end-start));    
+                        l = l + (int)(end-start);
+                        strcpy(&xmlBuf[l],"END-CALL");    
+                        l = l + 8;
+                        start = end + 7;
+                        strcpy(&xmlBuf[l],start);  
+                        xmlBuf[l+strlen(start)] = 0x00;
+                        sprintf(buf,"%s",xmlBuf);
+                        xmlBlock = 0;
+                    } else {
+                        strcpy(&xmlBuf[l],start);  
+                        xmlBuf[l+strlen(start)] = 0x00;
+                        sprintf(buf,"%s",xmlBuf);
+                    }
+                }
+            }
+          }
+
           fputs(buf,(FILE*)fp2);
 
           if (linkageSectionPresent) {
