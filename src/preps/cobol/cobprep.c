@@ -1217,23 +1217,26 @@ void outputLinkageVar(int *idx, FILE *fp2) {
             sprintf(subscript2,"(%s)",subscript);
         }
 
-        if (linkageVars[n].isGroup) {
-            sprintf(buf,"%s%d%s%s%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL1 ",
-                    linkageVars[n].level," ",
-                    linkageVars[n].name,subscript2,"\" \n",
-                    "      -     ",linkageVars[n].name,inSuffix,subscript2,getExecTerminator(0));
-        } else {
-            sprintf(buf,"%s%d%s%s%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL0 ",
-                    linkageVars[n].level," ",
-                    linkageVars[n].name,subscript2,"\" \n",
-                    "      -     ",linkageVars[n].name,inSuffix,subscript2,getExecTerminator(0));
+        if (linkageVars[n].occurs == 0) {
+            if (linkageVars[n].isGroup) {
+                sprintf(buf,"%s%d%s%s%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL1 ",
+                        linkageVars[n].level," ",
+                        linkageVars[n].name,subscript2,"\" \n",
+                        "      -     ",linkageVars[n].name,inSuffix,subscript2,getExecTerminator(0));
+            } else {
+                sprintf(buf,"%s%d%s%s%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL0 ",
+                        linkageVars[n].level," ",
+                        linkageVars[n].name,subscript2,"\" \n",
+                        "      -     ",linkageVars[n].name,inSuffix,subscript2,getExecTerminator(0));
+            }
+            fputs(buf,(FILE*)fp2);
         }
-        fputs(buf,(FILE*)fp2);
-
         m = n+1;
         if (linkageVars[n].isGroup) {            
             while ((linkageVars[m].level <= 49) && (linkageVars[m].level > linkageVars[n].level) && (m < numOfLinkageVars)) {
-                outputLinkageVar(&m,fp2);
+                if (linkageVars[n].occurs == 0) {
+                    outputLinkageVar(&m,fp2);
+                }
                 m++;
             }
         }
