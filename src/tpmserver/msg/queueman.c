@@ -1,9 +1,9 @@
 /*******************************************************************************************/
-/*   QWICS Server COBOL Message Queueing Manager                                               */
+/*   QWICS Server COBOL Message Queueing Manager                                           */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 21.10.2018                                  */
+/*   Author: Philipp Brune               Date: 05.06.2020                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -27,6 +27,7 @@
 
 // Declared in cobexec.c
 extern pthread_key_t childfdKey;
+extern void* globalCallCallback(char *name);
 
 
 void readParam(int childfd, char *buf) {
@@ -212,5 +213,5 @@ void* callCallback(char *name) {
         return (void*)&qput;
     }
 
-    return NULL;
+    return globalCallCallback(name);
 }
