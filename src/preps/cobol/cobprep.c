@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.06.2020                                  */
+/*   Author: Philipp Brune               Date: 05.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -1412,6 +1412,31 @@ void processLine(char *buf, FILE *fp2) {
           }
 
           if (inProcDivision) {
+            if (strstr(buf," CALL ") != 0) {
+                char callBuf[255];
+                char *end = NULL;
+                int l = 0;
+
+                end = strstr(buf,"CALL"); 
+                end = strstr(end," "); 
+                if (strstr(end,"USING") != NULL) {
+                    end = strstr(end,"USING") + 6;
+                    l = (int)(end-buf);
+                    strncpy(callBuf,buf,l);
+                    strcpy(&callBuf[l]," DFHCOMMAREA,\n");
+                    l = l + 14;
+                } else {
+                    end = strstr(end,".");
+                    l = (int)(end-buf);
+                    strncpy(callBuf,buf,l);
+                    strcpy(&callBuf[l]," USING DFHCOMMAREA\n");
+                    l = l + 19;
+                }
+                callBuf[l] = 0x00;
+                fputs(callBuf,fp2);
+                sprintf(buf,"%s%s","             ",end);
+            }
+
             if ((xmlBlock == 0) && (strstr(buf," XML ") != 0) && (strstr(buf," GENERATE ") != 0)) {
                 xmlBlock = 1;
             }
