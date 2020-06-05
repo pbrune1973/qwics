@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 17.02.2020                                  */
+/*   Author: Philipp Brune               Date: 05.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -70,6 +70,8 @@ pthread_key_t allocMemPtrKey;
 pthread_key_t respFieldsKey;
 pthread_key_t respFieldsStateKey;
 pthread_key_t taskLocksKey;
+pthread_key_t callStackKey;
+pthread_key_t callStackPtrKey;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
@@ -549,6 +551,51 @@ void abend(int resp, int resp2) {
 }
 
 
+// Handling plain COBOL call invocation for preprocessed QWICS modules
+struct callLoadlib {
+    void* sdl_library;
+    int (*loadmod)();    
+};
+
+
+void* globalCallCallback(char *name) {
+    void *res = NULL;
+    char fname[255];
+    char response[1024];
+    int *callStackPtr = (int*)pthread_getspecific(callStackPtrKey);
+    struct callLoadlib *callStack = (struct callLoadlib *)pthread_getspecific(callStackKey);
+
+    #ifdef __APPLE__
+    sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".dylib");
+    #else
+    sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".so");
+    #endif
+    callStack[*callStackPtr].sdl_library = dlopen(fname, RTLD_LAZY);
+    if (callStack[*callStackPtr].sdl_library == NULL) {
+        sprintf(response,"%s%s%s\n","ERROR: Load module ",fname," not found!");
+        printf("%s",response);
+    } else {
+        dlerror();
+        *(void**)(&callStack[*callStackPtr].loadmod) = dlsym(callStack[*callStackPtr].sdl_library,name);
+        char *error;
+        if ((error = dlerror()) != NULL)  {
+            dlclose(callStack[*callStackPtr].sdl_library);
+            sprintf(response,"%s%s\n","ERROR: ",error);
+            printf("%s",response);
+            abend(27,1);
+        } else {
+            res = (void*)callStack[*callStackPtr].loadmod;
+
+            if (*callStackPtr < 1023) {
+                (*callStackPtr)++;
+            }
+        }
+    }
+
+    return res; 
+}
+
+
 // Execute COBOL loadmod in transaction
 int execLoadModule(char *name, int mode) {
     int (*loadmod)();
@@ -654,6 +701,7 @@ int execCallback(char *cmd, void *var) {
     char *tua = (char*)pthread_getspecific(tuaKey);
     int *respFieldsState = (int*)pthread_getspecific(respFieldsStateKey);
     void **respFields = (void**)pthread_getspecific(respFieldsKey);
+    int *callStackPtr = (int*)pthread_getspecific(callStackPtrKey);
     int respFieldsStateLocal = 0;
     void *respFieldsLocal[2];
 
@@ -665,7 +713,7 @@ int execCallback(char *cmd, void *var) {
         sqlcode = var;
         return 1;
     }
-    if (strstr(cmd,"SET EIBCALEN") && ((*linkStackPtr) == 0)) {
+    if (strstr(cmd,"SET EIBCALEN") && (((*linkStackPtr) == 0) && ((*callStackPtr) == 0))) {
         cob_field *cobvar = (cob_field*)var;
         // Read in client response value
         char buf[2048];
@@ -684,7 +732,7 @@ int execCallback(char *cmd, void *var) {
         cob_put_u64_compx(val,cobvar->data,(size_t)cobvar->size);
         return 1;
     }
-    if (strstr(cmd,"SET EIBAID") && ((*linkStackPtr) == 0)) {
+    if (strstr(cmd,"SET EIBAID") && (((*linkStackPtr) == 0) && ((*callStackPtr) == 0))) {
         // Reset link area ptr before SETLx
         (*linkAreaPtr) = 0;
         (*commAreaPtr) = 0;
@@ -707,7 +755,7 @@ int execCallback(char *cmd, void *var) {
         cob_put_picx(cobvar->data,(size_t)cobvar->size,buf);
         return 1;
     }
-    if (strstr(cmd,"SET DFHEIBLK") && ((*linkStackPtr) == 0)) {
+    if (strstr(cmd,"SET DFHEIBLK") && (((*linkStackPtr) == 0) && ((*callStackPtr) == 0))) {
         cob_field *cobvar = (cob_field*)var;
         if (cobvar->data != NULL) {
             eibbuf = (char*)cobvar->data;
@@ -778,7 +826,7 @@ int execCallback(char *cmd, void *var) {
         cob_put_s64_comp3(da,(void*)&eibbuf[4],4);
         return 1;
     } else 
-    if (strstr(cmd,"SET DFHEIBLK") && ((*linkStackPtr) > 0)) {
+    if (strstr(cmd,"SET DFHEIBLK") && (((*linkStackPtr) >= 0) || ((*callStackPtr) >= 0))) {
         // Called by LINk inside transaction, pass through EIB
         cob_field *cobvar = (cob_field*)var;
         if (cobvar->data != NULL) {
@@ -2367,6 +2415,9 @@ void initExec(int initCons) {
     pthread_key_create(&respFieldsStateKey, NULL);
     pthread_key_create(&respFieldsKey, NULL);
     pthread_key_create(&taskLocksKey, NULL);
+    pthread_key_create(&callStackKey, NULL);
+    pthread_key_create(&callStackPtrKey, NULL);
+
 #ifndef _USE_ONLY_PROCESSES_
     pthread_mutex_init(&moduleMutex,NULL);
     pthread_cond_init(&waitForModuleChange,NULL);
@@ -2436,6 +2487,8 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     int respFieldsState = 0;
     void *respFields[2];
     struct taskLock *taskLocks = createTaskLocks();
+    int callStackPtr = 0;
+    struct callLoadlib callStack[1024];
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
@@ -2467,6 +2520,8 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     pthread_setspecific(respFieldsStateKey, &respFieldsState);
     pthread_setspecific(respFieldsKey, &respFields);
     pthread_setspecific(taskLocksKey, taskLocks);
+    pthread_setspecific(callStackKey, &callStack);
+    pthread_setspecific(callStackPtrKey, &callStackPtr);
     // Oprionally read in content of commarea
     if (setCommArea == 1) {
       write(*(int*)fd,"COMMAREA\n",9);
@@ -2526,6 +2581,8 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     int respFieldsState = 0;
     void *respFields[2];
     struct taskLock *taskLocks = createTaskLocks();
+    int callStackPtr = 0;
+    struct callLoadlib callStack[1024];
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
@@ -2557,6 +2614,9 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     pthread_setspecific(respFieldsStateKey, &respFieldsState);
     pthread_setspecific(respFieldsKey, &respFields);
     pthread_setspecific(taskLocksKey, taskLocks);
+    pthread_setspecific(callStackKey, &callStack);
+    pthread_setspecific(callStackPtrKey, &callStackPtr);
+
     // Oprionally read in content of commarea
     if (setCommArea == 1) {
       write(*(int*)fd,"COMMAREA\n",9);
