@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 29.01.2020                                  */
+/*   Author: Philipp Brune               Date: 07.06.2020                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
+/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -26,10 +26,10 @@ void initExec(int initCons);
 void clearExec(int initCons);
 
 // Execute COBOL loadmod in transaction
-void execTransaction(char *name, void *fd, int setCommArea);
+void execTransaction(char *name, void *fd, int setCommArea, int parCount);
 
 // Exec COBOL module within an existing DB transaction
-void execInTransaction(char *name, void *fd, int setCommArea);
+void execInTransaction(char *name, void *fd, int setCommArea, int parCount);
 
 // Execute SQL pure instruction
 void _execSql(char *sql, void *fd, int sendRes);

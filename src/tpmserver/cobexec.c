@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.06.2020                                  */
+/*   Author: Philipp Brune               Date: 07.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -101,6 +101,7 @@ int *sharedAllocMemLen;
 int *sharedAllocMemPtr = NULL;
 
 char paramsBuf[10][256];
+void *paramList[10];
 
 unsigned char *cwa;
 jmp_buf taskState;
@@ -596,8 +597,20 @@ void* globalCallCallback(char *name) {
 }
 
 
+void globalCallCleanup() {
+    int *callStackPtr = (int*)pthread_getspecific(callStackPtrKey);
+    struct callLoadlib *callStack = (struct callLoadlib *)pthread_getspecific(callStackKey);
+
+    int i = 0;
+    for (i = *callStackPtr; i >= 0; i--) {
+        dlclose(callStack[i].sdl_library);
+    } 
+    *callStackPtr = 0;
+}
+
+
 // Execute COBOL loadmod in transaction
-int execLoadModule(char *name, int mode) {
+int execLoadModule(char *name, int mode, int parCount) {
     int (*loadmod)();
     char fname[255];
     char response[1024];
@@ -642,7 +655,25 @@ int execLoadModule(char *name, int mode) {
 #endif
             if (mode == 0) {
               if (setjmp(taskState) == 0) {
-                (*loadmod)(commArea);
+                if (parCount > 0) {
+                    if (parCount == 1) (*loadmod)(commArea,paramList[0]);
+                    if (parCount == 2) (*loadmod)(commArea,paramList[0],paramList[1]);
+                    if (parCount == 3) (*loadmod)(commArea,paramList[0],paramList[1],paramList[2]);
+                    if (parCount == 4) (*loadmod)(commArea,paramList[0],paramList[1],paramList[2],paramList[3]);
+                    if (parCount == 5) (*loadmod)(commArea,paramList[0],paramList[1],paramList[2],paramList[3],paramList[4]);
+                    if (parCount == 6) (*loadmod)(commArea,paramList[0],paramList[1],paramList[2],paramList[3],paramList[4],
+                                                            paramList[5]);
+                    if (parCount == 7) (*loadmod)(commArea,paramList[0],paramList[1],paramList[2],paramList[3],paramList[4],
+                                                            paramList[5],paramList[6]);
+                    if (parCount == 8) (*loadmod)(commArea,paramList[0],paramList[1],paramList[2],paramList[3],paramList[4],
+                                                            paramList[5],paramList[6],paramList[7]);
+                    if (parCount == 9) (*loadmod)(commArea,paramList[0],paramList[1],paramList[2],paramList[3],paramList[4],
+                                                            paramList[5],paramList[6],paramList[7],paramList[8]);
+                    if (parCount == 10) (*loadmod)(commArea,paramList[0],paramList[1],paramList[2],paramList[3],paramList[4],
+                                                            paramList[5],paramList[6],paramList[7],paramList[8],paramList[9]);
+                } else {
+                    (*loadmod)(commArea);
+                }
               }
             } else {
               (*loadmod)(commArea);
@@ -846,16 +877,55 @@ int execCallback(char *cmd, void *var) {
     if (strstr(cmd,"SETL0")) {
         cob_field *cobvar = (cob_field*)var;
         if ((*areaMode) == 0) {
-            cobvar->data = (unsigned char*)&linkArea[*linkAreaPtr];
-            (*linkAreaPtr) += (size_t)cobvar->size;
+            if (cobvar->data == NULL) {
+                cobvar->data = (unsigned char*)&linkArea[*linkAreaPtr];
+                (*linkAreaPtr) += (size_t)cobvar->size;
+            }
         }
         else {
-            cobvar->data = (unsigned char*)&commArea[*commAreaPtr];
-            (*commAreaPtr) += (size_t)cobvar->size;
+            if (cobvar->data == NULL) {
+                cobvar->data = (unsigned char*)&commArea[*commAreaPtr];
+                (*commAreaPtr) += (size_t)cobvar->size;
+            }
         }
+        
         /*
         printf("%s%s%d%s%d%s%d%s%d\n",cmd," ",(long)cobvar->data," ",(int)cobvar->size," ",(*linkAreaPtr)," ",                                      (*commAreaPtr));
         */
+    }
+    if ((strstr(cmd,"SETL0 77") || strstr(cmd,"SETL1 1")) && 
+        (((*linkStackPtr) == 0) && ((*callStackPtr) == 0)) && ((*areaMode) == 0)) {
+        cob_field *cobvar = (cob_field*)var;
+        write(childfd,cmd,strlen(cmd));
+        write(childfd,"\n",1);
+
+        // Read in value from client
+        char lvar[65536];
+        char c = 0x00;
+        int pos = 0;
+        while (c != '\n') {
+            int n = read(childfd,&c,1);
+            if ((n == 1) && (c != '\n') && (c != '\r') && (c != '\'') && (pos < 65536)) {
+                lvar[pos] = c;
+                pos++;
+            }
+        }
+        lvar[pos] = 0x00; 
+
+        char buf[256];
+        long v = 0;
+        switch (COB_FIELD_TYPE(cobvar)) {
+            case COB_TYPE_NUMERIC:          cob_put_picx(cobvar->data,cobvar->size,
+                                                        convertNumeric(lvar,cobvar->attr->digits,cobvar->attr->scale,buf));
+                                            break;
+            case COB_TYPE_NUMERIC_BINARY:   v = atol(lvar);
+                                            cob_put_u64_compx(v,cobvar->data,cobvar->size);
+                                            break;
+            case COB_TYPE_NUMERIC_PACKED:   v = atol(lvar);
+                                            cob_put_s64_comp3(v,cobvar->data,cobvar->size);                     
+                                            break;
+            default:                        cob_put_picx(cobvar->data,(size_t)cobvar->size,lvar);
+        }
     }
 
     if (strcmp(cmd,"CICS") == 0) {
@@ -1159,7 +1229,7 @@ int execCallback(char *cmd, void *var) {
                 (*xctlState) = 0;
                 (*cmdState) = 0;
                 //printf("%s%s\n","XCTL ",xctlParams[0]);
-                execLoadModule(xctlParams[0],1);
+                execLoadModule(xctlParams[0],1,0);
             }
             if (((*cmdState) == -4) && ((*retrieveState) >= 1)) {
                 // RETRIEVE
@@ -1195,7 +1265,7 @@ int execCallback(char *cmd, void *var) {
                     respFieldsLocal[1] = respFields[1];
                     cob_field *cobvar = (cob_field*)xctlParams[1];
 
-                    int r = execLoadModule(xctlParams[0],1);
+                    int r = execLoadModule(xctlParams[0],1,0);
 
                     *respFieldsState = respFieldsStateLocal;
                     respFields[0] = respFieldsLocal[0];
@@ -2462,7 +2532,7 @@ void clearExec(int initCons) {
 }
 
 
-void execTransaction(char *name, void *fd, int setCommArea) {
+void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     char cmdbuf[2048];
     int cmdState = 0;
     int runState = 0;
@@ -2522,11 +2592,11 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     pthread_setspecific(taskLocksKey, taskLocks);
     pthread_setspecific(callStackKey, &callStack);
     pthread_setspecific(callStackPtrKey, &callStackPtr);
-    // Oprionally read in content of commarea
+    // Optionally read in content of commarea
     if (setCommArea == 1) {
       write(*(int*)fd,"COMMAREA\n",9);
       char c = 0x00;
-      for (i = 0; i < 4096; ) {
+      for (i = 0; i < 32768; ) {
         int n = read(*(int*)fd,&c,1);
         if (n == 1) {
           commArea[i] = c;
@@ -2534,6 +2604,25 @@ void execTransaction(char *name, void *fd, int setCommArea) {
         }
       }
     }
+    // Optionally initialize call params
+    if ((parCount > 0) && (parCount <= 10)) {
+        for (i = 0; i < parCount; i++) {
+            char len[10];
+            char c = 0x00;
+            int pos = 0;
+            while (c != '\n') {
+                int n = read(*(int*)fd,&c,1);
+                if ((n == 1) && (c != '\n') && (c != '\r') && (c != '\'') && (pos < 10)) {
+                    len[pos] = c;
+                    pos++;
+                }
+            }
+            len[pos] = 0x00; 
+            paramList[i] = (void*)&linkArea[linkAreaPtr];
+            linkAreaPtr += atoi(len);
+        }
+    }
+
     // Set signal handler for SIGSEGV (in case of mem leak in load module)
     struct sigaction a;
     a.sa_handler = segv_handler;
@@ -2544,8 +2633,9 @@ void execTransaction(char *name, void *fd, int setCommArea) {
     PGconn *conn = getDBConnection();
     pthread_setspecific(connKey, (void*)conn);
     initMain();
-    execLoadModule(name,0);
+    execLoadModule(name,0,parCount);
     releaseLocks(TASK,taskLocks);
+    globalCallCleanup();
     clearMain();
     free(allocMem);
     returnDBConnection(conn,1);
@@ -2556,7 +2646,7 @@ void execTransaction(char *name, void *fd, int setCommArea) {
 
 
 // Exec COBOL module within an existing DB transaction
-void execInTransaction(char *name, void *fd, int setCommArea) {
+void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     char cmdbuf[2048];
     int cmdState = 0;
     int runState = 0;
@@ -2564,7 +2654,7 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     char *xctlParams[10];
     char eibbuf[150];
     char linkArea[4096];
-    char commArea[4096];
+    char commArea[32768];
     int linkAreaPtr = 0;
     int commAreaPtr = 0;
     int areaMode = 0;
@@ -2621,7 +2711,7 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     if (setCommArea == 1) {
       write(*(int*)fd,"COMMAREA\n",9);
       char c = 0x00;
-      for (i = 0; i < 4096; ) {
+      for (i = 0; i < 32768; ) {
         int n = read(*(int*)fd,&c,1);
         if (n == 1) {
           commArea[i] = c;
@@ -2629,6 +2719,25 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
         }
       }
     }
+    // Optionally initialize call params
+    if ((parCount > 0) && (parCount <= 10)) {
+        for (i = 0; i < parCount; i++) {
+            char len[10];
+            char c = 0x00;
+            int pos = 0;
+            while (c != '\n') {
+                int n = read(*(int*)fd,&c,1);
+                if ((n == 1) && (c != '\n') && (c != '\r') && (c != '\'') && (pos < 10)) {
+                    len[pos] = c;
+                    pos++;
+                }
+            }
+            len[pos] = 0x00; 
+            paramList[i] = (void*)&linkArea[linkAreaPtr];
+            linkAreaPtr += atoi(len);
+        }
+    }
+
     // Set signal handler for SIGSEGV (in case of mem leak in load module)
     struct sigaction a;
     a.sa_handler = segv_handler;
@@ -2637,8 +2746,9 @@ void execInTransaction(char *name, void *fd, int setCommArea) {
     sigaction( SIGSEGV, &a, NULL );
 
     initMain();
-    execLoadModule(name,0);
+    execLoadModule(name,0,parCount);
     releaseLocks(TASK,taskLocks);
+    globalCallCleanup();
     clearMain();
     free(allocMem);
     // Flush output buffers

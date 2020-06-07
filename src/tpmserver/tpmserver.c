@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server Main Tcp Connection Handler                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 30.01.20120                                  */
+/*   Author: Philipp Brune               Date: 07.06.2020                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
+/*   Copyright (C) 2018-2020 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -49,6 +49,7 @@ void *handle_client(void *fd) {
   int childfd = *((int*)fd);
   char buf[2048];
   buf[0] = 0x00;
+  int parCount = 0;
 
   while(strstr(buf,"quit") == NULL) {
     char c = 0x00;
@@ -61,12 +62,14 @@ void *handle_client(void *fd) {
       }
     }
     buf[pos] = 0x00;
+
     if (pos > 0) {
       printf("%s\n",buf);
       char *cmd = strstr(buf,"exec");
       if (cmd) {
         char *name = cmd+5;
-        execTransaction(name, &childfd, 0);
+        execTransaction(name, &childfd, 0, parCount);
+        parCount = 0;
       } else {
         char *cmd = strstr(buf,"sql");
         if (cmd) {
@@ -76,12 +79,19 @@ void *handle_client(void *fd) {
             cmd = strstr(buf,"PROGRAM");
             if (cmd) {
                 char *name = cmd+8;
-                execInTransaction(name, &childfd, 0);
+                execInTransaction(name, &childfd, 0, parCount);
+                parCount = 0;
             }
             cmd = strstr(buf,"CAPROG");
             if (cmd) {
                 char *name = cmd+7;
-                execInTransaction(name, &childfd, 1);
+                execInTransaction(name, &childfd, 1, parCount);
+                parCount = 0;
+           }
+            cmd = strstr(buf,"parcnt");
+            if (cmd) {
+                char *name = cmd+7;
+                parCount = atoi(name);
             }
         }
       }
