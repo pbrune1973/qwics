@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 07.06.2020                                  */
+/*   Author: Philipp Brune               Date: 08.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -896,10 +896,12 @@ int execCallback(char *cmd, void *var) {
     if ((strstr(cmd,"SETL0 77") || strstr(cmd,"SETL1 1")) && 
         (((*linkStackPtr) == 0) && ((*callStackPtr) == 0)) && ((*areaMode) == 0)) {
         cob_field *cobvar = (cob_field*)var;
-        write(childfd,cmd,strlen(cmd));
-        write(childfd,"\n",1);
+        char obuf[255];
+        sprintf(obuf,"%s %ld\n",cmd,cobvar->size);
+        write(childfd,obuf,strlen(obuf));
 
         // Read in value from client
+/*        
         char lvar[65536];
         char c = 0x00;
         int pos = 0;
@@ -926,6 +928,7 @@ int execCallback(char *cmd, void *var) {
                                             break;
             default:                        cob_put_picx(cobvar->data,(size_t)cobvar->size,lvar);
         }
+ */       
     }
 
     if (strcmp(cmd,"CICS") == 0) {
