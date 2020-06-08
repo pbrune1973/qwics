@@ -6,8 +6,8 @@
            02  EIBTRMID PIC X(4).        
            02  DFHEIGDI COMP PIC S9(4).  
            02  EIBCPOSN COMP PIC S9(4).  
-           02  EIBCALE2 COMP PIC S9(4).  
-           02  EIBAID2  PIC X(1).        
+           02  EIBCALEN COMP PIC S9(4).  
+           02  EIBAID   PIC X(1).        
            02  EIBFN    PIC X(2).        
            02  EIBRCODE PIC X(6).        
            02  EIBDS    PIC X(8).        
@@ -31,6 +31,4 @@
            02  EIBRESP2 COMP PIC S9(8). 
            02  EIBRLDBK PIC X(1).
 
-       77  EIBCALEN PIC S9(4) COMP.
-       77  EIBAID   PIC X(1).
 
