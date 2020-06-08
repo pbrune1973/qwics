@@ -1353,9 +1353,10 @@ void processLine(char *buf, FILE *fp2) {
              fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
+             fputs("       77  DFHRESP-ITEMERR PIC S9(8) COMP VALUE 26.\n",(FILE*)fp2);
            }
            if (!eibPresent && !lookupSymbolInInput("DFHEIBLK")) {
-               includeCbk("DFHEIBLK",(FILE*)fp2,NULL,NULL,1);
+               includeCbk("DFHEIBLC",(FILE*)fp2,NULL,NULL,1);
            }
            fputs("       LINKAGE SECTION.\n",(FILE*)fp2);
            inLinkageSection = 1;
@@ -1440,9 +1441,10 @@ void processLine(char *buf, FILE *fp2) {
               fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
+              fputs("       77  DFHRESP-ITEMERR PIC S9(8) COMP VALUE 26.\n",(FILE*)fp2);
             }
             if (!eibPresent && !lookupSymbolInInput("DFHEIBLK")) {
-                includeCbk("DFHEIBLK",(FILE*)fp2,NULL,NULL,1);
+                includeCbk("DFHEIBLC",(FILE*)fp2,NULL,NULL,1);
             }
           }
 
@@ -1574,8 +1576,13 @@ void processLine(char *buf, FILE *fp2) {
                          "SQLCODE",getExecTerminator(0));
                   fputs(buf,(FILE*)fp2);
               }
-              sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET DFHEIBLK\" ",
-                      "DFHEIBLK",getExecTerminator(0));
+              if (lookupSymbolInInput("DFHEIBLK")) {
+                  sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET DFHEIBLK\" ",
+                          "EIBLK",getExecTerminator(0));
+              } else {
+                  sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET DFHEIBLK\" ",
+                          "DFHEIBLK",getExecTerminator(0));
+              }
               fputs(buf,(FILE*)fp2);
               sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET EIBCALEN\" ",
                       "EIBCALEN",getExecTerminator(0));
@@ -1651,6 +1658,7 @@ void processLine(char *buf, FILE *fp2) {
        fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
        fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
        fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
+       fputs("       77  DFHRESP-ITEMERR PIC S9(8) COMP VALUE 26.\n",(FILE*)fp2);
   }
 }
 
