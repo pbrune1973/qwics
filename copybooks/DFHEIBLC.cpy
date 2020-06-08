@@ -1,4 +1,4 @@
-       01  EIBLK.                    
+       01  dfheiblk.                    
            02  EIBTIME  COMP-3 PIC S9(7). 
            02  EIBDATE  COMP-3 PIC S9(7). 
            02  EIBTRNID PIC X(4).        
