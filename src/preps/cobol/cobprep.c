@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.06.2020                                  */
+/*   Author: Philipp Brune               Date: 08.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -56,6 +56,7 @@ int skipLinesMode = 0;
 int skipFillerDefs = 0;
 int fillerDefLevel = 0;
 int xmlBlock = 0;
+FILE *fpLookup = NULL;
 
 
 struct linkageVarDef {
@@ -71,6 +72,52 @@ char *cbkPath = "../copybooks";
 FILE *declareTmpFile = NULL;
 char declareName[255] = "";
 char setptrbuf[255] = "";
+
+
+int lookupSymbolInInput(char *symbol) {
+    char buf[255];
+    rewind(fpLookup);
+    while (fgets(buf, 255, fpLookup) != NULL) {
+        if (buf[6] != '*') {
+              // Turn everything to caps
+            int verb = 0;
+            int bl = strlen(buf);
+            for (int i = 0; i < bl; i++) {
+                if ((verb == 1) && (buf[i] == '\'')) {
+                    verb = 0;
+                }
+                if ((verb == 2) && (buf[i] == '"')) {
+                    verb = 0;
+                }
+                if ((verb == 3) && (buf[i] == '=') && (buf[(i+1) % bl] == '=')) {
+                    verb = 0;
+                }
+                if ((verb == 0) && (buf[i] == '\'')) {
+                    verb = 1;
+                }
+                if ((verb == 0) && (buf[i] == '"')) {
+                    verb = 2;
+                }
+                if ((verb == 0) && (buf[i] == '=') && (buf[(i+1) % bl] == '=')) {
+                    i++;
+                    verb = 3;
+                }
+                if (verb == 0) {
+                    buf[i] = toupper(buf[i]);
+                }
+            }
+
+            if ((strstr(buf,"PROCEDURE") != NULL) && (strstr(buf,"DIVISION") != NULL)) {
+                return 0;
+            }
+
+            if (strstr(buf,symbol) != NULL) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
 
 
 void getVarInSuffix(int n, char *suffix, char *subscript) {
@@ -1307,7 +1354,7 @@ void processLine(char *buf, FILE *fp2) {
              fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
            }
-           if (!eibPresent) {
+           if (!eibPresent && !lookupSymbolInInput("DFHEIBLK")) {
                includeCbk("DFHEIBLK",(FILE*)fp2,NULL,NULL,1);
            }
            fputs("       LINKAGE SECTION.\n",(FILE*)fp2);
@@ -1394,7 +1441,7 @@ void processLine(char *buf, FILE *fp2) {
               fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
             }
-            if (!eibPresent) {
+            if (!eibPresent && !lookupSymbolInInput("DFHEIBLK")) {
                 includeCbk("DFHEIBLK",(FILE*)fp2,NULL,NULL,1);
             }
           }
@@ -1420,7 +1467,7 @@ void processLine(char *buf, FILE *fp2) {
                 end = strstr(buf,"CALL"); 
                 end = strstr(end," "); 
                 if (strstr(end,"USING") != NULL) {
-                    end = strstr(end,"USING") + 6;
+                    end = strstr(end,"USING") + 5;
                     l = (int)(end-buf);
                     strncpy(callBuf,buf,l);
                     strcpy(&callBuf[l]," DFHCOMMAREA,\n");
@@ -1624,6 +1671,7 @@ int main(int argc, char **argv) {
 	    printf("%s%s\n","No input file: ",argv[1]);
 	    return -1;
    }
+   fpLookup = fopen(argv[1], "r");
 
    declareTmpFile = fopen("declare.tmp", "w");
    if (declareTmpFile == NULL) {
@@ -1661,6 +1709,7 @@ int main(int argc, char **argv) {
    }
 
    fclose(fp);
+   fclose(fpLookup);
    fclose(fp2);
    return 0;
 }
