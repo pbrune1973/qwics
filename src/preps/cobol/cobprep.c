@@ -1375,8 +1375,9 @@ void processLine(char *buf, FILE *fp2) {
        int n = 0;
        for (n = 0; n < numOfLinkageVars; n++) {
            if (((linkageVars[n].level == 1) || (linkageVars[n].level > 49))
-               && (strcmp(linkageVars[n].name,"DFHCOMMAREA") != 0)) {
-               // Top level or elementary variable
+               && (strcmp(linkageVars[n].name,"DFHCOMMAREA") != 0) 
+               && (strcmp(linkageVars[n].name,"EIBLK") != 0)) {
+                // Top level or elementary variable
                fputs(",\n",(FILE*)fp2);
                sprintf(buf,"%s%s","      -     ",linkageVars[n].name);
                fputs(buf,(FILE*)fp2);
