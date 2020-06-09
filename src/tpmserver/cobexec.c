@@ -1500,8 +1500,8 @@ int execCallback(char *cmd, void *var) {
                 readLine((char*)&buf,childfd);
                 int item = atoi(buf);
                 if ((memParams[3] != NULL) &&
-                    (((cob_field*)memParams[3])->attr->type == COB_TYPE_NUMERIC_BINARY)) {
-                  cob_put_u64_compx(item,((cob_field*)memParams[3])->data,2);
+                    (((cob_field*)memParams[3])->attr->type == 17)) {
+                  cob_put_s64_comp3(item,((cob_field*)memParams[0])->data,2);
                 }
                 readLine((char*)&buf,childfd);
                 resp = atoi(buf);
@@ -1583,7 +1583,7 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"QNAME") || strstr(cmd,"MAIN") || strstr(cmd,"AUXILIARY") || strstr(cmd,"ABSTIME") ||
             strstr(cmd,"YYMMDD") || strstr(cmd,"YEAR") || strstr(cmd,"TIME") || strstr(cmd,"DDMMYY") ||
             strstr(cmd,"DATESEP") || strstr(cmd,"TIMESEP") || strstr(cmd,"DB2CONN") || strstr(cmd,"CONNECTST") ||
-            strstr(cmd,"TRANSID") || strstr(cmd,"REQID") || strstr(cmd,"INTERVAL")) {
+            strstr(cmd,"TRANSID") || strstr(cmd,"REQID") || strstr(cmd,"INTERVAL") || strstr(cmd,"USERID")) {
             sprintf(end,"%s%s",cmd,"\n");
 
             if (var != NULL) {
@@ -1872,7 +1872,7 @@ int execCallback(char *cmd, void *var) {
                 if (strcmp(cmd,"FROM") == 0) {
                     (*memParamsState) = 2;
                 }
-                if (strcmp(cmd,"QUEUE") == 0) {
+                if ((strcmp(cmd,"QUEUE") == 0) || (strcmp(cmd,"QNAME") == 0)) {
                     (*memParamsState) = 3;
                 }
                 if (strcmp(cmd,"ITEM") == 0) {
@@ -1897,7 +1897,7 @@ int execCallback(char *cmd, void *var) {
                 if (strcmp(cmd,"INTO") == 0) {
                     (*memParamsState) = 2;
                 }
-                if (strcmp(cmd,"QUEUE") == 0) {
+                if ((strcmp(cmd,"QUEUE") == 0) || (strcmp(cmd,"QNAME") == 0)) {
                     (*memParamsState) = 3;
                 }
                 if (strcmp(cmd,"ITEM") == 0) {
@@ -1911,7 +1911,7 @@ int execCallback(char *cmd, void *var) {
                 }
             }
             if ((*cmdState) == -16) {
-                if (strcmp(cmd,"QUEUE") == 0) {
+                if ((strcmp(cmd,"QUEUE") == 0) || (strcmp(cmd,"QNAME") == 0)) {
                     (*memParamsState) = 3;
                 }
                 if (strcmp(cmd,"TD") == 0) {
@@ -2108,8 +2108,13 @@ int execCallback(char *cmd, void *var) {
                     !(((*cmdState) == -6) && ((*memParamsState) == 2))  &&
                     !(((*cmdState) == -11) && ((*memParamsState) == 2)) &&
                     !(((*cmdState) == -12) && ((*memParamsState) == 2)) &&
+                    !(((*cmdState) == -14) && ((*memParamsState) == 0)) &&
                     !(((*cmdState) == -14) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -15) && ((*memParamsState) == 0)) &&
                     !(((*cmdState) == -15) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -15) && ((*memParamsState) == 2)) &&
+                    !(((*cmdState) == -18) && ((*memParamsState) == 0)) &&
+                    !(((*cmdState) == -18) && ((*memParamsState) == 1)) &&
                     !(((*cmdState) == -19) && ((*memParamsState) == 1)) &&
                     !(((*cmdState) == -19) && ((*memParamsState) == 2)) &&
                     !(((*cmdState) == -19) && ((*memParamsState) == 3))) {
@@ -2316,7 +2321,7 @@ int execCallback(char *cmd, void *var) {
                     write(childfd,str,strlen(str));
                 }
                 if (((*cmdState) == -15) && ((*memParamsState) == 1)) {
-                    // WRITEQ LENGTH
+                    // READQ LENGTH
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
