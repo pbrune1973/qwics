@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 08.06.2020                                  */
+/*   Author: Philipp Brune               Date: 10.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -56,6 +56,7 @@ pthread_key_t xctlParamsKey;
 pthread_key_t eibbufKey;
 pthread_key_t linkAreaKey;
 pthread_key_t linkAreaPtrKey;
+pthread_key_t linkAreaAdrKey;
 pthread_key_t commAreaKey;
 pthread_key_t commAreaPtrKey;
 pthread_key_t areaModeKey;
@@ -107,6 +108,8 @@ unsigned char *cwa;
 jmp_buf taskState;
 
 jmp_buf *condHandler[100];
+
+cob_module thisModule;
 
 
 void cm(int res) {
@@ -559,6 +562,12 @@ struct callLoadlib {
 };
 
 
+// Db2 DSNTIAR assembler routine mockup
+int dsntiar(unsigned char *commArea, unsigned char *sqlca, unsigned char *errMsg, int32_t *errLen) {
+    return 0;
+}
+
+
 void* globalCallCallback(char *name) {
     void *res = NULL;
     char fname[255];
@@ -571,6 +580,12 @@ void* globalCallCallback(char *name) {
     #else
     sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".so");
     #endif
+printf("%s\n",fname);
+
+    if (strcmp("DSNTIAR",name) == 0) {
+        return (void*)&dsntiar;
+    }
+
     callStack[*callStackPtr].sdl_library = dlopen(fname, RTLD_LAZY);
     if (callStack[*callStackPtr].sdl_library == NULL) {
         sprintf(response,"%s%s%s\n","ERROR: Load module ",fname," not found!");
@@ -676,6 +691,8 @@ int execLoadModule(char *name, int mode, int parCount) {
                 }
               }
             } else {
+              cob_get_global_ptr()->cob_current_module = &thisModule;
+              cob_get_global_ptr()->cob_call_params = 1;
               (*loadmod)(commArea);
             }
 #ifndef _USE_ONLY_PROCESSES_
@@ -721,6 +738,7 @@ int execCallback(char *cmd, void *var) {
     char *eibbuf = (char*)pthread_getspecific(eibbufKey);
     char *linkArea = (char*)pthread_getspecific(linkAreaKey);
     int *linkAreaPtr = (int*)pthread_getspecific(linkAreaPtrKey);
+    char **linkAreaAdr = (char**)pthread_getspecific(linkAreaAdrKey);
     char *commArea = (char*)pthread_getspecific(commAreaKey);
     int *commAreaPtr = (int*)pthread_getspecific(commAreaPtrKey);
     int *areaMode = (int*)pthread_getspecific(areaModeKey);
@@ -764,8 +782,6 @@ int execCallback(char *cmd, void *var) {
         return 1;
     }
     if (strstr(cmd,"SET EIBAID") && (((*linkStackPtr) == 0) && ((*callStackPtr) == 0))) {
-        // Reset link area ptr before SETLx
-        (*linkAreaPtr) = 0;
         (*commAreaPtr) = 0;
         (*areaMode) = 0;
         // Handle EIBAID
@@ -874,24 +890,30 @@ int execCallback(char *cmd, void *var) {
     if (strstr(cmd,"DFHCOMMAREA")) {
         (*areaMode) = 1;
     }
-    if (strstr(cmd,"SETL0")) {
+    if (strstr(cmd,"SETL0") || strstr(cmd,"SETL1")) {
         cob_field *cobvar = (cob_field*)var;
         if ((*areaMode) == 0) {
-            if (cobvar->data == NULL) {
-                cobvar->data = (unsigned char*)&linkArea[*linkAreaPtr];
-                (*linkAreaPtr) += (size_t)cobvar->size;
+            if (strstr(cmd,"SETL1 1") || strstr(cmd,"SETL0 1") || strstr(cmd,"SETL0 77")) {
+                // Top level var
+                // printf("data %x\n",cobvar->data);
+                if (cobvar->data == NULL) {
+                    cobvar->data = (unsigned char*)&linkArea[*linkAreaPtr];
+                    (*linkAreaAdr) = &linkArea[*linkAreaPtr];
+                    (*linkAreaPtr) += (size_t)cobvar->size;
+                    // printf("set top level linkAreaPtr %x\n",cobvar->data);
+                }
+            } else {
+                if ((unsigned long)(*linkAreaAdr) + (unsigned long)cobvar->data < (unsigned long)&linkArea[*linkAreaPtr]) {
+                    cobvar->data = (unsigned char*)(*linkAreaAdr) + (unsigned long)cobvar->data;
+                    // printf("set sub level linkAreaPtr %x\n",cobvar->data);
+                }
             }
-        }
-        else {
+        } else {
             if (cobvar->data == NULL) {
                 cobvar->data = (unsigned char*)&commArea[*commAreaPtr];
                 (*commAreaPtr) += (size_t)cobvar->size;
             }
-        }
-        
-        /*
-        printf("%s%s%d%s%d%s%d%s%d\n",cmd," ",(long)cobvar->data," ",(int)cobvar->size," ",(*linkAreaPtr)," ",                                      (*commAreaPtr));
-        */
+        }        
     }
     if ((strstr(cmd,"SETL0 77") || strstr(cmd,"SETL1 1")) && 
         (((*linkStackPtr) == 0) && ((*callStackPtr) == 0)) && ((*areaMode) == 0)) {
@@ -1500,8 +1522,8 @@ int execCallback(char *cmd, void *var) {
                 readLine((char*)&buf,childfd);
                 int item = atoi(buf);
                 if ((memParams[3] != NULL) &&
-                    (((cob_field*)memParams[3])->attr->type == 17)) {
-                  cob_put_s64_comp3(item,((cob_field*)memParams[0])->data,2);
+                    (((cob_field*)memParams[3])->attr->type == COB_TYPE_NUMERIC_BINARY)) {
+                  cob_put_u64_compx(item,((cob_field*)memParams[3])->data,2);
                 }
                 readLine((char*)&buf,childfd);
                 resp = atoi(buf);
@@ -2481,6 +2503,7 @@ void initExec(int initCons) {
     pthread_key_create(&eibbufKey, NULL);
     pthread_key_create(&linkAreaKey, NULL);
     pthread_key_create(&linkAreaPtrKey, NULL);
+    pthread_key_create(&linkAreaAdrKey, NULL);
     pthread_key_create(&commAreaKey, NULL);
     pthread_key_create(&commAreaPtrKey, NULL);
     pthread_key_create(&areaModeKey, NULL);
@@ -2518,7 +2541,6 @@ void initExec(int initCons) {
 
     setUpPool(10, GETENV_STRING(connectStr,"QWICS_DB_CONNECTSTR","dbname=qwics"), initCons);
     currentMap[0] = 0x00;
-    cob_get_global_ptr ()->cob_call_params = 1;
 }
 
 
@@ -2548,9 +2570,10 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     char progname[9];
     char *xctlParams[10];
     char eibbuf[150];
-    char linkArea[4096];
+    char *linkArea = malloc(16000000);
     char commArea[32768];
     int linkAreaPtr = 0;
+    char *linkAreaAdr = linkArea;
     int commAreaPtr = 0;
     int areaMode = 0;
     char linkStack[900];
@@ -2582,8 +2605,9 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(xctlStateKey, &xctlState);
     pthread_setspecific(xctlParamsKey, &xctlParams);
     pthread_setspecific(eibbufKey, &eibbuf);
-    pthread_setspecific(linkAreaKey, &linkArea);
+    pthread_setspecific(linkAreaKey, linkArea);
     pthread_setspecific(linkAreaPtrKey, &linkAreaPtr);
+    pthread_setspecific(linkAreaAdrKey, &linkAreaAdr);
     pthread_setspecific(commAreaKey, &commArea);
     pthread_setspecific(commAreaPtrKey, &commAreaPtr);
     pthread_setspecific(areaModeKey, &areaMode);
@@ -2612,8 +2636,13 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
         }
       }
     }
+
+    cob_get_global_ptr()->cob_current_module = &thisModule;
+    cob_get_global_ptr()->cob_call_params = 1;
+
     // Optionally initialize call params
     if ((parCount > 0) && (parCount <= 10)) {
+        cob_get_global_ptr ()->cob_call_params = cob_get_global_ptr ()->cob_call_params + parCount;
         for (i = 0; i < parCount; i++) {
             char len[10];
             char c = 0x00;
@@ -2627,6 +2656,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
             }
             len[pos] = 0x00; 
             paramList[i] = (void*)&linkArea[linkAreaPtr];
+            linkAreaAdr = &linkArea[linkAreaPtr];
             linkAreaPtr += atoi(len);
         }
     }
@@ -2646,6 +2676,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     globalCallCleanup();
     clearMain();
     free(allocMem);
+    free(linkArea);
     returnDBConnection(conn,1);
     // Flush output buffers
     fflush(stdout);
@@ -2661,9 +2692,10 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     int xctlState = 0;
     char *xctlParams[10];
     char eibbuf[150];
-    char linkArea[4096];
+    char *linkArea = malloc(16000000);
     char commArea[32768];
     int linkAreaPtr = 0;
+    char *linkAreaAdr = linkArea;
     int commAreaPtr = 0;
     int areaMode = 0;
     char progname[9];
@@ -2696,8 +2728,9 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(xctlStateKey, &xctlState);
     pthread_setspecific(xctlParamsKey, &xctlParams);
     pthread_setspecific(eibbufKey, &eibbuf);
-    pthread_setspecific(linkAreaKey, &linkArea);
+    pthread_setspecific(linkAreaKey, linkArea);
     pthread_setspecific(linkAreaPtrKey, &linkAreaPtr);
+    pthread_setspecific(linkAreaAdrKey, &linkAreaAdr);
     pthread_setspecific(commAreaKey, &commArea);
     pthread_setspecific(commAreaPtrKey, &commAreaPtr);
     pthread_setspecific(areaModeKey, &areaMode);
@@ -2727,8 +2760,13 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
         }
       }
     }
+    
+    cob_get_global_ptr()->cob_current_module = &thisModule;
+    cob_get_global_ptr()->cob_call_params = 1;
+
     // Optionally initialize call params
     if ((parCount > 0) && (parCount <= 10)) {
+        cob_get_global_ptr ()->cob_call_params = cob_get_global_ptr ()->cob_call_params + parCount;
         for (i = 0; i < parCount; i++) {
             char len[10];
             char c = 0x00;
@@ -2742,6 +2780,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
             }
             len[pos] = 0x00; 
             paramList[i] = (void*)&linkArea[linkAreaPtr];
+            linkAreaAdr = &linkArea[linkAreaPtr];
             linkAreaPtr += atoi(len);
         }
     }
@@ -2759,6 +2798,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     globalCallCleanup();
     clearMain();
     free(allocMem);
+    free(linkArea);
     // Flush output buffers
     fflush(stdout);
     fflush(stderr);
