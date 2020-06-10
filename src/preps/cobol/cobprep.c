@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 08.06.2020                                  */
+/*   Author: Philipp Brune               Date: 10.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -1354,6 +1354,8 @@ void processLine(char *buf, FILE *fp2) {
              fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-ITEMERR PIC S9(8) COMP VALUE 26.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-CLIENT PIC S9(8) COMP VALUE 1122.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-SENDER PIC S9(8) COMP VALUE 1045.\n",(FILE*)fp2);
            }
            if (!eibPresent && !lookupSymbolInInput("DFHEIBLK")) {
                includeCbk("DFHEIBLC",(FILE*)fp2,NULL,NULL,1);
@@ -1443,6 +1445,8 @@ void processLine(char *buf, FILE *fp2) {
               fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-ITEMERR PIC S9(8) COMP VALUE 26.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-CLIENT PIC S9(8) COMP VALUE 1122.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-SENDER PIC S9(8) COMP VALUE 1045.\n",(FILE*)fp2);
             }
             if (!eibPresent && !lookupSymbolInInput("DFHEIBLK")) {
                 includeCbk("DFHEIBLC",(FILE*)fp2,NULL,NULL,1);
@@ -1450,6 +1454,18 @@ void processLine(char *buf, FILE *fp2) {
           }
 
           char *f = strstr(buf,"DFHRESP");
+          if (f != NULL) {
+            f[7] = '-';
+            int i = 8;
+            while ((f[i] != ')') && (f[i] != 0x00)) {
+              i++;
+            }
+            if (f[i] == ')') {
+              f[i] = ' ';
+            }
+          }
+
+          char *f = strstr(buf,"DFHVALUE");
           if (f != NULL) {
             f[7] = '-';
             int i = 8;
@@ -1660,6 +1676,8 @@ void processLine(char *buf, FILE *fp2) {
        fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
        fputs("       77  DFHRESP-PGMIDERR PIC S9(8) COMP VALUE 27.\n",(FILE*)fp2);
        fputs("       77  DFHRESP-ITEMERR PIC S9(8) COMP VALUE 26.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-CLIENT PIC S9(8) COMP VALUE 1122.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-SENDER PIC S9(8) COMP VALUE 1045.\n",(FILE*)fp2);
   }
 }
 
