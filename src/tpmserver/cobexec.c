@@ -882,9 +882,10 @@ int execCallback(char *cmd, void *var) {
                 ((char*)cobvar->data)[n] = eibbuf[n];
             }
         }
+        return 1;
     }
 
-    if (strstr(cmd,"SETL1 1") || strstr(cmd,"SETL0 1") || strstr(cmd,"SETL0 77")) {
+    if (strstr(cmd,"SETL1 1 ") || strstr(cmd,"SETL0 1 ") || strstr(cmd,"SETL0 77")) {
         (*areaMode) = 0;
     }
     if (strstr(cmd,"DFHCOMMAREA")) {
@@ -893,7 +894,7 @@ int execCallback(char *cmd, void *var) {
     if (strstr(cmd,"SETL0") || strstr(cmd,"SETL1")) {
         cob_field *cobvar = (cob_field*)var;
         if ((*areaMode) == 0) {
-            if (strstr(cmd,"SETL1 1") || strstr(cmd,"SETL0 1") || strstr(cmd,"SETL0 77")) {
+            if (strstr(cmd,"SETL1 1 ") || strstr(cmd,"SETL0 1 ") || strstr(cmd,"SETL0 77")) {
                 // Top level var
                 // printf("data %x\n",cobvar->data);
                 if (cobvar->data == NULL) {
@@ -903,6 +904,7 @@ int execCallback(char *cmd, void *var) {
                     // printf("set top level linkAreaPtr %x\n",cobvar->data);
                 }
             } else {
+                // printf("linkAreaPtr = %d\n",*linkAreaPtr);
                 if ((unsigned long)(*linkAreaAdr) + (unsigned long)cobvar->data < (unsigned long)&linkArea[*linkAreaPtr]) {
                     cobvar->data = (unsigned char*)(*linkAreaAdr) + (unsigned long)cobvar->data;
                     // printf("set sub level linkAreaPtr %x\n",cobvar->data);
@@ -913,44 +915,46 @@ int execCallback(char *cmd, void *var) {
                 cobvar->data = (unsigned char*)&commArea[*commAreaPtr];
                 (*commAreaPtr) += (size_t)cobvar->size;
             }
-        }        
-    }
-    if ((strstr(cmd,"SETL0 77") || strstr(cmd,"SETL1 1")) && 
-        (((*linkStackPtr) == 0) && ((*callStackPtr) == 0)) && ((*areaMode) == 0)) {
-        cob_field *cobvar = (cob_field*)var;
-        char obuf[255];
-        sprintf(obuf,"%s %ld\n",cmd,cobvar->size);
-        write(childfd,obuf,strlen(obuf));
+        }
 
-        // Read in value from client
+        if ((strstr(cmd,"SETL0 77") || strstr(cmd,"SETL1 1 ")) && 
+            (((*linkStackPtr) == 0) && ((*callStackPtr) == 0)) && ((*areaMode) == 0)) {
+            cob_field *cobvar = (cob_field*)var;
+            char obuf[255];
+            sprintf(obuf,"%s %ld\n",cmd,cobvar->size);
+            write(childfd,obuf,strlen(obuf));
+
+            // Read in value from client
 /*        
-        char lvar[65536];
-        char c = 0x00;
-        int pos = 0;
-        while (c != '\n') {
-            int n = read(childfd,&c,1);
-            if ((n == 1) && (c != '\n') && (c != '\r') && (c != '\'') && (pos < 65536)) {
-                lvar[pos] = c;
-                pos++;
+            char lvar[65536];
+            char c = 0x00;
+            int pos = 0;
+            while (c != '\n') {
+                int n = read(childfd,&c,1);
+                if ((n == 1) && (c != '\n') && (c != '\r') && (c != '\'') && (pos < 65536)) {
+                    lvar[pos] = c;
+                    pos++;
+                }
             }
-        }
-        lvar[pos] = 0x00; 
+            lvar[pos] = 0x00; 
 
-        char buf[256];
-        long v = 0;
-        switch (COB_FIELD_TYPE(cobvar)) {
-            case COB_TYPE_NUMERIC:          cob_put_picx(cobvar->data,cobvar->size,
-                                                        convertNumeric(lvar,cobvar->attr->digits,cobvar->attr->scale,buf));
-                                            break;
-            case COB_TYPE_NUMERIC_BINARY:   v = atol(lvar);
-                                            cob_put_u64_compx(v,cobvar->data,cobvar->size);
-                                            break;
-            case COB_TYPE_NUMERIC_PACKED:   v = atol(lvar);
-                                            cob_put_s64_comp3(v,cobvar->data,cobvar->size);                     
-                                            break;
-            default:                        cob_put_picx(cobvar->data,(size_t)cobvar->size,lvar);
-        }
+            char buf[256];
+            long v = 0;
+            switch (COB_FIELD_TYPE(cobvar)) {
+                case COB_TYPE_NUMERIC:          cob_put_picx(cobvar->data,cobvar->size,
+                                                            convertNumeric(lvar,cobvar->attr->digits,cobvar->attr->scale,buf));
+                                                break;
+                case COB_TYPE_NUMERIC_BINARY:   v = atol(lvar);
+                                                cob_put_u64_compx(v,cobvar->data,cobvar->size);
+                                                break;
+                case COB_TYPE_NUMERIC_PACKED:   v = atol(lvar);
+                                                cob_put_s64_comp3(v,cobvar->data,cobvar->size);                     
+                                                break;
+                default:                        cob_put_picx(cobvar->data,(size_t)cobvar->size,lvar);
+            }
  */       
+        }
+        return 1;
     }
 
     if (strcmp(cmd,"CICS") == 0) {
