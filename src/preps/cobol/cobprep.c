@@ -1465,10 +1465,10 @@ void processLine(char *buf, FILE *fp2) {
             }
           }
 
-          char *f = strstr(buf,"DFHVALUE");
+          f = strstr(buf,"DFHVALUE");
           if (f != NULL) {
-            f[7] = '-';
-            int i = 8;
+            f[8] = '-';
+            int i = 9;
             while ((f[i] != ')') && (f[i] != 0x00)) {
               i++;
             }
