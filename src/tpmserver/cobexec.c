@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 10.06.2020                                  */
+/*   Author: Philipp Brune               Date: 12.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1609,9 +1609,13 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"QNAME") || strstr(cmd,"MAIN") || strstr(cmd,"AUXILIARY") || strstr(cmd,"ABSTIME") ||
             strstr(cmd,"YYMMDD") || strstr(cmd,"YEAR") || strstr(cmd,"TIME") || strstr(cmd,"DDMMYY") ||
             strstr(cmd,"DATESEP") || strstr(cmd,"TIMESEP") || strstr(cmd,"DB2CONN") || strstr(cmd,"CONNECTST") ||
-            strstr(cmd,"TRANSID") || strstr(cmd,"REQID") || strstr(cmd,"INTERVAL") || strstr(cmd,"USERID")) {
+            strstr(cmd,"TRANSID") || strstr(cmd,"REQID") || strstr(cmd,"INTERVAL") || strstr(cmd,"USERID") || 
+            strstr(cmd,"NOHANDLE")) {
             sprintf(end,"%s%s",cmd,"\n");
 
+            if ((strcmp(cmd,"NOHANDLE") == 0) && ((*respFieldsState) == 0)) {
+                (*respFieldsState) = 3;
+            }
             if (var != NULL) {
               cob_field *cobvar = (cob_field*)var;
               if (strcmp(cmd,"RESP") == 0) {
