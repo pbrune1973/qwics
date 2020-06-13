@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.06.2020                                  */
+/*   Author: Philipp Brune               Date: 13.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -806,7 +806,7 @@ int execCallback(char *cmd, void *var) {
         cob_field *cobvar = (cob_field*)var;
         if (cobvar->data != NULL) {
             eibbuf = (char*)cobvar->data;
-            pthread_setspecific(eibbufKey, &eibbuf);
+            pthread_setspecific(eibbufKey, eibbuf);
         }
         // Read in TRNID from client
         char c = 0x00;
@@ -1577,12 +1577,16 @@ int execCallback(char *cmd, void *var) {
                   abend(resp,resp2);
                 }
             }
+            // SET EIBRES and EIBRESP2
+            cob_put_u64_compx(resp,&eibbuf[76],4);
+            cob_put_u64_compx(resp2,&eibbuf[80],4);
+
             if ((*respFieldsState) == 1) {
-              cob_put_u64_compx((long)resp,((cob_field*)respFields[0])->data,2);
+              cob_put_u64_compx(resp,((cob_field*)respFields[0])->data,((cob_field*)respFields[0])->size);
             }
             if ((*respFieldsState) == 2) {
-              cob_put_u64_compx(resp,((cob_field*)respFields[0])->data,4);
-              cob_put_u64_compx(resp2,((cob_field*)respFields[1])->data,4);
+              cob_put_u64_compx(resp,((cob_field*)respFields[0])->data,((cob_field*)respFields[0])->size);
+              cob_put_u64_compx(resp2,((cob_field*)respFields[1])->data,((cob_field*)respFields[1])->size);
             }
             (*cmdState) = 0;
             (*respFieldsState) = 0;
