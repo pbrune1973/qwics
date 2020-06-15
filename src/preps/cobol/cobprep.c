@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 10.06.2020                                  */
+/*   Author: Philipp Brune               Date: 15.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -72,6 +72,66 @@ char *cbkPath = "../copybooks";
 FILE *declareTmpFile = NULL;
 char declareName[255] = "";
 char setptrbuf[255] = "";
+
+
+char *strstr_noverb(char *buf, char *s) {
+   int i = 0, j = 0, m = strlen(buf), l = strlen(s);
+   int verb = 0;
+   if ((l == 0) || (m == 0)) {
+     return NULL;
+   }
+   while (i <= m-l) {
+     if (verb == 0) {
+        for (j = 0; j < l; j++) {
+           if (buf[i+j] != s[j]) {
+             break;
+           }
+        }       
+        if (j == l) {
+           return &buf[i];
+        }
+     }
+     if ((verb == 1) && (buf[i] == '\'')) {
+       verb = 0;
+     }
+     if ((verb == 2) && (buf[i] == '"')) {
+       verb = 0;
+     }
+     if ((verb == 3) && (buf[i] == '=') && (buf[(i+1) % m] == '=')) {
+       verb = 0;
+     }
+     if ((verb == 0) && (buf[i] == '\'')) {
+       verb = 1;
+     }
+     if ((verb == 0) && (buf[i] == '"')) {
+       verb = 2;
+     }
+     if ((verb == 0) && (buf[i] == '=') && (buf[(i+1) % m] == '=')) {
+       i++;
+       verb = 3;
+     }
+     i++;
+   }
+
+   return NULL;
+}
+
+
+char *getExecTerminator(int quotes) {
+    if (outputDot) {
+        if (quotes) {
+            return "\".";
+        } else {
+            return ".";
+        }
+    }
+
+    if (quotes) {
+        return "\"";
+    } else {
+        return "";
+    }
+}
 
 
 int lookupSymbolInInput(char *symbol) {
@@ -168,7 +228,7 @@ void parseLinkageVarDef(char *line) {
         }
         lbuf[i] = 0x00;
         int level = atoi(lbuf);
-        if ((level < 1) || ((level > 49) && (level != 77))) {
+        if (((level < 1) || (level > 49)) && (level != 77)) {
           return;
         }
 
@@ -250,9 +310,13 @@ int includeDeclares(FILE *outFile) {
         return -1;
     }
 
-    char line[255];
+    char line[255],linebuf[255];
     while (fgets(line, 255, (FILE*)df) != NULL) {
-      fputs(line,outFile);
+      int i = strlen(line)-1;
+      while (((line[i] == 10) || (line[i] == 13) || (line[i] == ' ') || (line[i] == '.')) && (i > 0)) i--;	  
+      line[i+1] = 0x00; 
+      sprintf(linebuf,"%s%s\n",line,getExecTerminator(0));     
+      fputs(linebuf,outFile);
     }
 
     fputs("\n",outFile);
@@ -515,7 +579,7 @@ void processReplacingClause(char *buf, int *pos, char *pattern) {
         }
         pattern[j] = 0x00;
     }
-    while ((buf[i] != ' ') && (buf[i] != '.')) {
+    while ((buf[i] != ' ') && (buf[i] != '.') && (buf[i] != '\n') && (i < 72)) {
         i++;
     }
     i--;
@@ -562,6 +626,7 @@ void processCopyLine(char *buf, FILE *fp2) {
                   linebuf[i] = buf[i];
                   i++;
                 }
+                linebuf[m-1] = '\n';
                 linebuf[m] = 0x00;
                 fputs(linebuf,fp2);
                 if (hasDotTerminator(linebuf)) {
@@ -599,23 +664,6 @@ void processCopyLine(char *buf, FILE *fp2) {
             token[tokenPos] = toupper(buf[i]);
             tokenPos++;
         }
-    }
-}
-
-
-char *getExecTerminator(int quotes) {
-    if (outputDot) {
-        if (quotes) {
-            return "\".";
-        } else {
-            return ".";
-        }
-    }
-
-    if (quotes) {
-        return "\"";
-    } else {
-        return "";
     }
 }
 
@@ -1232,8 +1280,10 @@ void processExecLine(char *buf, FILE *fp2) {
                             fputs(execbuf, (FILE*)declareTmpFile);
                         }
                     } else {
-                        token[tokenPos] = buf[i];
-                        tokenPos++;
+                        if (buf[i] != '\"') {
+	                    token[tokenPos] = buf[i];
+        	            tokenPos++;
+                        }
                     }
                 }
             }
@@ -1331,8 +1381,13 @@ void processLine(char *buf, FILE *fp2) {
     }
     if (verb == 0) {
        buf[i] = toupper(buf[i]);
+       // Remove tabs
+       if (buf[i] == '\t') {
+         buf[i] = ' ';
+       }
     }
   }
+//printf("%s\n",buf);
 
   if ((strstr(buf,"PROCEDURE") != NULL) && (strstr(buf,"DIVISION") != NULL)) {
        fclose(declareTmpFile);
@@ -1393,6 +1448,14 @@ void processLine(char *buf, FILE *fp2) {
 
   if (execCmd == 0) {
       char *cmd = strstr(buf,"EXEC");
+      if (cmd != NULL) {
+         cmd[0] = '\n';
+         cmd[1] = 0x00;
+         fputs(buf,(FILE*)fp2);
+         cmd[0] = 'E';
+         cmd[1] = 'X';
+         memset(buf,' ',(int)(cmd-buf));
+      }
       if ((cmd != NULL) && strstr(buf,"CICS")) {
           allowIntoParam = 0;
           allowFromParam = 0;
@@ -1478,12 +1541,12 @@ void processLine(char *buf, FILE *fp2) {
           }
 
           if (inProcDivision) {
-            if (strstr(buf," CALL ") != 0) {
+            if (strstr_noverb(buf," CALL ") != 0) {
                 char callBuf[255];
                 char *end = NULL;
                 int l = 0;
 
-                end = strstr(buf,"CALL"); 
+                end = strstr_noverb(buf,"CALL"); 
                 end = strstr(end," "); 
                 if (strstr(end,"USING") != NULL) {
                     end = strstr(end,"USING") + 5;
@@ -1492,7 +1555,15 @@ void processLine(char *buf, FILE *fp2) {
                     strcpy(&callBuf[l]," DFHCOMMAREA,\n");
                     l = l + 14;
                 } else {
-                    end = strstr(end,".");
+                    char *end2 = strstr(end,".");
+                    if (end2 == NULL) {
+                       end2 = strstr(end,"\n");
+                       if (end2 == NULL) {
+                          end2 = &end[strlen(end)-1];
+                       }
+                    }
+                    end = end2;
+   
                     l = (int)(end-buf);
                     strncpy(callBuf,buf,l);
                     strcpy(&callBuf[l]," USING DFHCOMMAREA\n");
