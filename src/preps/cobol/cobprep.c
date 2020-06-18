@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 15.06.2020                                  */
+/*   Author: Philipp Brune               Date: 18.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -52,7 +52,7 @@ int startProcDivision = 0;
 int linkageSectionPresent = 0;
 int wstorageSectionPresent = 0;
 int execSQLCnt = 0;
-int skipLinesMode = 0;
+int usingLinesMode = 0;
 int skipFillerDefs = 0;
 int fillerDefLevel = 0;
 int xmlBlock = 0;
@@ -72,6 +72,46 @@ char *cbkPath = "../copybooks";
 FILE *declareTmpFile = NULL;
 char declareName[255] = "";
 char setptrbuf[255] = "";
+int include = 0;
+
+char usingParams[2048][33];
+int numOfUsingParams = 0;
+
+
+void addUsingParamsFromBuf(char *buf, int start) {
+    char token[255];
+    int tokenPos = 0;
+    int i,l = strlen(buf);
+    
+    for (i = start; i < l; i++) {
+        if ((buf[i] == ' ') || (buf[i] == '\n') ||
+            (buf[i] == '\r') || (buf[i] == '.') ||
+            (buf[i] == ',')) {
+           if (tokenPos > 0) {
+              token[tokenPos] = 0x00;
+              sprintf(usingParams[numOfUsingParams],"%s",token);
+              numOfUsingParams++;
+           }
+           tokenPos = 0;
+        } else {
+           token[tokenPos] = buf[i];
+           tokenPos++;
+        }
+    }
+}
+
+
+int isUsingParam(char *name) {
+    int i = 0;
+
+    for (i = 0; i < numOfUsingParams; i++) {
+        if (strcmp(usingParams[i],name) == 0) {
+           return 1;
+        }
+    }
+
+    return 0;
+}
 
 
 char *strstr_noverb(char *buf, char *s) {
@@ -197,12 +237,16 @@ void getVarInSuffix(int n, char *suffix, char *subscript) {
                         sprintf(subscript,"%d",linkageVars[i].index);
                     }
                 }
+
                 int l = strlen(suffix);
+/*
                 if (l == 0) {
                   sprintf(&suffix[l],"%s%s"," IN ",linkageVars[i].name);
                 } else {
                   sprintf(&suffix[l],"%s%s","\n            IN  ",linkageVars[i].name);
                 }
+*/
+                sprintf(&suffix[l],"%s%s","\n            IN  ",linkageVars[i].name);
                 getVarInSuffix(i,suffix,subscript);
                 break;
             }
@@ -290,6 +334,10 @@ void parseLinkageVarDef(char *line) {
                     commAreaPresent = 1;
                 }
                 numOfLinkageVars++;
+                if (numOfLinkageVars >= 2048) {
+		   printf("%s\n","ERROR: Too many LINKAGE SECTION variables for preprocessor!"); 
+                   exit(1);
+                }
             }
         } else {
             skipFillerDefs = 1;
@@ -593,7 +641,6 @@ void processCopyLine(char *buf, FILE *fp2) {
     int i,m = strlen(buf);
     char token[255];
     int tokenPos = 0;
-    int include = 0;
     char cbkFile[255];
     char findStr[255];
     char replStr[255];
@@ -608,10 +655,12 @@ void processCopyLine(char *buf, FILE *fp2) {
             (buf[i] == ',')) {
             if ((include >= 2) && (buf[i] == '.')) {
                 if (include >= 4) {
+		    include = 0;
                     if (includeCbk(cbkFile,fp2,findStr,replStr,0) < 0) {
                         includeCbkIO(cbkFile,fp2);
                     }
                 } else {
+                    include = 0;
                     if (includeCbk(cbkFile,fp2,NULL,NULL,0) < 0) {
                         includeCbkIO(cbkFile,fp2);
                    }
@@ -1293,9 +1342,9 @@ void processExecLine(char *buf, FILE *fp2) {
 
 
 void outputLinkageVar(int *idx, FILE *fp2) {
-    char buf[255];
+    char buf[2048];
     int i,n = *idx,m;
-    char inSuffix[255];
+    char inSuffix[2048];
     int max = linkageVars[n].occurs;
     if (max < 1) max = 1;
     char subscript[80];
@@ -1348,13 +1397,6 @@ void processLine(char *buf, FILE *fp2) {
     fputs(buf,(FILE*)fp2);
     return;
   }
-  if (skipLinesMode == 1) {
-      if (hasDotTerminator(buf)) {
-          skipLinesMode = 0;
-          outputDot = 1;
-      }
-      return;
-  }
 
   // Turn everything to caps
   int verb = 0;
@@ -1388,6 +1430,53 @@ void processLine(char *buf, FILE *fp2) {
     }
   }
 //printf("%s\n",buf);
+
+  if (include > 0) {
+     processCopyLine(buf,fp2);
+     return;
+  }
+
+  if (usingLinesMode == 1) {
+      if (numOfUsingParams == 0) {
+          char *using = strstr(buf," USING");
+          if (using != NULL) {
+             using = using + 6;
+	     addUsingParamsFromBuf(buf,(int)(using-buf));	              
+          }
+      } else {
+          addUsingParamsFromBuf(buf,7);
+      }
+
+      if (hasDotTerminator(buf)) {
+          int n = 0;
+          for (n = 0; n < numOfUsingParams; n++) {
+              if (n > 0) {
+                 fputs(",\n",(FILE*)fp2);
+              }
+              sprintf(buf,"%s%s","      -     ",usingParams[n]);
+              fputs(buf,(FILE*)fp2);
+          }
+          for (n = 0; n < numOfLinkageVars; n++) {
+              if (((linkageVars[n].level == 1) || (linkageVars[n].level > 49))
+                  && (strcmp(linkageVars[n].name,"DFHCOMMAREA") != 0) 
+                  && (strcmp(linkageVars[n].name,"EIBLK") != 0)
+                  && !isUsingParam(linkageVars[n].name)) {
+                  // Top level or elementary variable
+                 fputs(",\n",(FILE*)fp2);
+                 sprintf(buf,"%s%s","      -     ",linkageVars[n].name);
+                 fputs(buf,(FILE*)fp2);
+              } 
+          }
+          fputs(".\n",(FILE*)fp2);
+
+          usingLinesMode = 0;
+          buf[0] = 0x00;
+          linkageSectionPresent = 0;
+          outputDot = 1;
+      } else {
+          return;
+      }
+  }
 
   if ((strstr(buf,"PROCEDURE") != NULL) && (strstr(buf,"DIVISION") != NULL)) {
        fclose(declareTmpFile);
@@ -1423,27 +1512,45 @@ void processLine(char *buf, FILE *fp2) {
        if (!commAreaPresent) {
            fputs("       01  DFHCOMMAREA PIC X.\n",(FILE*)fp2);
        }
-       if (!(strstr(buf,".") >= &buf[7])) {
+       char *using = strstr(buf," USING");
+       if (using != NULL) {
+           using = using + 6;
+	   addUsingParamsFromBuf(buf,(int)(using-buf));	              
+       }
+       if (!hasDotTerminator(buf)) {
            // USING clause is multi-line
-           skipLinesMode = 1;
+           usingLinesMode = 1;
        } 
        sprintf(buf,"%s","       PROCEDURE DIVISION USING DFHCOMMAREA");
        fputs(buf,(FILE*)fp2);
-       int n = 0;
-       for (n = 0; n < numOfLinkageVars; n++) {
-           if (((linkageVars[n].level == 1) || (linkageVars[n].level > 49))
-               && (strcmp(linkageVars[n].name,"DFHCOMMAREA") != 0) 
-               && (strcmp(linkageVars[n].name,"EIBLK") != 0)) {
-                // Top level or elementary variable
-               fputs(",\n",(FILE*)fp2);
-               sprintf(buf,"%s%s","      -     ",linkageVars[n].name);
-               fputs(buf,(FILE*)fp2);
-           }
+       if (usingLinesMode == 0) {
+          int n = 0;
+          for (n = 0; n < numOfUsingParams; n++) {
+              fputs(",\n",(FILE*)fp2);
+              sprintf(buf,"%s%s","      -     ",usingParams[n]);
+              fputs(buf,(FILE*)fp2);
+          }
+          for (n = 0; n < numOfLinkageVars; n++) {
+              if (((linkageVars[n].level == 1) || (linkageVars[n].level > 49))
+                  && (strcmp(linkageVars[n].name,"DFHCOMMAREA") != 0) 
+                  && (strcmp(linkageVars[n].name,"EIBLK") != 0)
+                  && !isUsingParam(linkageVars[n].name)) {
+                  // Top level or elementary variable
+                 fputs(",\n",(FILE*)fp2);
+                 sprintf(buf,"%s%s","      -     ",linkageVars[n].name);
+                 fputs(buf,(FILE*)fp2);
+              } 
+          }
+          fputs(".\n",(FILE*)fp2);
        }
-       fputs(".\n",(FILE*)fp2);
        buf[0] = 0x00;
        linkageSectionPresent = 0;
        outputDot = 1;
+
+       if (usingLinesMode == 1) {
+          fputs(",\n",(FILE*)fp2);
+          return;
+       }
   }
 
   if (execCmd == 0) {
