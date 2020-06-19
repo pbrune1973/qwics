@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018-2020 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2018-2020 Philipp Brune    Email: Philipp.Brune@qwics.org
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -112,6 +112,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 		this.channelStack = new ArrayList<HashMap<String, HashMap<String, char[]>>>();
 		channelStack.add(new HashMap<String, HashMap<String, char[]>>());
 		channelStack.get(0).put("DFHTRANSACTION", new HashMap<String, char[]>());
+		channelStack.get(0).put("current", new HashMap<String, char[]>());
 		try {
 			String trnId = "    ";
 			try {
@@ -347,7 +348,6 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 				int resp2 = 0;
 				mapCmd = conn.readResult();
 				putMapValue("MAP_CMD", mapCmd);
-				// System.out.println(mapCmd);
 				if (mapCmd.startsWith("STOP")) {
 					closed = true;
 					return false;
@@ -970,6 +970,9 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 								if ("QUEUE".equals(vals[0])) {
 									queue = vals[1].trim();
 								}
+								if ("QNAME".equals(vals[0])) {
+									queue = vals[1].trim();
+								}
 								if ("ITEM".equals(vals[0])) {
 									try {
 										item = Integer.parseInt(vals[1]);
@@ -1080,6 +1083,9 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 								if ("QUEUE".equals(vals[0])) {
 									queue = vals[1].trim();
 								}
+								if ("QNAME".equals(vals[0])) {
+									queue = vals[1].trim();
+								}
 								if ("ITEM".equals(vals[0])) {
 									try {
 										item = Integer.parseInt(vals[1]);
@@ -1125,6 +1131,16 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 									} else {
 										resp = 26;
 									}
+									if (buf.length != size) {
+										char hbuf[] = new char[size];
+										Arrays.fill(hbuf,' ');
+										int l = size;
+										if (buf.length < size) {
+											l = buf.length;
+										}
+										System.arraycopy(buf,0,hbuf,0,l);
+										buf = hbuf;
+									}
 								} else {
 									resp = 44;
 								}
@@ -1149,8 +1165,15 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 								} else {
 									resp = 44;
 								}
-								if (resp == 0) {
-									conn.sendBuf(buf);
+								if (buf.length != size) {
+									char hbuf[] = new char[size];
+									Arrays.fill(hbuf,' ');
+									int l = size;
+									if (buf.length < size) {
+										l = buf.length;
+									}
+									System.arraycopy(buf,0,hbuf,0,l);
+									buf = hbuf;
 								}
 							}
 						} else {
@@ -1244,6 +1267,18 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 							}
 						} else {
 							lastMapName = name;
+
+							if ("SYSID".equals(name)) {
+								conn.sendCmd("QWIC");
+							} else 
+							if ("USERID".equals(name)) {
+								conn.sendCmd("12345678");
+							} else {
+								char buf[] = new char[2048];
+								Arrays.fill(buf, (char) 0);
+								conn.sendBuf(buf);
+								conn.sendCmd("");
+							}
 						}
 					}
 
