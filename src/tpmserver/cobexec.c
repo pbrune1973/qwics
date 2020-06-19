@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 13.06.2020                                  */
+/*   Author: Philipp Brune               Date: 19.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1073,6 +1073,8 @@ int execCallback(char *cmd, void *var) {
             (*cmdState) = -10;
             (*memParamsState) = 0;
             *((int*)memParams[0]) = -1;
+            memParams[1] = NULL;
+            memParams[2] = NULL;
             (*respFieldsState) = 0;
             respFields[0] = NULL;
             respFields[1] = NULL;
@@ -1371,7 +1373,14 @@ int execCallback(char *cmd, void *var) {
             }
             if (((*cmdState) == -10) && ((*memParamsState) >= 1)) {
                 int len = *((int*)memParams[0]);
-                cob_field *cobvar = (cob_field*)memParams[1];
+                cob_field *cobvar = NULL, dummy = { len, NULL, NULL };
+                if (memParams[1] != NULL) {
+                    cobvar = (cob_field*)memParams[1];
+                } 
+                if (memParams[2] != NULL) {
+                    dummy.data = (unsigned char*)memParams[2];
+                    cobvar = &dummy;
+                }                 
                 int i,l;
                 if ((len >= 0) && (len <= cobvar->size)) {
                   l = len;
@@ -1802,6 +1811,9 @@ int execCallback(char *cmd, void *var) {
                 if (strcmp(cmd,"INTO") == 0) {
                     (*memParamsState) = 2;
                 }
+                if (strcmp(cmd,"SET") == 0) {
+                    (*memParamsState) = 3;
+                }
             }
             if (((*cmdState) == -11) && ((*memParamsState) == 1)) {
                 // ENQ RESOURCE
@@ -2139,6 +2151,8 @@ int execCallback(char *cmd, void *var) {
                 if (((*cmdState) < -5) &&
                     !(((*cmdState) == -9) && ((*memParamsState) == 1)) &&
                     !(((*cmdState) == -10) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -10) && ((*memParamsState) == 2)) &&
+                    !(((*cmdState) == -10) && ((*memParamsState) == 3)) &&
                     !(((*cmdState) == -6) && ((*memParamsState) == 2))  &&
                     !(((*cmdState) == -11) && ((*memParamsState) == 2)) &&
                     !(((*cmdState) == -12) && ((*memParamsState) == 2)) &&
@@ -2265,13 +2279,17 @@ int execCallback(char *cmd, void *var) {
                     (*memParamsState) = 10;
                 }
                 if (((*cmdState) == -10) && ((*memParamsState) == 2)) {
-                  memParams[1] = (void*)cobvar;
-                  (*memParamsState) = 10;
-                  char str[20];
-                  sprintf((char*)&str,"%s\n","SIZE");
-                  write(childfd,str,strlen(str));
-                  sprintf((char*)&str,"%s%d\n","=",(int)cobvar->size);
-                  write(childfd,str,strlen(str));
+                    memParams[1] = (void*)cobvar;
+                    (*memParamsState) = 10;
+                    char str[20];
+                    sprintf((char*)&str,"%s\n","SIZE");
+                    write(childfd,str,strlen(str));
+                    sprintf((char*)&str,"%s%d\n","=",(int)cobvar->size);
+                    write(childfd,str,strlen(str));
+                }
+                if (((*cmdState) == -10) && ((*memParamsState) == 3)) {
+                    memParams[2] = (void*)(*((unsigned char**)cobvar->data));
+                    (*memParamsState) = 10;
                 }
                 if (((*cmdState) == -11) && ((*memParamsState) == 1)) {
                     // ENQ RESOURCE
