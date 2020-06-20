@@ -90,6 +90,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private String transId = "";
 	private String progId = "";
 	private String lastMapName = "";
+	private HashMap<String,String> faultMsg = null;
 	private QueueManager queueManager = null;
 	private QueueHandler queueHandler = null;
 	private ArrayList<HashMap<String, HashMap<String, char[]>>> channelStack = null;
@@ -1514,6 +1515,113 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 					conn.sendCmd("" + resp);
 					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("SOAPFAULT")) {
+					int mode = 0;
+					String name = "";
+					HashMap<String,String> fault = new HashMap<String,String>();
+					
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ((mode == 1) && "DETAIL".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+								if ((mode == 1) && "FAULTSTRING".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+								if ((mode == 1) && "FAULTCODE".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+								if ((mode == 1) && "FAULTCODESTR".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+								if ((mode == 1) && "FAULTACTOR".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+								if ((mode == 1) && "ROLE".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+							}
+						} else {
+							lastMapName = name;
+
+							if ("CREATE".equals(name)) {
+								mode = 1;
+							}
+							if ((mode == 1) && "SENDER".equals(name)) {
+								fault.put(name, name);
+							}
+							if ((mode == 1) && "RECEIVER".equals(name)) {
+								fault.put(name, name);
+							}
+							if ((mode == 1) && "CLIENT".equals(name)) {
+								fault.put(name, name);
+							}
+							if ((mode == 1) && "SERVER".equals(name)) {
+								fault.put(name, name);
+							}
+						}
+					}
+
+					if (mode == 1) {
+						faultMsg = fault;
+					}
+					
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("XML")) {
+					// XML pseudo command - not from EXEC CICS but EXEC XML
+					int mode = 0;
+					int len = 0;
+					String name = "";
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("XML-CHAR-COUNT".equals(vals[0])) {
+									try {
+										len = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+									if (len <= 0) {
+										resp = 22;
+									}								
+								}
+							}
+						} else {
+							lastMapName = name;
+
+							if ("GENERATE".equals(name)) {
+								mode = 1;
+							}
+						}
+					}
+
+					if (mode == 1) {
+						char buf[] = new char[len];
+						conn.sendBuf(buf);
+					}
+					
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
 				} else {
 					if (!"".equals(mapCmd)) {
 						putMapValue("MAP_CMD", mapCmd);
@@ -1906,6 +2014,9 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 				}
 			}
 			return null;
+		}
+		if ((columnLabel != null) && columnLabel.startsWith("SOAPFAULT")) {
+			return faultMsg;
 		}
 		return getObject(nameIndices.get(columnLabel));
 	}
