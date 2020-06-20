@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 19.06.2020                                  */
+/*   Author: Philipp Brune               Date: 20.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -555,6 +555,21 @@ void abend(int resp, int resp2) {
 }
 
 
+void readLine(char *buf, int childfd) {
+  buf[0] = 0x00;
+  char c = 0x00;
+  int pos = 0;
+  while (c != '\n') {
+      int n = read(childfd,&c,1);
+      if ((n == 1) && (pos < 2047) && (c != '\n') && (c != '\r') && (c != '\'')) {
+          buf[pos] = c;
+          pos++;
+      }
+  }
+  buf[pos] = 0x00;
+}
+
+
 // Handling plain COBOL call invocation for preprocessed QWICS modules
 struct callLoadlib {
     void* sdl_library;
@@ -565,6 +580,38 @@ struct callLoadlib {
 // Db2 DSNTIAR assembler routine mockup
 int dsntiar(unsigned char *commArea, unsigned char *sqlca, unsigned char *errMsg, int32_t *errLen) {
     return 0;
+}
+
+
+// EXEC XML GENERATE replacement
+int xmlGenerate(unsigned char *xmlOutput, unsigned char *sourceRec, int32_t *xmlCharCount) {
+    int childfd = *((int*)pthread_getspecific(childfdKey));
+    char *commArea = (char*)pthread_getspecific(commAreaKey);
+
+    write(childfd,"XML\n",4);
+    write(childfd,"GENERATE\n",9);
+    write(childfd,"SOURCE-REC\n",11);
+    write(childfd,"XML-CHAR-COUNT\n",15);
+    char lbuf[32];
+    sprintf(lbuf,"%s%d\n","=",(int)*xmlCharCount);
+    write(childfd,lbuf,strlen(lbuf));
+    write(childfd,"\n",1);
+
+    char c = 0x00;
+    int pos = 0;
+    while (pos < (int)(*xmlCharCount)) {
+      int n = read(childfd,&c,1);
+      if (n == 1) {
+          xmlOutput[pos] = c;
+          pos++;
+      }    
+    }
+
+    char buf[2048];
+    readLine((char*)&buf,childfd);
+    int res = atoi(buf);
+    readLine((char*)&buf,childfd);
+    return res;
 }
 
 
@@ -584,6 +631,10 @@ printf("%s\n",fname);
 
     if (strcmp("DSNTIAR",name) == 0) {
         return (void*)&dsntiar;
+    }
+
+    if (strcmp("xmlGenerate",name) == 0) {
+        return (void*)&xmlGenerate;
     }
 
     callStack[*callStackPtr].sdl_library = dlopen(fname, RTLD_LAZY);
@@ -707,21 +758,6 @@ int execLoadModule(char *name, int mode, int parCount) {
         dlclose(sdl_library);
     }
     return res;
-}
-
-
-void readLine(char *buf, int childfd) {
-  buf[0] = 0x00;
-  char c = 0x00;
-  int pos = 0;
-  while (c != '\n') {
-      int n = read(childfd,&c,1);
-      if ((n == 1) && (pos < 2047) && (c != '\n') && (c != '\r') && (c != '\'')) {
-          buf[pos] = c;
-          pos++;
-      }
-  }
-  buf[pos] = 0x00;
 }
 
 
@@ -1214,6 +1250,18 @@ int execCallback(char *cmd, void *var) {
             (*runState) = 2; // TASK ENDED
             return 1;
         }
+        if (strcmp(cmd,"SOAPFAULT") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -21;
+            (*memParamsState) = 0;
+            *((int*)memParams[0]) = -1;
+            (*respFieldsState) = 0;
+            respFields[0] = NULL;
+            respFields[1] = NULL;
+            return 1;
+        }
 
         if (strstr(cmd,"END-EXEC")) {
             int resp = 0;
@@ -1586,6 +1634,17 @@ int execCallback(char *cmd, void *var) {
                   abend(resp,resp2);
                 }
             }
+            if ((*cmdState) == -21) {
+                char buf[2048];
+                readLine((char*)&buf,childfd);
+                resp = atoi(buf);
+                readLine((char*)&buf,childfd);
+                resp2 = atoi(buf);
+                if (resp > 0) {
+                  abend(resp,resp2);
+                }
+            }
+
             // SET EIBRES and EIBRESP2
             cob_put_u64_compx(resp,&eibbuf[76],4);
             cob_put_u64_compx(resp2,&eibbuf[80],4);
@@ -1623,7 +1682,11 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"YYMMDD") || strstr(cmd,"YEAR") || strstr(cmd,"TIME") || strstr(cmd,"DDMMYY") ||
             strstr(cmd,"DATESEP") || strstr(cmd,"TIMESEP") || strstr(cmd,"DB2CONN") || strstr(cmd,"CONNECTST") ||
             strstr(cmd,"TRANSID") || strstr(cmd,"REQID") || strstr(cmd,"INTERVAL") || strstr(cmd,"USERID") || 
-            strstr(cmd,"NOHANDLE")) {
+            strstr(cmd,"NOHANDLE") || strstr(cmd,"CREATE") || strstr(cmd,"CLIENT") || strstr(cmd,"SERVER") || 
+            strstr(cmd,"SENDER") || strstr(cmd,"RECEIVER") || strstr(cmd,"FAULTCODE") || strstr(cmd,"FAULTCODESTR") || 
+            strstr(cmd,"FAULTCODELEN") || strstr(cmd,"FAULTSTRING") || strstr(cmd,"FAULTSTRLEN") || strstr(cmd,"NATLANG") || 
+            strstr(cmd,"FAULTCODE") || strstr(cmd,"ROLE") || strstr(cmd,"ROLELENGTH") || strstr(cmd,"FAULTACTOR") || 
+            strstr(cmd,"FAULTACTLEN") || strstr(cmd,"DETAIL") || strstr(cmd,"DETAILLENGTH")|| strstr(cmd,"FROMCCSID")) {
             sprintf(end,"%s%s",cmd,"\n");
 
             if ((strcmp(cmd,"NOHANDLE") == 0) && ((*respFieldsState) == 0)) {
@@ -1993,6 +2056,26 @@ int execCallback(char *cmd, void *var) {
                   (*memParamsState) = 3;
                 }
             }
+            if ((*cmdState) == -21) {
+                (*memParamsState) = 10;
+
+                if (strcmp(cmd,"CREATE") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"CLIENT") == 0) {
+                    (*memParamsState) = 2;
+                }
+                if (strcmp(cmd,"SERVER") == 0) {
+                    (*memParamsState) = 2;
+                }
+                if (strcmp(cmd,"SENDER") == 0) {
+                    (*memParamsState) = 2;
+                }
+                if (strcmp(cmd,"RECEIVER") == 0) {
+                    (*memParamsState) = 2;
+                }
+            }
+
             if (cmdbuf[0] == '\'') {
               // String constant
               write(childfd,"=",1);
@@ -2165,7 +2248,9 @@ int execCallback(char *cmd, void *var) {
                     !(((*cmdState) == -18) && ((*memParamsState) == 1)) &&
                     !(((*cmdState) == -19) && ((*memParamsState) == 1)) &&
                     !(((*cmdState) == -19) && ((*memParamsState) == 2)) &&
-                    !(((*cmdState) == -19) && ((*memParamsState) == 3))) {
+                    !(((*cmdState) == -19) && ((*memParamsState) == 3)) &&
+                    !(((*cmdState) == -21) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -21) && ((*memParamsState) == 2))) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
@@ -2445,6 +2530,12 @@ int execCallback(char *cmd, void *var) {
                     write(childfd,cmdbuf,strlen(cmdbuf));
                     write(childfd,"\n",1);
                     (*((int*)memParams[0])) = atoi(end);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -21) && ((*memParamsState) == 1)) {
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -21) && ((*memParamsState) == 2)) {
                     (*memParamsState) = 10;
                 }
             }
