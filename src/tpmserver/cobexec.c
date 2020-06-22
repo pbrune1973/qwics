@@ -118,6 +118,21 @@ void cm(int res) {
     }
 }
 
+
+int getCobType(cob_field *f) {
+    if (f->attr->type == COB_TYPE_NUMERIC_BINARY) {
+#ifndef WORDS_BIGENDIAN
+        if (COB_FIELD_BINARY_SWAP(f))
+            return COB_TYPE_NUMERIC_BINARY;
+        return COB_TYPE_NUMERIC_COMP5;
+#else
+        return COB_TYPE_NUMERIC_BINARY;
+#endif
+        }
+        return (int)f->attr->type;
+}
+
+
 // Synchronizing COBOL module execution
 void startModule(char *progname) {
   int found = 0;
@@ -279,8 +294,16 @@ int processCmd(char *cmd, cob_field **outputVars) {
                                   convertNumeric(PQgetvalue(res, 0, i),
                                                  outputVars[i]->attr->digits,
                                                  outputVars[i]->attr->scale,buf));
+                            } else
+                            if (getCobType(outputVars[i]) == COB_TYPE_NUMERIC_BINARY) {
+                                long v = atol(PQgetvalue(res, 0, i));
+                                cob_put_u64_compx(v,outputVars[i]->data,outputVars[i]->size);  
+                            } else
+                            if (getCobType(outputVars[i]) == COB_TYPE_NUMERIC_COMP5) {
+                                long v = atol(PQgetvalue(res, 0, i));
+                                cob_put_s64_comp5(v,outputVars[i]->data,outputVars[i]->size);  
                             } else {
-                              cob_put_picx(outputVars[i]->data,outputVars[i]->size,PQgetvalue(res, 0, i));
+                                cob_put_picx(outputVars[i]->data,outputVars[i]->size,PQgetvalue(res, 0, i));
                             }
                         }
                         i++;
@@ -1445,9 +1468,13 @@ int execCallback(char *cmd, void *var) {
                     }
                 }
                 if (memParams[3] != NULL) {
-                    if ((COB_FIELD_TYPE((cob_field*)memParams[3]) == COB_TYPE_NUMERIC_BINARY) && 
+                    if ((getCobType((cob_field*)memParams[3]) == COB_TYPE_NUMERIC_BINARY) &&
                         (((cob_field*)memParams[3])->data != NULL)) {
                         cob_put_u64_compx(l,((cob_field*)memParams[3])->data,4);                        
+                    }
+                    if ((getCobType((cob_field*)memParams[3]) == COB_TYPE_NUMERIC_COMP5) && 
+                        (((cob_field*)memParams[3])->data != NULL)) {
+                        cob_put_s64_comp5(l,((cob_field*)memParams[3])->data,4);
                     }
                 }
                 char c;
@@ -1556,9 +1583,13 @@ int execCallback(char *cmd, void *var) {
                 char buf[2048];
                 readLine((char*)&buf,childfd);
                 int item = atoi(buf);
-                if ((memParams[3] != NULL) &&
-                    (((cob_field*)memParams[3])->attr->type == COB_TYPE_NUMERIC_BINARY)) {
-                  cob_put_u64_compx(item,((cob_field*)memParams[3])->data,2);
+                if (memParams[3] != NULL) {
+                    if (getCobType((cob_field*)memParams[3]) == COB_TYPE_NUMERIC_BINARY) {
+                        cob_put_u64_compx(item,((cob_field*)memParams[3])->data,2);
+                    }
+                    if (getCobType((cob_field*)memParams[3]) == COB_TYPE_NUMERIC_COMP5) {
+                        cob_put_s64_comp5(item,((cob_field*)memParams[3])->data,2);
+                    }
                 }
                 readLine((char*)&buf,childfd);
                 resp = atoi(buf);
@@ -1597,9 +1628,13 @@ int execCallback(char *cmd, void *var) {
                 char buf[2048];
                 readLine((char*)&buf,childfd);
                 int item = atoi(buf);
-                if ((memParams[3] != NULL) &&
-                    (((cob_field*)memParams[3])->attr->type == COB_TYPE_NUMERIC_BINARY)) {
-                  cob_put_u64_compx(item,((cob_field*)memParams[3])->data,2);
+                if (memParams[3] != NULL) {
+                    if (getCobType((cob_field*)memParams[3]) == COB_TYPE_NUMERIC_BINARY) {
+                        cob_put_u64_compx(item,((cob_field*)memParams[3])->data,2);
+                    }
+                    if (getCobType((cob_field*)memParams[3]) == COB_TYPE_NUMERIC_COMP5) {
+                        cob_put_s64_comp5(item,((cob_field*)memParams[3])->data,2);
+                    }
                 }
                 readLine((char*)&buf,childfd);
                 resp = atoi(buf);
@@ -2113,7 +2148,8 @@ int execCallback(char *cmd, void *var) {
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
@@ -2154,7 +2190,8 @@ int execCallback(char *cmd, void *var) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     putc(0x00,f);
@@ -2169,7 +2206,8 @@ int execCallback(char *cmd, void *var) {
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
@@ -2214,7 +2252,8 @@ int execCallback(char *cmd, void *var) {
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
@@ -2270,7 +2309,8 @@ int execCallback(char *cmd, void *var) {
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
@@ -2288,7 +2328,8 @@ int execCallback(char *cmd, void *var) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     putc(0x00,f);
@@ -2344,7 +2385,8 @@ int execCallback(char *cmd, void *var) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     putc(0x00,f);
@@ -2368,7 +2410,8 @@ int execCallback(char *cmd, void *var) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     putc(0x00,f);
@@ -2402,7 +2445,8 @@ int execCallback(char *cmd, void *var) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     putc(0x00,f);
@@ -2422,7 +2466,8 @@ int execCallback(char *cmd, void *var) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     putc(0x00,f);
@@ -2450,7 +2495,8 @@ int execCallback(char *cmd, void *var) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     putc(0x00,f);
@@ -2478,7 +2524,8 @@ int execCallback(char *cmd, void *var) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     putc(0x00,f);
@@ -2504,13 +2551,17 @@ int execCallback(char *cmd, void *var) {
                             convertNumeric(buf,cobvar->attr->digits,
                                            cobvar->attr->scale,hbuf));
                     }
-                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_NUMERIC_BINARY) {
-                      long v = atol(buf);
-                      cob_put_u64_compx(v,cobvar->data,cobvar->size);
-                    }
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_NUMERIC_PACKED) {
                       long v = atol(buf);
                       cob_put_s64_comp3(v,cobvar->data,cobvar->size);
+                    }
+                    if (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) {
+                      long v = atol(buf);
+                      cob_put_u64_compx(v,cobvar->data,cobvar->size);
+                    }
+                    if (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) {
+                      long v = atol(buf);
+                      cob_put_s64_comp5(v,cobvar->data,cobvar->size);
                     }
                 }
                 if (((*cmdState) == -18) && ((*memParamsState) == 1)) {
@@ -2538,7 +2589,8 @@ int execCallback(char *cmd, void *var) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                    if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                         display_cobfield(cobvar,f);
                     }
                     putc(0x00,f);
@@ -2574,7 +2626,8 @@ int execCallback(char *cmd, void *var) {
             if ((*cmdState) < 2) {
                 FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                if ((cobvar->data[0] != 0) || (COB_FIELD_TYPE(cobvar) == 17)) {
+                if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                    (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5)) {
                     display_cobfield(cobvar,f);
                 }
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
