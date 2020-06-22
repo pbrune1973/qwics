@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 20.06.2020                                  */
+/*   Author: Philipp Brune               Date: 22.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1111,6 +1111,7 @@ int execCallback(char *cmd, void *var) {
             *((int*)memParams[0]) = -1;
             memParams[1] = NULL;
             memParams[2] = NULL;
+            memParams[3] = NULL;
             (*respFieldsState) = 0;
             respFields[0] = NULL;
             respFields[1] = NULL;
@@ -1420,20 +1421,34 @@ int execCallback(char *cmd, void *var) {
                 write(childfd,"\n",1);
             }
             if (((*cmdState) == -10) && ((*memParamsState) >= 1)) {
+                char buf[2048];
                 int len = *((int*)memParams[0]);
                 cob_field *cobvar = NULL, dummy = { len, NULL, NULL };
                 if (memParams[1] != NULL) {
                     cobvar = (cob_field*)memParams[1];
                 } 
                 if (memParams[2] != NULL) {
+                    // SET mode
+                    readLine((char*)&buf,childfd);
+                    len = atoi(buf);
+
+                    dummy.size = len;
                     dummy.data = (unsigned char*)memParams[2];
                     cobvar = &dummy;
                 }                 
-                int i,l;
-                if ((len >= 0) && (len <= cobvar->size)) {
-                  l = len;
-                } else {
-                  l = cobvar->size;
+                int i,l = 0;
+                if (cobvar != NULL) {
+                    if ((len >= 0) && (len <= cobvar->size)) {
+                        l = len;
+                    } else {
+                        l = cobvar->size;
+                    }
+                }
+                if (memParams[3] != NULL) {
+                    if ((COB_FIELD_TYPE((cob_field*)memParams[3]) == COB_TYPE_NUMERIC_BINARY) && 
+                        (((cob_field*)memParams[3])->data != NULL)) {
+                        cob_put_u64_compx(l,((cob_field*)memParams[3])->data,4);                        
+                    }
                 }
                 char c;
                 i = 0;
@@ -1450,7 +1465,7 @@ int execCallback(char *cmd, void *var) {
                       i++;
                   }
                 }
-                char buf[2048];
+
                 readLine((char*)&buf,childfd);
                 resp = atoi(buf);
                 readLine((char*)&buf,childfd);
@@ -2361,6 +2376,7 @@ int execCallback(char *cmd, void *var) {
                     write(childfd,cmdbuf,strlen(cmdbuf));
                     write(childfd,"\n",1);
                     (*((int*)memParams[0])) = atoi(end);
+                    memParams[3] = (void*)cobvar;
                     (*memParamsState) = 10;
                 }
                 if (((*cmdState) == -10) && ((*memParamsState) == 2)) {
