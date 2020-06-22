@@ -73,6 +73,8 @@ pthread_key_t respFieldsStateKey;
 pthread_key_t taskLocksKey;
 pthread_key_t callStackKey;
 pthread_key_t callStackPtrKey;
+pthread_key_t chnBufListKey;
+pthread_key_t chnBufListPtrKey;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
@@ -110,6 +112,34 @@ jmp_buf taskState;
 jmp_buf *condHandler[100];
 
 cob_module thisModule;
+
+struct chnBuf {
+    unsigned char *buf;
+};
+
+
+unsigned char *getNextChnBuf(int size) {
+    int *chnBufListPtr = (int*)pthread_getspecific(callStackPtrKey);
+    struct chnBuf *chnBufList = (struct chnBuf *)pthread_getspecific(chnBufListKey);
+
+    if (*chnBufListPtr < 256) {
+        chnBufList[*chnBufListPtr].buf = malloc(size);
+        (*chnBufListPtr)++;
+        return chnBufList[(*chnBufListPtr)-1].buf;
+    }
+    return NULL;
+}
+
+
+void clearChnBufList() {
+    int *chnBufListPtr = (int*)pthread_getspecific(callStackPtrKey);
+    struct chnBuf *chnBufList = (struct chnBuf *)pthread_getspecific(chnBufListKey);
+    int i;
+
+    for (i = 0; i < (*chnBufListPtr); i++) {
+        free(chnBufList[i].buf);
+    }
+}
 
 
 void cm(int res) {
@@ -978,11 +1008,12 @@ int execCallback(char *cmd, void *var) {
 
         if ((strstr(cmd,"SETL0 77") || strstr(cmd,"SETL1 1 ")) && 
             (((*linkStackPtr) == 0) && ((*callStackPtr) == 0)) && ((*areaMode) == 0)) {
+/*
             cob_field *cobvar = (cob_field*)var;
             char obuf[255];
             sprintf(obuf,"%s %ld\n",cmd,cobvar->size);
             write(childfd,obuf,strlen(obuf));
-
+*/
             // Read in value from client
 /*        
             char lvar[65536];
@@ -1455,8 +1486,9 @@ int execCallback(char *cmd, void *var) {
                     readLine((char*)&buf,childfd);
                     len = atoi(buf);
 
+                    (*((unsigned char**)((cob_field*)memParams[2])->data)) = getNextChnBuf(len);
                     dummy.size = len;
-                    dummy.data = (unsigned char*)memParams[2];
+                    dummy.data = (*((unsigned char**)((cob_field*)memParams[2])->data));
                     cobvar = &dummy;
                 }                 
                 int i,l = 0;
@@ -2432,7 +2464,7 @@ int execCallback(char *cmd, void *var) {
                     write(childfd,str,strlen(str));
                 }
                 if (((*cmdState) == -10) && ((*memParamsState) == 3)) {
-                    memParams[2] = (void*)(*((unsigned char**)cobvar->data));
+                    memParams[2] = (void*)cobvar;
                     (*memParamsState) = 10;
                 }
                 if (((*cmdState) == -11) && ((*memParamsState) == 1)) {
@@ -2708,6 +2740,8 @@ void initExec(int initCons) {
     pthread_key_create(&taskLocksKey, NULL);
     pthread_key_create(&callStackKey, NULL);
     pthread_key_create(&callStackPtrKey, NULL);
+    pthread_key_create(&chnBufListKey, NULL);
+    pthread_key_create(&chnBufListPtrKey, NULL);
 
 #ifndef _USE_ONLY_PROCESSES_
     pthread_mutex_init(&moduleMutex,NULL);
@@ -2780,6 +2814,8 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     struct taskLock *taskLocks = createTaskLocks();
     int callStackPtr = 0;
     struct callLoadlib callStack[1024];
+    int chnBufListPtr = 0;
+    struct chnBuf chnBufList[256];
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
@@ -2814,6 +2850,9 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(taskLocksKey, taskLocks);
     pthread_setspecific(callStackKey, &callStack);
     pthread_setspecific(callStackPtrKey, &callStackPtr);
+    pthread_setspecific(chnBufListKey, &chnBufList);
+    pthread_setspecific(chnBufListPtrKey, &chnBufListPtr);
+
     // Optionally read in content of commarea
     if (setCommArea == 1) {
       write(*(int*)fd,"COMMAREA\n",9);
@@ -2867,6 +2906,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     clearMain();
     free(allocMem);
     free(linkArea);
+    clearChnBufList();
     returnDBConnection(conn,1);
     // Flush output buffers
     fflush(stdout);
@@ -2903,6 +2943,8 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     struct taskLock *taskLocks = createTaskLocks();
     int callStackPtr = 0;
     struct callLoadlib callStack[1024];
+    int chnBufListPtr = 0;
+    struct chnBuf chnBufList[256];
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
@@ -2937,6 +2979,8 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(taskLocksKey, taskLocks);
     pthread_setspecific(callStackKey, &callStack);
     pthread_setspecific(callStackPtrKey, &callStackPtr);
+    pthread_setspecific(chnBufListKey, &chnBufList);
+    pthread_setspecific(chnBufListPtrKey, &chnBufListPtr);
 
     // Oprionally read in content of commarea
     if (setCommArea == 1) {
@@ -2989,6 +3033,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     clearMain();
     free(allocMem);
     free(linkArea);
+    clearChnBufList();
     // Flush output buffers
     fflush(stdout);
     fflush(stderr);
