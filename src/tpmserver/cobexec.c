@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 22.06.2020                                  */
+/*   Author: Philipp Brune               Date: 23.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -163,6 +163,67 @@ int getCobType(cob_field *f) {
 }
 
 
+// Adjust pading and scale for COBOL numeric data
+char* convertNumeric(char *val, int digits, int scale, char *buf) {
+    char *sep = strchr(val,'.');
+    char *pos = sep;
+    if (sep == NULL) {
+      pos = val + strlen(val) - 1;
+    }
+    pos++;
+    int i = 0;
+    while (((*pos) != 0x00) && (i < scale)) {
+      buf[digits-scale+i] = *pos;
+      i++;
+      pos++;
+    }
+    // Pad to the right with 0
+    while (i < scale) {
+      buf[digits-scale+i] = '0';
+      i++;
+    }
+
+    pos = sep;
+    if (sep == NULL) {
+      pos = val + strlen(val);
+    }
+    pos--;
+    i = digits-scale-1;
+    while ((pos >= val) && (i >= 0)) {
+      buf[i] = *pos;
+      i--;
+      pos--;
+    }
+    // Pad to the left with 0
+    while (i >= 0) {
+      buf[i] = '0';
+      i--;
+    }
+    buf[digits] = 0x00;
+    return buf;
+}
+
+
+void setNumericValue(long v, cob_field *cobvar) {
+    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_NUMERIC) {
+        char hbuf[256],buf[256];
+        sprintf(buf,"%ld",v);
+        cob_put_picx(cobvar->data,cobvar->size,
+                    convertNumeric(buf,cobvar->attr->digits,
+                                       cobvar->attr->scale,hbuf));
+    }
+    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_NUMERIC_PACKED) {
+        cob_put_s64_comp3(v,cobvar->data,cobvar->size);
+    }
+    if (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) {
+        cob_put_u64_compx(v,cobvar->data,cobvar->size);
+    }
+    if (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) {
+        cob_put_s64_comp5(v,cobvar->data,cobvar->size);
+    }
+}
+
+
 // Synchronizing COBOL module execution
 void startModule(char *progname) {
   int found = 0;
@@ -250,46 +311,6 @@ void writeJson(char *map, char *mapset, int childfd) {
         fclose(js);
     }
     write(childfd,"\n",1);
-}
-
-// Adjust pading and scale for COBOL numeric data
-char* convertNumeric(char *val, int digits, int scale, char *buf) {
-    char *sep = strchr(val,'.');
-    char *pos = sep;
-    if (sep == NULL) {
-      pos = val + strlen(val) - 1;
-    }
-    pos++;
-    int i = 0;
-    while (((*pos) != 0x00) && (i < scale)) {
-      buf[digits-scale+i] = *pos;
-      i++;
-      pos++;
-    }
-    // Pad to the right with 0
-    while (i < scale) {
-      buf[digits-scale+i] = '0';
-      i++;
-    }
-
-    pos = sep;
-    if (sep == NULL) {
-      pos = val + strlen(val);
-    }
-    pos--;
-    i = digits-scale-1;
-    while ((pos >= val) && (i >= 0)) {
-      buf[i] = *pos;
-      i--;
-      pos--;
-    }
-    // Pad to the left with 0
-    while (i >= 0) {
-      buf[i] = '0';
-      i--;
-    }
-    buf[digits] = 0x00;
-    return buf;
 }
 
 // Callback handler for EXEC statements
@@ -1727,16 +1748,16 @@ int execCallback(char *cmd, void *var) {
                 }
             }
 
-            // SET EIBRES and EIBRESP2
+            // SET EIBRESP and EIBRESP2
             cob_put_u64_compx(resp,&eibbuf[76],4);
             cob_put_u64_compx(resp2,&eibbuf[80],4);
 
             if ((*respFieldsState) == 1) {
-              cob_put_u64_compx(resp,((cob_field*)respFields[0])->data,((cob_field*)respFields[0])->size);
+              setNumericValue(resp,(cob_field*)respFields[0]);
             }
             if ((*respFieldsState) == 2) {
-              cob_put_u64_compx(resp,((cob_field*)respFields[0])->data,((cob_field*)respFields[0])->size);
-              cob_put_u64_compx(resp2,((cob_field*)respFields[1])->data,((cob_field*)respFields[1])->size);
+              setNumericValue(resp,(cob_field*)respFields[0]);
+              setNumericValue(resp,(cob_field*)respFields[1]);
             }
             (*cmdState) = 0;
             (*respFieldsState) = 0;
