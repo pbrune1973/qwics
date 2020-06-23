@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de
+Copyright (c) 2018-2020 Philipp Brune    Email: Philipp.Brune@qwics.org
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -62,14 +62,25 @@ import java.sql.SQLXML;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.qwics.jdbc.msg.MsgHeaderConverter;
+import org.qwics.jdbc.msg.QueueHandler;
+import org.qwics.jdbc.msg.QueueManager;
+import org.qwics.jdbc.msg.QueueWrapper;
+import org.qwics.jdbc.scheduler.ScheduleTimer;
+import org.qwics.jdbc.scheduler.TaScheduled;
 
 public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private QwicsConnection conn;
 	private boolean closed = false;
+	private boolean syncpoint = false;
 	private String mapCmd;
 	private ArrayList<String> mapNames;
 	private ArrayList<String> mapValues;
@@ -77,21 +88,114 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private long eibCALen = 0;
 	private char eibAID = '"';
 	private String transId = "";
+	private String progId = "";
 	private String lastMapName = "";
+	private HashMap<String,String> faultMsg = null;
+	private QueueManager queueManager = null;
+	private QueueHandler queueHandler = null;
+	private ArrayList<HashMap<String, HashMap<String, char[]>>> channelStack = null;
+	private static HashMap<String, ArrayList<char[]>> tsQueues = new HashMap<String, ArrayList<char[]>>();
+	private static HashMap<String, Integer> tsQueuesLastRead = new HashMap<String, Integer>();
+	private static HashMap<String, ArrayList<char[]>> tdQueues = new HashMap<String, ArrayList<char[]>>();
+	private static HashMap<String, Integer> tdQueuesLastRead = new HashMap<String, Integer>();
+	private static Integer reqIdCounter = 1;
+	private static Integer taskIdCounter = 1;
 
-	public QwicsMapResultSet(QwicsConnection conn, long eibCALen, char eibAID) {
+	public QwicsMapResultSet(QwicsConnection conn, long eibCALen, char eibAID, String progId) {
 		this.conn = conn;
 		this.mapCmd = "";
 		this.eibCALen = eibCALen;
 		this.eibAID = eibAID;
+		this.progId = progId;
 		this.mapValues = conn.getMapValues();
 		this.mapNames = conn.getMapNames();
 		this.nameIndices = conn.getNameIndices();
+		this.channelStack = new ArrayList<HashMap<String, HashMap<String, char[]>>>();
+		channelStack.add(new HashMap<String, HashMap<String, char[]>>());
+		channelStack.get(0).put("DFHTRANSACTION", new HashMap<String, char[]>());
+		channelStack.get(0).put("current", new HashMap<String, char[]>());
 		try {
+			String trnId = "    ";
+			try {
+				trnId = conn.getClientInfo("TRANSID");
+				if (trnId == null) {
+					trnId = "    ";
+				}
+				if (trnId.length() < 4) {
+					trnId = trnId + "    ".substring(trnId.length());
+				}
+				if (trnId.length() > 4) {
+					trnId = trnId.substring(0, 4);
+				}
+			} catch (Exception e) {
+			}
+			String reqId = "00000000";
+			try {
+				reqId = conn.getClientInfo("STARTERID");
+				if (reqId == null) {
+					synchronized (reqIdCounter) {
+						reqId = "" + reqIdCounter;
+						reqIdCounter++;
+					}
+					reqId = "00000000".substring(reqId.length()) + reqId;
+				}
+				if (reqId.length() < 8) {
+					reqId = reqId + "        ".substring(reqId.length());
+				}
+				if (reqId.length() > 8) {
+					reqId = reqId.substring(0, 8);
+				}
+			} catch (Exception e) {
+			}
+			String termId = "T000";
+			try {
+				termId = conn.getClientInfo("TERMID");
+				if (termId == null) {
+					termId = "T000";
+				}
+				if (termId.length() < 4) {
+					termId = "000T".substring(termId.length()) + termId;
+				}
+				if (termId.length() > 4) {
+					termId = termId.substring(0, 4);
+				}
+			} catch (Exception e) {
+			}
+			String taskId = "";
+			try {
+				synchronized (taskIdCounter) {
+					taskId = "" + taskIdCounter;
+					taskIdCounter++;
+				}
+				if (taskId.length() > 7) {
+					taskId = taskId.substring(0, 7);
+				}
+			} catch (Exception e) {
+			}
+			conn.sendCmd("" + trnId);
+			conn.sendCmd("" + reqId);
+			conn.sendCmd("" + termId);
+			conn.sendCmd("" + taskId);
 			conn.sendCmd("" + eibCALen);
 			conn.sendCmd("" + eibAID);
 		} catch (Exception e) {
 		}
+	}
+
+	public static HashMap<String, ArrayList<char[]>> getTsQueues() {
+		return tsQueues;
+	}
+
+	public static HashMap<String, Integer> getTsQueuesLastRead() {
+		return tsQueuesLastRead;
+	}
+
+	public static HashMap<String, ArrayList<char[]>> getTdQueues() {
+		return tdQueues;
+	}
+
+	public static HashMap<String, Integer> getTdQueuesLastRead() {
+		return tdQueuesLastRead;
 	}
 
 	@Override
@@ -140,6 +244,8 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	private void sendMapValues() throws Exception {
 		String name = "";
+		int len = -1, size = 0;
+		boolean useInto = false;
 		while (!"".equals(name = conn.readResult())) {
 			if (name.contains("=")) {
 				String vals[] = null;
@@ -154,17 +260,34 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 					if (vals[1].startsWith("'")) {
 						vals[1] = vals[1].substring(1, vals[1].length() - 1);
 					}
-					putMapValue(vals[0], vals[1]);
+					if ("LENGTH".equals(vals[0])) {
+						try {
+							len = Integer.parseInt(vals[1]);
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					} else if ("SIZE".equals(vals[0])) {
+						try {
+							size = Integer.parseInt(vals[1]);
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					} else
+						putMapValue(vals[0], vals[1]);
 				} else {
 					putMapValue(vals[0], "");
 				}
 			} else {
 				lastMapName = name;
-				if (!"MAP".equals(name) && !"MAPSET".equals(name) && !"INTO".equals(name)) {
+				if ("INTO".equals(name)) {
+					useInto = true;
+				}
+				if (!"MAP".equals(name) && !"MAPSET".equals(name) && !"INTO".equals(name) && !"LENGTH".equals(name)
+						&& !"SIZE".equals(name)) {
 					try {
 						if ("EIBAID".equals(name)) {
-							conn.sendCmd("" + eibAID);		
-							eibAID =  ' ';
+							conn.sendCmd("" + eibAID);
+							eibAID = ' ';
 						} else {
 							conn.sendCmd(mapValues.get(nameIndices.get(name)));
 						}
@@ -174,6 +297,36 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 				}
 			}
 		}
+		if (useInto) {
+			int resp = 0, resp2 = 0;
+			if (len < 0) {
+				len = 0;
+			}
+			if (len < size) {
+				resp = 22;
+			}
+			char buf[] = new char[size];
+			try {
+				String input = getString("TERMINPUT");
+				if (input != null) {
+					int l = 0;
+					if (input.length() < buf.length) {
+						l = input.length();
+					} else {
+						l = buf.length;
+					}
+					for (int i = 0; i < l; i++) {
+						buf[i] = input.charAt(i);
+					}
+				}
+			} catch (Exception e) {
+			}
+			conn.sendBuf(buf);
+
+			conn.sendCmd("" + resp);
+			conn.sendCmd("" + resp2);
+
+		}
 	}
 
 	@Override
@@ -181,10 +334,21 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 		if (closed)
 			return false;
 		try {
+			if (syncpoint) {
+				syncpoint = false;
+				putMapValue("SYNCPOINT", "false");
+				if ("ROLLBACK".equals(getString("SYNCPOINTRESULT")) && !getBoolean("ROLLBACK")) {
+					conn.sendCmd("END-SYNCPOINT ROLLBACK");
+				} else {
+					conn.sendCmd("END-SYNCPOINT");
+				}
+				putMapValue("ROLLBACK", "false");
+			}
 			while (true) {
+				int resp = 0;
+				int resp2 = 0;
 				mapCmd = conn.readResult();
 				putMapValue("MAP_CMD", mapCmd);
-				System.out.println(mapCmd);
 				if (mapCmd.startsWith("STOP")) {
 					closed = true;
 					return false;
@@ -230,21 +394,1257 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 							into = 2;
 						}
 					}
+					channelStack.remove(channelStack.size() - 1);
 				} else if (mapCmd.startsWith("XCTL")) {
 					String name = "";
+					String channel = "";
 					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("CHANNEL".equals(vals[0])) {
+									channel = vals[1].trim();
+								}
+							}
+						} else {
+							lastMapName = name;
+						}
+					}
+					HashMap<String, HashMap<String, char[]>> channels = channelStack.get(channelStack.size() - 1);
+					channelStack.add(new HashMap<String, HashMap<String, char[]>>());
+					channelStack.get(channelStack.size() - 1).put("DFHTRANSACTION", channels.get("DFHTRANSACTION"));
+					if (!"".equals(channel)) {
+						HashMap<String, char[]> chn = channels.get(channel);
+						if (chn != null) {
+							channelStack.get(channelStack.size() - 1).put(channel, chn);
+							channelStack.get(channelStack.size() - 1).put("current", chn);
+						}
 					}
 					eibCALen = 0;
 					conn.sendCmd("" + eibCALen);
 					conn.sendCmd("" + eibAID);
-				} else {
-					putMapValue("MAP_CMD", mapCmd);
+				} else if (mapCmd.startsWith("ABEND")) {
 					String name = "";
 					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								putMapValue(vals[0], vals[1]);
+							}
+						} else {
+							lastMapName = name;
+							if (!"ABCODE".equals(name)) {
+								putMapValue(name, "true");
+							}
+						}
+					}
+					while (!"STOP".equals(name = conn.readResult())) {
+						System.err.println("ABEND read: " + name);
+					}
+					throw new SQLException("QWICS: ABEND: ABCODE=" + getString("ABCODE"));
+				} else if (mapCmd.startsWith("SYNCPOINT")) {
+					String name = "";
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								putMapValue(vals[0], vals[1]);
+							}
+						} else {
+							lastMapName = name;
+							if ("ROLLBACK".equals(name)) {
+								putMapValue(name, "true");
+							}
+						}
+					}
+					putMapValue("SYNCPOINT", "true");
+					syncpoint = true;
+					return true;
+				} else if (mapCmd.startsWith("RETRIEVE")) {
+					String name = "";
+					boolean into = false;
+					while (!"".equals(name = conn.readResult())) {
+						if (into) {
+							try {
+								int n = Integer.parseInt(name);
+								char startMsg[] = new char[n];
+								try {
+									String qn = getString("QNAME");
+
+									startMsg[0] = ' ';
+									startMsg[1] = ' ';
+									startMsg[2] = ' ';
+									startMsg[3] = ' ';
+
+									startMsg[4] = 0x01;
+									startMsg[5] = 0x00;
+									startMsg[6] = 0x00;
+									startMsg[7] = 0x00;
+
+									int l = qn.length();
+									if (l > 48)
+										l = 48;
+									for (int i = 0; i < l; i++) {
+										startMsg[i + 8] = qn.charAt(i);
+									}
+									for (int i = l + 8; i < n; i++) {
+										startMsg[i] = ' ';
+									}
+
+									startMsg[168] = 0x00;
+									startMsg[169] = 0x00;
+									startMsg[170] = 0x00;
+									startMsg[171] = 0x00;
+
+									try {
+										String data = getString("TRIGGERDATA");
+										l = data.length();
+										if (l > 64)
+											l = 64;
+										for (int i = 0; i < l; i++) {
+											startMsg[i + 104] = data.charAt(i);
+										}
+									} catch (Exception e) {
+									}
+
+									try {
+										String data = getString("ENVDATA");
+										l = data.length();
+										if (l > 128)
+											l = 128;
+										for (int i = 0; i < l; i++) {
+											startMsg[i + 428] = data.charAt(i);
+										}
+									} catch (Exception e) {
+									}
+
+									try {
+										String data = getString("USERDATA");
+										l = data.length();
+										if (l > 128)
+											l = 128;
+										for (int i = 0; i < l; i++) {
+											startMsg[i + 556] = data.charAt(i);
+										}
+									} catch (Exception e) {
+									}
+								} catch (Exception e2) {
+									// No queue specified, use default
+									synchronized (tsQueues) {
+										String reqId = conn.getClientInfo("STARTERID");
+										ArrayList<char[]> q = tsQueues.get(reqId);
+										if (q != null) {
+											int item = tsQueuesLastRead.get(reqId) + 1;
+											if (item >= tsQueues.size()) {
+												resp = 26;
+											} else {
+												tsQueuesLastRead.put(reqId, item);
+												char buf[] = tsQueues.get(reqId).get(item);
+												int l = buf.length;
+												if (l > startMsg.length) {
+													resp = 22;
+													l = startMsg.length;
+												}
+												for (int i = 0; i < l; i++) {
+													startMsg[i] = buf[i];
+												}
+											}
+										} else {
+											resp = 44;
+										}
+									}
+								}
+
+								conn.sendBuf(startMsg);
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
+							into = false;
+						}
+						if (!into & "INTO".equals(name)) {
+							into = true;
+						}
+					}
+
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("QOPEN")) {
+					String name = "";
+					int mode = 0;
+					int objType = 0;
+					int opts = 0;
+					String objName = "";
+					int obj = 0;
+					int compcode = 0;
+					int reason = 0;
+					while (!"".equals(name = conn.readResult())) {
+						try {
+							if (mode == 0) {
+								objType = Integer.parseInt(name);
+							}
+							if (mode == 1) {
+								objName = name.trim();
+							}
+							if (mode == 2) {
+								opts = Integer.parseInt(name);
+
+								try {
+									obj = queueHandler.openQueue(objName, objType, opts);
+								} catch (Exception e) {
+									compcode = 2;
+								}
+
+								conn.sendCmd("" + obj);
+								conn.sendCmd("" + compcode);
+								conn.sendCmd("" + reason);
+							}
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+						mode++;
+					}
+				} else if (mapCmd.startsWith("QCLOSE")) {
+					String name = "";
+					int mode = 0;
+					int opts = 0;
+					int obj = 0;
+					int compcode = 0;
+					int reason = 0;
+					while (!"".equals(name = conn.readResult())) {
+						try {
+							if (mode == 0) {
+								obj = Integer.parseInt(name);
+							}
+							if (mode == 1) {
+								opts = Integer.parseInt(name);
+
+								try {
+									queueHandler.closeQueue(obj, opts);
+								} catch (Exception e) {
+									compcode = 2;
+								}
+
+								conn.sendCmd("" + compcode);
+								conn.sendCmd("" + reason);
+							}
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+						mode++;
+					}
+				} else if (mapCmd.startsWith("QGET")) {
+					String name = "";
+					int mode = 0;
+					int obj = 0;
+					char msgDesc[] = new char[364];
+					char msgOpts[] = new char[100];
+					int msgLen = 0;
+					char msgBody[] = null;
+					int compcode = 0;
+					int reason = 0;
+					while (!"".equals(name = conn.readResult())) {
+						try {
+							if (mode == 0) {
+								obj = Integer.parseInt(name);
+
+								conn.readBuf(msgDesc);
+								conn.readBuf(msgOpts);
+							}
+							if (mode == 1) {
+								msgLen = Integer.parseInt(name);
+								msgBody = new char[msgLen];
+
+								try {
+									QueueWrapper q = queueHandler.getQueue(obj);
+									HashMap<String, Object> msgHeader = MsgHeaderConverter.getConverter()
+											.toMap(msgDesc);
+									q.get(msgHeader, msgBody);
+									MsgHeaderConverter.getConverter().toRaw(msgHeader, msgDesc);
+								} catch (Exception e) {
+									e.printStackTrace();
+									compcode = 2;
+								}
+
+								conn.sendBuf(msgDesc);
+								conn.sendBuf(msgBody);
+								conn.sendCmd("" + msgLen);
+								conn.sendCmd("" + compcode);
+								conn.sendCmd("" + reason);
+							}
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+						mode++;
+					}
+				} else if (mapCmd.startsWith("QPUT")) {
+					String name = "";
+					int mode = 0;
+					int obj = 0;
+					char msgDesc[] = new char[364];
+					char msgOpts[] = new char[152];
+					int msgLen = 0;
+					char msgBody[] = null;
+					int compcode = 0;
+					int reason = 0;
+					while (!"".equals(name = conn.readResult())) {
+						try {
+							if (mode == 0) {
+								obj = Integer.parseInt(name);
+
+								conn.readBuf(msgDesc);
+								conn.readBuf(msgOpts);
+							}
+							if (mode == 1) {
+								msgLen = Integer.parseInt(name);
+								msgBody = new char[msgLen];
+								conn.readBuf(msgBody);
+
+								try {
+									QueueWrapper q = queueHandler.getQueue(obj);
+									HashMap<String, Object> msgHeader = MsgHeaderConverter.getConverter()
+											.toMap(msgDesc);
+									q.put(msgHeader, msgBody);
+									MsgHeaderConverter.getConverter().toRaw(msgHeader, msgDesc);
+								} catch (Exception e) {
+									e.printStackTrace();
+									compcode = 2;
+								}
+
+								conn.sendBuf(msgDesc);
+								conn.sendCmd("" + compcode);
+								conn.sendCmd("" + reason);
+							}
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+						mode++;
+					}
+				} else if (mapCmd.startsWith("PUT")) {
+					String name = "";
+					String container = "";
+					String channel = "";
+					int len = -1, size = 0;
+					boolean append = false;
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("FLENGTH".equals(vals[0])) {
+									try {
+										len = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+									if (len < 0) {
+										resp = 22;
+										resp2 = 1;
+									}
+								}
+								if ("SIZE".equals(vals[0])) {
+									try {
+										size = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+								}
+								if ("CONTAINER".equals(vals[0])) {
+									container = vals[1].trim();
+								}
+								if ("CHANNEL".equals(vals[0])) {
+									channel = vals[1].trim();
+								}
+							}
+						} else {
+							lastMapName = name;
+							if ("APPEND".equals(name)) {
+								append = true;
+							}
+						}
+					}
+					if (len < 0) {
+						len = size;
+					}
+					if (len >= 0) {
+						HashMap<String, HashMap<String, char[]>> channels = channelStack.get(channelStack.size() - 1);
+						HashMap<String, char[]> chn = null;
+						if ("".equals(channel)) {
+							chn = channels.get("current");
+						} else {
+							chn = channels.get(channel);
+							if (chn == null) {
+								chn = new HashMap<String, char[]>();
+								channels.put(channel, chn);
+							}
+						}
+						char[] buf = new char[len];
+						conn.readBuf(buf);
+						if (append) {
+							char oldBuf[] = chn.get(container);
+							if (oldBuf != null) {
+								int l = oldBuf.length;
+								oldBuf = Arrays.copyOf(oldBuf, l + buf.length);
+								for (int i = 0; i < buf.length; i++) {
+									oldBuf[i + l] = buf[i];
+								}
+								buf = oldBuf;
+							}
+						}
+						chn.put(container, buf);
+					}
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("GET") && !mapCmd.contains("MAIN")) {
+					String name = "";
+					String container = "";
+					String channel = "";
+					int mode = 0;
+					int len = -1, size = 0;
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("FLENGTH".equals(vals[0])) {
+									try {
+										len = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+									if (len < 0) {
+										resp = 22;
+										resp2 = 1;
+									}
+								}
+								if ("SIZE".equals(vals[0])) {
+									try {
+										size = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+								}
+								if ("CONTAINER".equals(vals[0])) {
+									container = vals[1].trim();
+								}
+								if ("CHANNEL".equals(vals[0])) {
+									channel = vals[1].trim();
+								}
+							}
+						} else {
+							lastMapName = name;
+							
+							if ("SET".equals(name)) {
+								mode = 1;
+							}
+						}
+					}
+					if (len < 0) {
+						len = size;
+					}
+					HashMap<String, HashMap<String, char[]>> channels = channelStack.get(channelStack.size() - 1);
+					HashMap<String, char[]> chn = null;
+					if ("".equals(channel)) {
+						chn = channels.get("current");
+					} else {
+						chn = channels.get(channel);
+					}
+					char[] buf = null;
+					if (chn == null) {
+						buf = new char[len];
+						resp = 122;
+						resp2 = 2;
+					} else {
+						buf = chn.get(container);
+						if (buf == null) {
+							buf = new char[len];
+							resp = 110;
+							resp2 = 10;
+						}
+					}
+					if (mode == 0) {
+						if ((len > 0) && (len < buf.length)) {
+							buf = Arrays.copyOf(buf, len);
+							resp = 22;
+							resp2 = 11;
+						}
+					} else {
+						// If SET send buffer length from Java side
+						conn.sendCmd("" + buf.length);
+					}
+					conn.sendBuf(buf);
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("LINK")) {
+					String name = "";
+					String channel = "";
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("CHANNEL".equals(vals[0])) {
+									channel = vals[1].trim();
+								}
+							}
+						} else {
+							lastMapName = name;
+						}
+					}
+					HashMap<String, HashMap<String, char[]>> channels = channelStack.get(channelStack.size() - 1);
+					channelStack.add(new HashMap<String, HashMap<String, char[]>>());
+					channelStack.get(channelStack.size() - 1).put("DFHTRANSACTION", channels.get("DFHTRANSACTION"));
+					if (!"".equals(channel)) {
+						HashMap<String, char[]> chn = channels.get(channel);
+						if (chn != null) {
+							channelStack.get(channelStack.size() - 1).put(channel, chn);
+							channelStack.get(channelStack.size() - 1).put("current", chn);
+						}
+					}
+				} else if (mapCmd.startsWith("WRITEQ")) {
+					String name = "";
+					String queue = "";
+					int item = -1;
+					int len = -1, size = 0;
+					boolean rewrite = false;
+					boolean td = false;
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("LENGTH".equals(vals[0])) {
+									try {
+										len = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+								}
+								if ("SIZE".equals(vals[0])) {
+									try {
+										size = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+								}
+								if ("QUEUE".equals(vals[0])) {
+									queue = vals[1].trim();
+								}
+								if ("QNAME".equals(vals[0])) {
+									queue = vals[1].trim();
+								}
+								if ("ITEM".equals(vals[0])) {
+									try {
+										item = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+								}
+							}
+						} else {
+							lastMapName = name;
+							if ("TD".equals(name)) {
+								td = true;
+							}
+							if ("REWRITE".equals(name)) {
+								rewrite = true;
+							}
+						}
+					}
+					if (len < 0) {
+						len = size;
+					}
+					if ((len < 0) || (len > 32768)) {
+						resp = 22;
+					}
+					if (!td) {
+						char[] buf = new char[len];
+						conn.readBuf(buf);
+						if (!"".equals(queue) && (resp == 0)) {
+							synchronized (tsQueues) {
+								ArrayList<char[]> q = tsQueues.get(queue);
+								if (q == null) {
+									q = new ArrayList<char[]>();
+									tsQueues.put(queue, q);
+									tsQueuesLastRead.put(queue, -1);
+								}
+								if ((item > 0) && (q.size() > 0)) {
+									if ((item <= q.size()) && rewrite) {
+										q.set(item - 1, buf);
+									} else {
+										resp = 26;
+									}
+								} else {
+									q.add(buf);
+									item = q.size();
+									if (item > 32768) {
+										resp = 26;
+									}
+								}
+							}
+						} else {
+							resp = 16;
+						}
+					} else {
+						char[] buf = new char[len];
+						conn.readBuf(buf);
+						if (!"".equals(queue) && (resp == 0)) {
+							synchronized (tdQueues) {
+								ArrayList<char[]> q = tdQueues.get(queue);
+								if (q == null) {
+									q = new ArrayList<char[]>();
+									tdQueues.put(queue, q);
+									tdQueuesLastRead.put(queue, -1);
+								}
+								q.add(buf);
+								item = q.size();
+							}
+						} else {
+							resp = 16;
+						}
+					}
+
+					conn.sendCmd("" + item);
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("READQ")) {
+					String name = "";
+					String queue = "";
+					int item = -1;
+					int len = -1, size = 0;
+					boolean next = false;
+					boolean td = false;
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("LENGTH".equals(vals[0])) {
+									try {
+										len = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+								}
+								if ("SIZE".equals(vals[0])) {
+									try {
+										size = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+								}
+								if ("QUEUE".equals(vals[0])) {
+									queue = vals[1].trim();
+								}
+								if ("QNAME".equals(vals[0])) {
+									queue = vals[1].trim();
+								}
+								if ("ITEM".equals(vals[0])) {
+									try {
+										item = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+								}
+							}
+						} else {
+							lastMapName = name;
+							if ("TD".equals(name)) {
+								td = true;
+							}
+							if ("NEXT".equals(name)) {
+								next = true;
+							}
+						}
+					}
+					if (len < 0) {
+						len = 0;
+					}
+					if (len < size) {
+						resp = 22;
+					}
+					char buf[] = new char[size];
+					if (!td) {
+						if (!"".equals(queue) && (resp == 0)) {
+							synchronized (tsQueues) {
+								ArrayList<char[]> q = tsQueues.get(queue);
+								if (q != null) {
+									if (next) {
+										item = tsQueuesLastRead.get(queue) + 1;
+										if (item >= tsQueues.size()) {
+											resp = 26;
+										} else {
+											tsQueuesLastRead.put(queue, item);
+											buf = tsQueues.get(queue).get(item);
+											item++;
+										}
+									} else if ((item >= 1) && (item <= q.size())) {
+										buf = tsQueues.get(queue).get(item - 1);
+										tsQueuesLastRead.put(queue, item - 1);
+									} else {
+										resp = 26;
+									}
+									if (buf.length != size) {
+										char hbuf[] = new char[size];
+										Arrays.fill(hbuf,' ');
+										int l = size;
+										if (buf.length < size) {
+											l = buf.length;
+										}
+										System.arraycopy(buf,0,hbuf,0,l);
+										buf = hbuf;
+									}
+								} else {
+									resp = 44;
+								}
+							}
+						} else {
+							resp = 16;
+						}
+					} else {
+						if (!"".equals(queue) && (resp == 0)) {
+							synchronized (tdQueues) {
+								ArrayList<char[]> q = tdQueues.get(queue);
+								if (q != null) {
+									item = tdQueuesLastRead.get(queue) + 1;
+									if (item >= tdQueues.size()) {
+										resp = 23;
+									} else {
+										buf = tdQueues.get(queue).get(item);
+										tdQueues.get(queue).remove(item);
+										tdQueuesLastRead.put(queue, item - 1);
+										item++;
+									}
+								} else {
+									resp = 44;
+								}
+								if (buf.length != size) {
+									char hbuf[] = new char[size];
+									Arrays.fill(hbuf,' ');
+									int l = size;
+									if (buf.length < size) {
+										l = buf.length;
+									}
+									System.arraycopy(buf,0,hbuf,0,l);
+									buf = hbuf;
+								}
+							}
+						} else {
+							resp = 16;
+						}
+					}
+
+					conn.sendBuf(buf);
+					conn.sendCmd("" + item);
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("DELETEQ")) {
+					String name = "";
+					String queue = "";
+					boolean td = false;
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("QUEUE".equals(vals[0])) {
+									queue = vals[1].trim();
+								}
+								if ("QNAME".equals(vals[0])) {
+									queue = vals[1].trim();
+								}
+							}
+						} else {
+							lastMapName = name;
+							if ("TD".equals(name)) {
+								td = true;
+							}
+						}
+					}
+					if (!td) {
+						if (!"".equals(queue) && (resp == 0)) {
+							synchronized (tsQueues) {
+								ArrayList<char[]> q = tsQueues.get(queue);
+								if (q != null) {
+									tsQueues.remove(queue);
+								} else {
+									resp = 44;
+								}
+							}
+						} else {
+							resp = 16;
+						}
+					} else {
+						if (!"".equals(queue) && (resp == 0)) {
+							synchronized (tdQueues) {
+								ArrayList<char[]> q = tdQueues.get(queue);
+								if (q != null) {
+									tdQueues.remove(queue);
+								} else {
+									resp = 44;
+								}
+							}
+						} else {
+							resp = 16;
+						}
+					}
+
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("ASSIGN")) {
+					String name = "";
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("SYSID".equals(vals[0])) {
+									conn.sendCmd("QWIC");
+								} else {
+									char buf[] = new char[2048];
+									Arrays.fill(buf, (char) 0);
+									conn.sendBuf(buf);
+									conn.sendCmd("");
+								}
+							}
+						} else {
+							lastMapName = name;
+
+							if ("SYSID".equals(name)) {
+								conn.sendCmd("QWIC");
+							} else 
+							if ("USERID".equals(name)) {
+								conn.sendCmd("12345678");
+							} else {
+								char buf[] = new char[2048];
+								Arrays.fill(buf, (char) 0);
+								conn.sendBuf(buf);
+								conn.sendCmd("");
+							}
+						}
+					}
+
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("FORMATTIME")) {
+					String name = "";
+					String dateSep = "", timeSep = "";
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("DATESEP".equals(vals[0])) {
+									dateSep = "" + vals[1].charAt(0);
+								} else if ("TIMESEP".equals(vals[0])) {
+									timeSep = "" + vals[1].charAt(0);
+								} else if ("ABSTIME".equals(vals[0])) {
+									long millis = System.currentTimeMillis();
+									GregorianCalendar cal = new GregorianCalendar(1900, 0, 1, 0, 0, 0);
+									long offset = cal.getTimeInMillis();
+									millis = millis - offset;
+									conn.sendCmd("" + millis);
+								} else if ("YEAR".equals(vals[0])) {
+									GregorianCalendar cal = new GregorianCalendar();
+									conn.sendCmd("" + cal.getTime().getYear());
+								} else if ("TIME".equals(vals[0])) {
+									GregorianCalendar cal = new GregorianCalendar();
+									SimpleDateFormat fmt = new SimpleDateFormat("HH" + timeSep + "mm" + timeSep + "ss");
+									System.out.println(cal.getTime() + " " + fmt.format(cal.getTime()));
+									conn.sendCmd(fmt.format(cal.getTime()));
+								} else if ("YYMMDD".equals(vals[0])) {
+									GregorianCalendar cal = new GregorianCalendar();
+									SimpleDateFormat fmt = new SimpleDateFormat("yy" + dateSep + "MM" + dateSep + "dd");
+									System.out.println(cal.getTime() + " " + fmt.format(cal.getTime()));
+									conn.sendCmd(fmt.format(cal.getTime()));
+								} else if ("DDMMYY".equals(vals[0])) {
+									GregorianCalendar cal = new GregorianCalendar();
+									SimpleDateFormat fmt = new SimpleDateFormat("dd" + dateSep + "MM" + dateSep + "yy");
+									System.out.println(cal.getTime() + " " + fmt.format(cal.getTime()));
+									conn.sendCmd(fmt.format(cal.getTime()));
+								} else {
+									char buf[] = new char[2048];
+									Arrays.fill(buf, (char) 0);
+									conn.sendBuf(buf);
+									conn.sendCmd("");
+								}
+							}
+						} else {
+							lastMapName = name;
+						}
+					}
+
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("ASKTIME")) {
+					String name = "";
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("ABSTIME".equals(vals[0])) {
+									long millis = System.currentTimeMillis();
+									GregorianCalendar cal = new GregorianCalendar(1900, 0, 1, 0, 0, 0);
+									long offset = cal.getTimeInMillis();
+									millis = millis - offset;
+									conn.sendCmd("" + millis);
+								} else {
+									char buf[] = new char[2048];
+									Arrays.fill(buf, (char) 0);
+									conn.sendBuf(buf);
+									conn.sendCmd("");
+								}
+							}
+						} else {
+							lastMapName = name;
+						}
+					}
+
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("INQUIRE")) {
+					String name = "";
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("CONNECTST".equals(vals[0])) {
+									conn.sendCmd("690");
+								} else {
+									char buf[] = new char[2048];
+									Arrays.fill(buf, (char) 0);
+									conn.sendBuf(buf);
+									conn.sendCmd("");
+								}
+							}
+						} else {
+							lastMapName = name;
+						}
+					}
+
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("START") || mapCmd.startsWith("CANCEL")) {
+					String transId = "";
+					String reqId = "";
+					char from[] = null;
+					boolean hasFrom = false;
+					int len = -1, size = 0;
+					String interval = "000000";
+					String time = "";
+
+					String name = "";
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("TRANSID".equals(vals[0])) {
+									transId = vals[1];
+								}
+								if ("REQID".equals(vals[0])) {
+									reqId = vals[1];
+								}
+								if ("TIME".equals(vals[0])) {
+									time = vals[1];
+								}
+								if ("INTERVAL".equals(vals[0])) {
+									interval = vals[1];
+								}
+								if ("LENGTH".equals(vals[0])) {
+									try {
+										len = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+									if (len <= 0) {
+										resp = 22;
+									}
+								}
+								if ("SIZE".equals(vals[0])) {
+									try {
+										size = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+								}
+							}
+						} else {
+							if ("FROM".equals(name)) {
+								hasFrom = true;
+							}
+							lastMapName = name;
+						}
+					}
+
+					if (!"".equals(transId)) {
+						if (!"".equals(reqId) && (resp == 0)) {
+							if (hasFrom) {
+								int l;
+								if ((len >= 0) && (len < size)) {
+									l = len;
+								} else {
+									l = size;
+								}
+								from = new char[l];
+								conn.readBuf(from);
+							}
+							TaScheduled ta = null;
+
+							try {
+								if (!"".equals(time)) {
+									ta = new TaScheduled(transId, reqId, from, time, false);
+								} else {
+									ta = new TaScheduled(transId, reqId, from, interval, true);
+								}
+							} catch (NumberFormatException e) {
+								resp = 16;
+								if ("min".equals(e.getMessage())) {
+									resp2 = 5;
+								}
+								if ("sec".equals(e.getMessage())) {
+									resp2 = 6;
+								}
+							}
+
+							if (resp == 0) {
+								if (mapCmd.startsWith("START")) {
+									ScheduleTimer.getScheduleTimer().scheduleTa(ta);
+								} else {
+									if (ScheduleTimer.getScheduleTimer().cancelTa(ta) < 0) {
+									}
+								}
+							}
+						} else {
+							if (resp == 0) {
+								resp = 16;
+							}
+						}
+					} else {
+						resp = 28;
+					}
+
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("SOAPFAULT")) {
+					int mode = 0;
+					String name = "";
+					HashMap<String,String> fault = new HashMap<String,String>();
+					
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ((mode == 1) && "DETAIL".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+								if ((mode == 1) && "FAULTSTRING".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+								if ((mode == 1) && "FAULTCODE".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+								if ((mode == 1) && "FAULTCODESTR".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+								if ((mode == 1) && "FAULTACTOR".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+								if ((mode == 1) && "ROLE".equals(vals[0])) {
+									fault.put(vals[0], vals[1].trim());
+								}
+							}
+						} else {
+							lastMapName = name;
+
+							if ("CREATE".equals(name)) {
+								mode = 1;
+							}
+							if ((mode == 1) && "SENDER".equals(name)) {
+								fault.put(name, name);
+							}
+							if ((mode == 1) && "RECEIVER".equals(name)) {
+								fault.put(name, name);
+							}
+							if ((mode == 1) && "CLIENT".equals(name)) {
+								fault.put(name, name);
+							}
+							if ((mode == 1) && "SERVER".equals(name)) {
+								fault.put(name, name);
+							}
+						}
+					}
+
+					if (mode == 1) {
+						faultMsg = fault;
+					}
+					
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("XML")) {
+					// XML pseudo command - not from EXEC CICS but EXEC XML
+					int mode = 0;
+					int len = 0;
+					String name = "";
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("XML-CHAR-COUNT".equals(vals[0])) {
+									try {
+										len = Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+										e.printStackTrace();
+									}
+									if (len <= 0) {
+										resp = 22;
+									}								
+								}
+							}
+						} else {
+							lastMapName = name;
+
+							if ("GENERATE".equals(name)) {
+								mode = 1;
+							}
+						}
+					}
+
+					if (mode == 1) {
+						char buf[] = new char[len];
+						conn.sendBuf(buf);
+					}
+					
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else {
+					if (!"".equals(mapCmd)) {
+						putMapValue("MAP_CMD", mapCmd);
+						while (!"".equals(conn.readResult())) {
+						}
 					}
 				}
 			}
 		} catch (Exception e) {
+			closed = true;
 			e.printStackTrace();
 			throw new SQLException(e);
 		}
@@ -468,7 +1868,11 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 		if (columnLabel.equals("EIBAID")) {
 			return "" + eibAID;
 		}
-		return getString(nameIndices.get(columnLabel));
+		try {
+			return getString(nameIndices.get(columnLabel));
+		} catch (Exception e) {
+			throw new SQLException(e);
+		}
 	}
 
 	@Override
@@ -588,6 +1992,45 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	@Override
 	public Object getObject(String columnLabel) throws SQLException {
+		if ((columnLabel != null) && columnLabel.startsWith("TDQUEUES")) {
+			String opt = columnLabel.substring(8).trim();
+			if (opt.startsWith("LIST")) {
+				String queue = opt.substring(4).trim();
+				if (!"".equals(queue)) {
+					synchronized (tdQueues) {
+						ArrayList<char[]> q = tdQueues.get(queue);
+						if (q != null) {
+							ArrayList<char[]> q2 = new ArrayList<char[]>();
+							for (char[] arr : q) {
+								q2.add(arr.clone());
+							}
+							return q2;
+						}
+					}
+				}
+			}
+			if (opt.startsWith("READQ")) {
+				String queue = opt.substring(5).trim();
+				if (!"".equals(queue)) {
+					synchronized (tdQueues) {
+						ArrayList<char[]> q = tdQueues.get(queue);
+						if (q != null) {
+							int item = tdQueuesLastRead.get(queue) + 1;
+							if (item < tdQueues.size()) {
+								char buf[] = tdQueues.get(queue).get(item);
+								tdQueues.get(queue).remove(item);
+								tdQueuesLastRead.put(queue, item - 1);
+								return buf;
+							}
+						}
+					}
+				}
+			}
+			return null;
+		}
+		if ((columnLabel != null) && columnLabel.startsWith("SOAPFAULT")) {
+			return faultMsg;
+		}
 		return getObject(nameIndices.get(columnLabel));
 	}
 
@@ -885,8 +2328,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 			eibAID = x.charAt(0);
 			return;
 		}
-
-		mapValues.set(getColumnIndex(columnLabel), x);
+		putMapValue(columnLabel, x);
 	}
 
 	@Override
@@ -932,11 +2374,65 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	@Override
 	public void updateObject(String columnLabel, Object x, int scaleOrLength) throws SQLException {
+		if ((columnLabel != null) && columnLabel.startsWith("CHANNEL") && (x instanceof char[])) {
+			String p[] = columnLabel.split(":");
+			if (p.length == 3) {
+				String channel = p[1];
+				String container = p[2];
+				HashMap<String, HashMap<String, char[]>> channels = channelStack.get(channelStack.size() - 1);
+				HashMap<String, char[]> chn = null;
+				if ("".equals(channel)) {
+					chn = channels.get("current");
+				} else {
+					chn = channels.get(channel);
+					if (chn == null) {
+						chn = new HashMap<String, char[]>();
+						channels.put(channel, chn);
+					}
+				}
+				chn.put(container, (char[]) x);
+			}
+			return;
+		}
+		if ("QMGR".equals(columnLabel)) {
+			if (queueHandler == null) {
+				this.queueManager = (QueueManager) x;
+				this.queueHandler = new QueueHandler(queueManager);
+			}
+			return;
+		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
 	}
 
 	@Override
 	public void updateObject(String columnLabel, Object x) throws SQLException {
+		if ((columnLabel != null) && columnLabel.startsWith("CHANNEL") && (x instanceof char[])) {
+			String p[] = columnLabel.split(":");
+			if (p.length == 3) {
+				String channel = p[1];
+				String container = p[2];
+				HashMap<String, HashMap<String, char[]>> channels = channelStack.get(channelStack.size() - 1);
+				HashMap<String, char[]> chn = null;
+				if ("".equals(channel)) {
+					chn = channels.get("current");
+				} else {
+					chn = channels.get(channel);
+					if (chn == null) {
+						chn = new HashMap<String, char[]>();
+						channels.put(channel, chn);
+					}
+				}
+				chn.put(container, (char[]) x);
+			}
+			return;
+		}
+		if ("QMGR".equals(columnLabel)) {
+			if (queueHandler == null) {
+				this.queueManager = (QueueManager) x;
+				this.queueHandler = new QueueHandler(queueManager);
+			}
+			return;
+		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
 	}
 
