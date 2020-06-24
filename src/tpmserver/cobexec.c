@@ -2348,6 +2348,7 @@ int execCallback(char *cmd, void *var) {
                 }
                 if (((*cmdState) < -5) &&
                     !(((*cmdState) == -9) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -9) && ((*memParamsState) == 2)) &&
                     !(((*cmdState) == -10) && ((*memParamsState) == 1)) &&
                     !(((*cmdState) == -10) && ((*memParamsState) == 2)) &&
                     !(((*cmdState) == -10) && ((*memParamsState) == 3)) &&
