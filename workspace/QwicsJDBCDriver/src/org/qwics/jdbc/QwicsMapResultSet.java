@@ -829,6 +829,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 					String name = "";
 					String container = "";
 					String channel = "";
+					int mode = 0;
 					int len = -1, size = 0;
 					while (!"".equals(name = conn.readResult())) {
 						if (name.contains("=")) {
@@ -869,6 +870,10 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 							}
 						} else {
 							lastMapName = name;
+							
+							if ("SET".equals(name)) {
+								mode = 1;
+							}
 						}
 					}
 					if (len < 0) {
@@ -894,10 +899,15 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 							resp2 = 10;
 						}
 					}
-					if ((len > 0) && (len < buf.length)) {
-						buf = Arrays.copyOf(buf, len);
-						resp = 22;
-						resp2 = 11;
+					if (mode == 0) {
+						if ((len > 0) && (len < buf.length)) {
+							buf = Arrays.copyOf(buf, len);
+							resp = 22;
+							resp2 = 11;
+						}
+					} else {
+						// If SET send buffer length from Java side
+						conn.sendCmd("" + buf.length);
 					}
 					conn.sendBuf(buf);
 					conn.sendCmd("" + resp);
@@ -1203,6 +1213,9 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 									vals[1] = vals[1].substring(1, vals[1].length() - 1);
 								}
 								if ("QUEUE".equals(vals[0])) {
+									queue = vals[1].trim();
+								}
+								if ("QNAME".equals(vals[0])) {
 									queue = vals[1].trim();
 								}
 							}
@@ -1979,6 +1992,24 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	@Override
 	public Object getObject(String columnLabel) throws SQLException {
+		if ((columnLabel != null) && columnLabel.startsWith("CHANNEL")) {
+			String p[] = columnLabel.split(":");
+			if (p.length == 3) {
+				String channel = p[1];
+				String container = p[2];
+				HashMap<String, HashMap<String, char[]>> channels = channelStack.get(channelStack.size() - 1);
+				HashMap<String, char[]> chn = null;
+				if ("".equals(channel)) {
+					chn = channels.get("current");
+				} else {
+					chn = channels.get(channel);
+				}
+				if (chn == null) {
+					return null;
+				}
+				return chn.get(container);
+			}
+		}
 		if ((columnLabel != null) && columnLabel.startsWith("TDQUEUES")) {
 			String opt = columnLabel.substring(8).trim();
 			if (opt.startsWith("LIST")) {
