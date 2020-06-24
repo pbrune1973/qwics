@@ -118,8 +118,8 @@ public class QwicsConnection implements Connection {
 	public void open() throws Exception {
 		try {
 			socket = new Socket(host, port);
-			socketWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-			socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+			socketWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(),"ISO-8859-1"));
+			socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream(),"ISO-8859-1"));
 			sendSql("BEGIN");
 			closed = false;
 		} catch (Exception e) {
@@ -185,6 +185,7 @@ public class QwicsConnection implements Connection {
 		if (line == null) {
 			throw new Exception("Connection to tpmserver lost");
 		}
+		System.err.println(line);
 		return line;
 	}
 
