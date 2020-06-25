@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 24.06.2020                                  */
+/*   Author: Philipp Brune               Date: 25.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -119,7 +119,7 @@ struct chnBuf {
 
 
 unsigned char *getNextChnBuf(int size) {
-    int *chnBufListPtr = (int*)pthread_getspecific(callStackPtrKey);
+    int *chnBufListPtr = (int*)pthread_getspecific(chnBufListPtrKey);
     struct chnBuf *chnBufList = (struct chnBuf *)pthread_getspecific(chnBufListKey);
 
     if (*chnBufListPtr < 256) {
@@ -132,7 +132,7 @@ unsigned char *getNextChnBuf(int size) {
 
 
 void clearChnBufList() {
-    int *chnBufListPtr = (int*)pthread_getspecific(callStackPtrKey);
+    int *chnBufListPtr = (int*)pthread_getspecific(chnBufListPtrKey);
     struct chnBuf *chnBufList = (struct chnBuf *)pthread_getspecific(chnBufListKey);
     int i;
 
@@ -646,6 +646,7 @@ void readLine(char *buf, int childfd) {
 
 // Handling plain COBOL call invocation for preprocessed QWICS modules
 struct callLoadlib {
+    char name[9];
     void* sdl_library;
     int (*loadmod)();    
 };
@@ -695,6 +696,7 @@ void* globalCallCallback(char *name) {
     char response[1024];
     int *callStackPtr = (int*)pthread_getspecific(callStackPtrKey);
     struct callLoadlib *callStack = (struct callLoadlib *)pthread_getspecific(callStackKey);
+    int i = 0;
 
     #ifdef __APPLE__
     sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".dylib");
@@ -711,6 +713,13 @@ printf("%s\n",fname);
         return (void*)&xmlGenerate;
     }
 
+    for (i = 0; i < (*callStackPtr); i++) {
+        if (strcmp(name,callStack[i].name) == 0) {
+printf("%s already found!\n",name);
+            return (void*)callStack[i].loadmod;
+        }
+    } 
+
     callStack[*callStackPtr].sdl_library = dlopen(fname, RTLD_LAZY);
     if (callStack[*callStackPtr].sdl_library == NULL) {
         sprintf(response,"%s%s%s\n","ERROR: Load module ",fname," not found!");
@@ -725,6 +734,7 @@ printf("%s\n",fname);
             printf("%s",response);
             abend(27,1);
         } else {
+            sprintf(callStack[*callStackPtr].name,"%s",name);
             res = (void*)callStack[*callStackPtr].loadmod;
 
             if (*callStackPtr < 1023) {
@@ -742,7 +752,7 @@ void globalCallCleanup() {
     struct callLoadlib *callStack = (struct callLoadlib *)pthread_getspecific(callStackKey);
 
     int i = 0;
-    for (i = *callStackPtr; i >= 0; i--) {
+    for (i = (*callStackPtr)-1; i >= 0; i--) {
         dlclose(callStack[i].sdl_library);
     } 
     *callStackPtr = 0;
