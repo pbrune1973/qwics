@@ -100,6 +100,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private static HashMap<String, Integer> tdQueuesLastRead = new HashMap<String, Integer>();
 	private static Integer reqIdCounter = 1;
 	private static Integer taskIdCounter = 1;
+	private Runnable stopHandler = null;
 
 	public QwicsMapResultSet(QwicsConnection conn, long eibCALen, char eibAID, String progId) {
 		this.conn = conn;
@@ -350,6 +351,9 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 				mapCmd = conn.readResult();
 				putMapValue("MAP_CMD", mapCmd);
 				if (mapCmd.startsWith("STOP")) {
+					if (stopHandler != null) {
+						stopHandler.run();
+					}
 					closed = true;
 					return false;
 				} else if (mapCmd.startsWith("SEND")) {
@@ -455,7 +459,12 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 						}
 					}
 					while (!"STOP".equals(name = conn.readResult())) {
-						System.err.println("ABEND read: " + name);
+						if ((name != null) && !"".equals(name.trim())) {
+							System.err.println("ABEND read: " + name);							
+						}
+					}
+					if (stopHandler != null) {
+						stopHandler.run();
 					}
 					throw new SQLException("QWICS: ABEND: ABCODE=" + getString("ABCODE"));
 				} else if (mapCmd.startsWith("SYNCPOINT")) {
@@ -2419,6 +2428,12 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 			}
 			return;
 		}
+		if ("STOPHANDLER".equals(columnLabel)) {
+			if (stopHandler == null) {
+				this.stopHandler = (Runnable) x;
+			}
+			return;
+		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
 	}
 
@@ -2448,6 +2463,12 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 			if (queueHandler == null) {
 				this.queueManager = (QueueManager) x;
 				this.queueHandler = new QueueHandler(queueManager);
+			}
+			return;
+		}
+		if ("STOPHANDLER".equals(columnLabel)) {
+			if (stopHandler == null) {
+				this.stopHandler = (Runnable) x;
 			}
 			return;
 		}
