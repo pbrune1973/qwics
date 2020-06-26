@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 25.06.2020                                  */
+/*   Author: Philipp Brune               Date: 26.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -516,7 +516,8 @@ void _execSql(char *sql, void *fd, int sendRes) {
         returnDBConnection(conn, 0);
         return;
     }
-    if (strstr(sql,"SELECT") || strstr(sql,"FETCH") || strstr(sql,"select") || strstr(sql,"fetch")) {
+    if ((strstr(sql,"SELECT") || strstr(sql,"FETCH") || strstr(sql,"select") || strstr(sql,"fetch")) &&
+        (strstr(sql,"DECLARE") == NULL) && (strstr(sql,"declare") == NULL)) {
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
         PGresult *res = execSQLQuery(conn, sql);
         if (res != NULL) {
@@ -545,7 +546,7 @@ void _execSql(char *sql, void *fd, int sendRes) {
             write(*((int*)fd),&response,strlen(response));
         }
         return;
-    }
+    }    
     PGconn *conn = (PGconn*)pthread_getspecific(connKey);
     char *r = execSQLCmd(conn, sql);
     if (r == NULL) {
@@ -715,7 +716,6 @@ printf("%s\n",fname);
 
     for (i = 0; i < (*callStackPtr); i++) {
         if (strcmp(name,callStack[i].name) == 0) {
-printf("%s already found!\n",name);
             return (void*)callStack[i].loadmod;
         }
     } 
