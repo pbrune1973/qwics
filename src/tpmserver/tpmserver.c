@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Main Tcp Connection Handler                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 07.06.2020                                  */
+/*   Author: Philipp Brune               Date: 26.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018-2020 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
 /*                                                                                         */
@@ -25,6 +25,7 @@
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <netinet/in.h>
@@ -119,9 +120,11 @@ int main(int argc, char **argv) {
   int parentfd; /* parent socket */
   int childfd; /* child socket */
   int portno; /* port to listen on */
+  char *udsfile = NULL; /* Alternative: Unix Domain Socket file to listen to */
   int workers = 1; /* tpmserver processes started in parallel */
   int clientlen; /* byte size of client's address */
   struct sockaddr_in serveraddr; /* server's addr */
+  struct sockaddr_un serversockaddr; /* server's addr for domain socket*/
   struct sockaddr_in clientaddr; /* client addr */
   struct hostent *hostp; /* client host info */
   char *hostaddrp; /* dotted decimal host addr string */
@@ -132,10 +135,13 @@ int main(int argc, char **argv) {
    */
 #ifndef _USE_ONLY_PROCESSES_
   if ((argc < 2) || (argc > 3)) {
-    fprintf(stderr, "usage: %s <port> [<workers>]\n", argv[0]);
+    fprintf(stderr, "usage: %s <port>|<socket file> [<workers>]\n", argv[0]);
     exit(1);
   }
   portno = atoi(argv[1]);
+  if (portno == 0) {
+    udsfile = argv[1];
+  }
   if (argc == 3) {
     workers = atoi(argv[2]);
   }
@@ -155,10 +161,13 @@ int main(int argc, char **argv) {
   printf("%s %d %d\n","Started worker process: pid=",pid,portno);
 #else
   if (argc != 2) {
-    fprintf(stderr, "usage: %s <port>\n", argv[0]);
+    fprintf(stderr, "usage: %s <port>|<socket file>\n", argv[0]);
     exit(1);
   }
   portno = atoi(argv[1]);
+  if (portno == 0) {
+    udsfile = argv[1];
+  }
 #endif
 
   // Init shared memory area
@@ -176,45 +185,68 @@ int main(int argc, char **argv) {
       return -1;
   }
 
-  /*
-   * socket: create the parent socket
-   */
-  parentfd = socket(AF_INET, SOCK_STREAM, 0);
-  if (parentfd < 0) {
-    printf("%s\n","ERROR opening socket");
-    exit(1);
-  }
+  if (udsfile == NULL) {
+    /*
+    * socket: create the parent socket
+    */
+    parentfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (parentfd < 0) {
+      printf("%s\n","ERROR opening socket");
+      exit(1);
+    }
 
-  /* setsockopt: Handy debugging trick that lets
-   * us rerun the server immediately after we kill it;
-   * otherwise we have to wait about 20 secs.
-   * Eliminates "ERROR on binding: Address already in use" error.
-   */
-  optval = 1;
-  setsockopt(parentfd, SOL_SOCKET, SO_REUSEADDR,
-	     (const void *)&optval , sizeof(int));
+    /* setsockopt: Handy debugging trick that lets
+     * us rerun the server immediately after we kill it;
+    * otherwise we have to wait about 20 secs.
+    * Eliminates "ERROR on binding: Address already in use" error.
+    */
+    optval = 1;
+    setsockopt(parentfd, SOL_SOCKET, SO_REUSEADDR,
+	         (const void *)&optval , sizeof(int));
 
-  /*
-   * build the server's Internet address
-   */
-  bzero((char *) &serveraddr, sizeof(serveraddr));
+    /*
+     * build the server's Internet address
+     */
+    bzero((char *) &serveraddr, sizeof(serveraddr));
 
-  /* this is an Internet address */
-  serveraddr.sin_family = AF_INET;
+    /* this is an Internet address */
+    serveraddr.sin_family = AF_INET;
 
-  /* let the system figure out our IP address */
-  serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    /* let the system figure out our IP address */
+    serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-  /* this is the port we will listen on */
-  serveraddr.sin_port = htons((unsigned short)portno);
+    /* this is the port we will listen on */
+    serveraddr.sin_port = htons((unsigned short)portno);
 
-  /*
-   * bind: associate the parent socket with a port
-   */
-  if (bind(parentfd, (struct sockaddr *) &serveraddr,
-	   sizeof(serveraddr)) < 0) {
-    printf("%s\n","ERROR on binding");
-    exit(1);
+    /*
+     * bind: associate the parent socket with a port
+    */
+    if (bind(parentfd, (struct sockaddr *) &serveraddr,sizeof(serveraddr)) < 0) {
+      printf("%s\n","ERROR on binding");
+      exit(1);
+    }
+
+    clientlen = sizeof(clientaddr);
+  } else {
+    parentfd = socket(AF_LOCAL, SOCK_STREAM, 0);
+    if (parentfd < 0) {
+      printf("%s\n","ERROR opening socket");
+      exit(1);
+    }
+
+    unlink(udsfile);
+    serversockaddr.sun_family = AF_LOCAL;
+    strcpy(serversockaddr.sun_path, udsfile);
+
+    /*
+     * bind: associate the parent socket with a port
+    */
+    if (bind(parentfd, (struct sockaddr *) &serversockaddr,sizeof(serversockaddr)) < 0) {
+      printf("%s\n","ERROR on binding");
+      exit(1);
+    }
+
+    clientlen = sizeof(serversockaddr);
   }
 
   /*
@@ -226,7 +258,6 @@ int main(int argc, char **argv) {
   }
 
   initExec(1);
-  clientlen = sizeof(clientaddr);
 
   // Set signal handler for SIGINT (proper shutdown of server)
   struct sigaction a;
@@ -236,7 +267,11 @@ int main(int argc, char **argv) {
   sigaction( SIGINT, &a, NULL );
 
   while (1) {
-    childfd = accept(parentfd, (struct sockaddr *) &clientaddr, (socklen_t*)&clientlen);
+    if (udsfile == NULL) {
+      childfd = accept(parentfd, (struct sockaddr *) &clientaddr, (socklen_t*)&clientlen);
+    } else {
+      childfd = accept(parentfd, (struct sockaddr *) &serversockaddr, (socklen_t*)&clientlen);
+    }
     if (childfd == -1) {
       if (errno == EINTR) {
         break;

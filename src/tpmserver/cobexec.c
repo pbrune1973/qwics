@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 26.06.2020                                  */
+/*   Author: Philipp Brune               Date: 27.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -313,21 +313,27 @@ void writeJson(char *map, char *mapset, int childfd) {
     write(childfd,"\n",1);
 }
 
+
+void setSQLCA(int code, char *state) {
+    if (sqlcode != NULL) {
+        cob_field sqlstate = { 5, sqlcode->data+119, NULL };
+        cob_set_int(sqlcode,code);
+        cob_put_picx(sqlstate.data,sqlstate.size,state);
+    }
+}
+
+
 // Callback handler for EXEC statements
 int processCmd(char *cmd, cob_field **outputVars) {
     char *pos;
     if ((pos=strstr(cmd,"EXEC SQL")) != NULL) {
         char *sql = (char*)pos+9;
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
-        if (sqlcode != NULL) {
-            cob_set_int(sqlcode,0);
-        }
+        setSQLCA(0,"00000");
         if (outputVars[0] == NULL) {
             int r = execSQL(conn, sql);
             if (r == 0) {
-                if (sqlcode != NULL) {
-                    cob_set_int(sqlcode,1);
-                }
+                setSQLCA(-1,"00000");
             }
         } else {
             // Query returns data
@@ -360,15 +366,11 @@ int processCmd(char *cmd, cob_field **outputVars) {
                         i++;
                     }
                 } else {
-                    if (sqlcode != NULL) {
-                        cob_set_int(sqlcode,1);
-                    }
+                    setSQLCA(100,"02000");
                 }
                 PQclear(res);
             } else {
-                if (sqlcode != NULL) {
-                    cob_set_int(sqlcode,1);
-                }
+                setSQLCA(-1,"00000");
             }
         }
         printf("%s\n",sql);
