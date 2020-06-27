@@ -45,6 +45,7 @@ package org.qwics.jdbc;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
@@ -69,6 +70,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.concurrent.Executor;
+
+import org.newsclub.net.unix.AFUNIXSocket;
+import org.newsclub.net.unix.AFUNIXSocketAddress;
 
 public class QwicsConnection implements Connection {
 	private String host;
@@ -117,7 +121,12 @@ public class QwicsConnection implements Connection {
 
 	public void open() throws Exception {
 		try {
-			socket = new Socket(host, port);
+			if (port != 0) {
+				socket = new Socket(host, port);
+			} else {
+				socket = AFUNIXSocket.newInstance();
+				socket.connect(new AFUNIXSocketAddress(new File(host)));				
+			}
 			socketWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(),"ISO-8859-1"));
 			socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream(),"ISO-8859-1"));
 			sendSql("BEGIN");
