@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 27.06.2020                                  */
+/*   Author: Philipp Brune               Date: 29.06.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -352,6 +352,10 @@ int processCmd(char *cmd, cob_field **outputVars) {
                                                  outputVars[i]->attr->digits,
                                                  outputVars[i]->attr->scale,buf));
                             } else
+                            if (outputVars[i]->attr->type == COB_TYPE_NUMERIC_PACKED) {
+                                long v = atol(PQgetvalue(res, 0, i));
+                                cob_put_s64_comp3(v,outputVars[i]->data,outputVars[i]->size);
+                            } else 
                             if (getCobType(outputVars[i]) == COB_TYPE_NUMERIC_BINARY) {
                                 long v = atol(PQgetvalue(res, 0, i));
                                 cob_put_u64_compx(v,outputVars[i]->data,outputVars[i]->size);  
