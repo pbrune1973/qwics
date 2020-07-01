@@ -1620,7 +1620,7 @@ int execCallback(char *cmd, void *var) {
                     char *cmd = strstr(buf,"sql");
                     if (cmd) {
                       char *sql = cmd+4;
-                      execSql(sql, &childfd);
+                      _execSql(sql, &childfd, 0);
                     }
                   }
                 }
