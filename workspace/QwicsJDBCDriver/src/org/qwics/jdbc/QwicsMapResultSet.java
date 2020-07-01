@@ -101,6 +101,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private static Integer reqIdCounter = 1;
 	private static Integer taskIdCounter = 1;
 	private Runnable stopHandler = null;
+	private boolean ignoreClose = false;
 
 	public QwicsMapResultSet(QwicsConnection conn, long eibCALen, char eibAID, String progId) {
 		this.conn = conn;
@@ -1706,9 +1707,11 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	@Override
 	public void close() throws SQLException {
-		// Read remaining data and ignore it
-		while (next())
-			;
+		if (!ignoreClose) {
+			// Read remaining data and ignore it
+			while (next()) {
+			}
+		}
 	}
 
 	@Override
@@ -2057,6 +2060,10 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 		}
 		if ((columnLabel != null) && columnLabel.startsWith("SOAPFAULT")) {
 			return faultMsg;
+		}
+		if ((columnLabel != null) && columnLabel.startsWith("THISMAP")) {
+			ignoreClose = true;
+			return this;
 		}
 		return getObject(nameIndices.get(columnLabel));
 	}
