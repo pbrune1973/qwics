@@ -106,6 +106,7 @@ public class QwicsWS {
 			if (isSend && maps.getBoolean("SYNCPOINT")) {
 				if (!maps.getBoolean("ROLLBACK")) {
 					try {
+						maps = (ResultSet)maps.getObject("THISMAP");
 						utx.commit();
 						utx.begin();
 						con.close();
@@ -113,6 +114,7 @@ public class QwicsWS {
 						maps.updateString("SYNCPOINTRESULT", "COMMIT");
 					} catch (Exception e) {
 						e.printStackTrace();
+						maps = (ResultSet)maps.getObject("THISMAP");
 						maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 						utx.rollback();
 						utx.begin();
@@ -120,6 +122,7 @@ public class QwicsWS {
 						con = datasource.getConnection(conId, "");
 					}
 				} else {
+					maps = (ResultSet)maps.getObject("THISMAP");
 					maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 					utx.rollback();
 					utx.begin();
