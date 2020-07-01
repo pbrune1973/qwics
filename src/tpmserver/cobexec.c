@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 29.06.2020                                  */
+/*   Author: Philipp Brune               Date: 01.07.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1625,7 +1625,7 @@ int execCallback(char *cmd, void *var) {
                   }
                 }
                 releaseLocks(UOW, taskLocks);
-                if ((strstr(buf,"ROLLBACK") == NULL) || ((*memParamsState) == 1)) {
+                if ((strstr(buf,"ROLLBACK") != NULL) && ((*memParamsState) == 0)) {
                   if ((*memParamsState) == 0) {
                     resp = 82;
                   }
