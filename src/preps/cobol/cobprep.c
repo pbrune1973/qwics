@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.06.2020                                  */
+/*   Author: Philipp Brune               Date: 02.07.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -335,7 +335,7 @@ void parseLinkageVarDef(char *line) {
                 }
                 numOfLinkageVars++;
                 if (numOfLinkageVars >= 2048) {
-		   printf("%s\n","ERROR: Too many LINKAGE SECTION variables for preprocessor!"); 
+        		   printf("%s\n","ERROR: Too many LINKAGE SECTION variables for preprocessor!"); 
                    exit(1);
                 }
             }
@@ -1429,7 +1429,6 @@ void processLine(char *buf, FILE *fp2) {
        }
     }
   }
-//printf("%s\n",buf);
 
   if (include > 0) {
      processCopyLine(buf,fp2);
@@ -1440,8 +1439,10 @@ void processLine(char *buf, FILE *fp2) {
       if (numOfUsingParams == 0) {
           char *using = strstr(buf," USING");
           if (using != NULL) {
-             using = using + 6;
-	     addUsingParamsFromBuf(buf,(int)(using-buf));	              
+            using = using + 6;
+	        addUsingParamsFromBuf(buf,(int)(using-buf));	              
+          } else {
+	        addUsingParamsFromBuf(buf,7);	              
           }
       } else {
           addUsingParamsFromBuf(buf,7);
@@ -1515,7 +1516,7 @@ void processLine(char *buf, FILE *fp2) {
        char *using = strstr(buf," USING");
        if (using != NULL) {
            using = using + 6;
-	   addUsingParamsFromBuf(buf,(int)(using-buf));	              
+	       addUsingParamsFromBuf(buf,(int)(using-buf));	              
        }
        if (!hasDotTerminator(buf)) {
            // USING clause is multi-line
