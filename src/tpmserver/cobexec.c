@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.07.2020                                  */
+/*   Author: Philipp Brune               Date: 04.07.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1354,6 +1354,18 @@ int execCallback(char *cmd, void *var) {
             respFields[1] = NULL;
             return 1;
         }
+        if (strcmp(cmd,"INVOKE") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -22;
+            (*memParamsState) = 0;
+            *((int*)memParams[0]) = -1;
+            (*respFieldsState) = 0;
+            respFields[0] = NULL;
+            respFields[1] = NULL;
+            return 1;
+        }
 
         if (strstr(cmd,"END-EXEC")) {
             int resp = 0;
@@ -1763,6 +1775,16 @@ int execCallback(char *cmd, void *var) {
                   abend(resp,resp2);
                 }
             }
+            if ((*cmdState) == -22) {
+                char buf[2048];
+                readLine((char*)&buf,childfd);
+                resp = atoi(buf);
+                readLine((char*)&buf,childfd);
+                resp2 = atoi(buf);
+                if (resp > 0) {
+                  abend(resp,resp2);
+                }
+            }
 
             // SET EIBRESP and EIBRESP2
             cob_put_u64_compx(resp,&eibbuf[76],4);
@@ -1805,7 +1827,9 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"SENDER") || strstr(cmd,"RECEIVER") || strstr(cmd,"FAULTCODE") || strstr(cmd,"FAULTCODESTR") || 
             strstr(cmd,"FAULTCODELEN") || strstr(cmd,"FAULTSTRING") || strstr(cmd,"FAULTSTRLEN") || strstr(cmd,"NATLANG") || 
             strstr(cmd,"FAULTCODE") || strstr(cmd,"ROLE") || strstr(cmd,"ROLELENGTH") || strstr(cmd,"FAULTACTOR") || 
-            strstr(cmd,"FAULTACTLEN") || strstr(cmd,"DETAIL") || strstr(cmd,"DETAILLENGTH")|| strstr(cmd,"FROMCCSID")) {
+            strstr(cmd,"FAULTACTLEN") || strstr(cmd,"DETAIL") || strstr(cmd,"DETAILLENGTH")|| strstr(cmd,"FROMCCSID") ||
+            strstr(cmd,"SERVICE") || strstr(cmd,"WEBSERVICE") || strstr(cmd,"OPERATION") || strstr(cmd,"URI") ||  
+            strstr(cmd,"URIMAP") || strstr(cmd,"SCOPE") || strstr(cmd,"SCOPELEN")) {
             sprintf(end,"%s%s",cmd,"\n");
 
             if ((strcmp(cmd,"NOHANDLE") == 0) && ((*respFieldsState) == 0)) {
