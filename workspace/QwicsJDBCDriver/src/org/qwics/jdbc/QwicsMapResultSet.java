@@ -101,6 +101,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private static Integer reqIdCounter = 1;
 	private static Integer taskIdCounter = 1;
 	private Runnable stopHandler = null;
+	private Runnable serviceHandler = null;
 	private boolean ignoreClose = false;
 
 	public QwicsMapResultSet(QwicsConnection conn, long eibCALen, char eibAID, String progId) {
@@ -1645,6 +1646,47 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 					
 					conn.sendCmd("" + resp);
 					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("INVOKE")) {
+					String name = "";
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								putMapValue(vals[0], vals[1]);							}
+						} else {
+							lastMapName = name;
+						}
+					}
+
+					if (serviceHandler != null) {
+						putMapValue("RESP","0");
+						putMapValue("RESP2","0");
+
+						serviceHandler.run();
+						
+						try {
+							resp = this.getInt("RESP");
+							resp2 = this.getInt("RESP2");
+						} catch (Exception e) {
+							resp = 16; 
+							resp2 = 17; 		
+						}
+					} else {
+						// Not in service
+						resp = 16;
+						resp2 = 8;
+					}
+					
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
 				} else {
 					if (!"".equals(mapCmd)) {
 						putMapValue("MAP_CMD", mapCmd);
@@ -2441,6 +2483,10 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 			}
 			return;
 		}
+		if ("SERVICEHANDLER".equals(columnLabel)) {
+			this.serviceHandler = (Runnable) x;
+			return;
+		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
 	}
 
@@ -2477,6 +2523,10 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 			if (stopHandler == null) {
 				this.stopHandler = (Runnable) x;
 			}
+			return;
+		}
+		if ("SERVICEHANDLER".equals(columnLabel)) {
+			this.serviceHandler = (Runnable) x;
 			return;
 		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
