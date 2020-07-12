@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 02.07.2020                                  */
+/*   Author: Philipp Brune               Date: 12.07.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -985,17 +985,25 @@ void processExecLine(char *buf, FILE *fp2) {
                             tokenPos++;
                           } else {
                             if (tokenPos > 0) {
-                              token[tokenPos] = 0x00;
-                              tokenPos = 0;
+                                token[tokenPos] = 0x00;
+                                tokenPos = 0;
                             }
                             if ((adrOf == 0) && (strcmp(token,"ADDRESS") == 0)) {
                                 adrOf = 1;
+                            } 
+                            if ((adrOf == 0) || (adrOf == 2)) {
+                                tokenPos = strlen(token);
+                                token[tokenPos] = ' ';
+                                tokenPos++;
                             }
                             if ((adrOf == 1) && (strcmp(token,"OF") == 0)) {
                                 adrOf = 2;
                             }
                           }
                         } while (buf[i] != ')');
+
+                        token[tokenPos] = 0x00;
+                        tokenPos = 0;
 
                         if (adrOf == 2) {
                           sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",
@@ -1027,11 +1035,19 @@ void processExecLine(char *buf, FILE *fp2) {
                             if ((lenOf == 0) && (strcmp(token,"LENGTH") == 0)) {
                                 lenOf = 1;
                             }
+                            if ((lenOf == 0) || (lenOf == 2)) {
+                                tokenPos = strlen(token);
+                                token[tokenPos] = ' ';
+                                tokenPos++;
+                            }
                             if ((lenOf == 1) && (strcmp(token,"OF") == 0)) {
                                 lenOf = 2;
                             }
                           }
                         } while (buf[i] != ')');
+
+                        token[tokenPos] = 0x00;
+                        tokenPos = 0;
 
                         if (lenOf == 2) {
                           sprintf(execbuf,"%s%s%s%s\n","           MOVE LENGTH OF ",
