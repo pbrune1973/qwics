@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.07.2020                                  */
+/*   Author: Philipp Brune               Date: 13.07.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1203,6 +1203,7 @@ int execCallback(char *cmd, void *var) {
             memParams[1] = NULL;
             memParams[2] = NULL;
             memParams[3] = NULL;
+            memParams[4] = NULL;
             (*respFieldsState) = 0;
             respFields[0] = NULL;
             respFields[1] = NULL;
@@ -1539,7 +1540,14 @@ int execCallback(char *cmd, void *var) {
                     dummy.size = len;
                     dummy.data = (*((unsigned char**)((cob_field*)memParams[2])->data));
                     cobvar = &dummy;
-                }                 
+                }     
+                if (memParams[4] != NULL) {
+                    // NODATA mode
+                    readLine((char*)&buf,childfd);
+                    len = atoi(buf);
+                    dummy.size = len;
+                    cobvar = &dummy;                    
+                }
                 int i,l = 0;
                 if (cobvar != NULL) {
                     if ((len >= 0) && (len <= cobvar->size)) {
@@ -1549,14 +1557,14 @@ int execCallback(char *cmd, void *var) {
                     }
                 }
                 if (memParams[3] != NULL) {
-                    if ((getCobType((cob_field*)memParams[3]) == COB_TYPE_NUMERIC_BINARY) &&
-                        (((cob_field*)memParams[3])->data != NULL)) {
-                        cob_put_u64_compx(l,((cob_field*)memParams[3])->data,4);                        
+                    if (((cob_field*)memParams[3])->data != NULL) {
+                        setNumericValue(l,(cob_field*)memParams[3]);                        
                     }
-                    if ((getCobType((cob_field*)memParams[3]) == COB_TYPE_NUMERIC_COMP5) && 
-                        (((cob_field*)memParams[3])->data != NULL)) {
-                        cob_put_s64_comp5(l,((cob_field*)memParams[3])->data,4);
-                    }
+                }
+                if (memParams[4] != NULL) {
+                    // NODATA mode
+                    l = 0;
+                    len = 0;
                 }
                 char c;
                 i = 0;
@@ -1829,7 +1837,7 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"FAULTCODE") || strstr(cmd,"ROLE") || strstr(cmd,"ROLELENGTH") || strstr(cmd,"FAULTACTOR") || 
             strstr(cmd,"FAULTACTLEN") || strstr(cmd,"DETAIL") || strstr(cmd,"DETAILLENGTH")|| strstr(cmd,"FROMCCSID") ||
             strstr(cmd,"SERVICE") || strstr(cmd,"WEBSERVICE") || strstr(cmd,"OPERATION") || strstr(cmd,"URI") ||  
-            strstr(cmd,"URIMAP") || strstr(cmd,"SCOPE") || strstr(cmd,"SCOPELEN")) {
+            strstr(cmd,"URIMAP") || strstr(cmd,"SCOPE") || strstr(cmd,"SCOPELEN") || strstr(cmd,"NODATA")) {
             sprintf(end,"%s%s",cmd,"\n");
 
             if ((strcmp(cmd,"NOHANDLE") == 0) && ((*respFieldsState) == 0)) {
@@ -2019,6 +2027,10 @@ int execCallback(char *cmd, void *var) {
                 }
                 if (strcmp(cmd,"SET") == 0) {
                     (*memParamsState) = 3;
+                }
+                if (strcmp(cmd,"NODATA") == 0) {
+                    memParams[4] = (void*)1;
+                    (*memParamsState) = 10;
                 }
             }
             if (((*cmdState) == -11) && ((*memParamsState) == 1)) {
