@@ -885,6 +885,9 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 							if ("SET".equals(name)) {
 								mode = 1;
 							}
+							if ("NODATA".equals(name)) {
+								mode = 2;
+							}
 						}
 					}
 					if (len < 0) {
@@ -917,10 +920,12 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 							resp2 = 11;
 						}
 					} else {
-						// If SET send buffer length from Java side
+						// If SET / NODATA send buffer length from Java side
 						conn.sendCmd("" + buf.length);
 					}
-					conn.sendBuf(buf);
+					if (mode < 2) {
+						conn.sendBuf(buf);						
+					}
 					conn.sendCmd("" + resp);
 					conn.sendCmd("" + resp2);
 				} else if (mapCmd.startsWith("LINK")) {
