@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.07.2020                                  */
+/*   Author: Philipp Brune               Date: 14.07.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -76,6 +76,33 @@ int include = 0;
 
 char usingParams[2048][33];
 int numOfUsingParams = 0;
+
+
+void replaceDFHFuncs(char * buf) {
+    char *f = strstr(buf,"DFHRESP");
+    if (f != NULL) {
+        f[7] = '-';
+        int i = 8;
+        while ((f[i] != ')') && (f[i] != 0x00)) {
+            i++;
+        }
+        if (f[i] == ')') {
+            f[i] = ' ';
+        }
+    }
+
+    f = strstr(buf,"DFHVALUE");
+    if (f != NULL) {
+        f[8] = '-';
+        int i = 9;
+        while ((f[i] != ')') && (f[i] != 0x00)) {
+            i++;
+        }
+        if (f[i] == ')') {
+            f[i] = ' ';
+        }
+    }
+}
 
 
 void addUsingParamsFromBuf(char *buf, int start) {
@@ -760,6 +787,8 @@ void processExecLine(char *buf, FILE *fp2) {
       // Ignore reserved characters
       m = 72;
     }
+    replaceDFHFuncs(buf);
+
     for (i = 7; i < m; i++) {
         if ((buf[i] == '\'') && !verbatim) {
             if (tokenPos > 0) {
@@ -1517,6 +1546,16 @@ void processLine(char *buf, FILE *fp2) {
              fputs("       77  DFHRESP-ITEMERR PIC S9(8) COMP VALUE 26.\n",(FILE*)fp2);
              fputs("       77  DFHVALUE-CLIENT PIC S9(8) COMP VALUE 1122.\n",(FILE*)fp2);
              fputs("       77  DFHVALUE-SENDER PIC S9(8) COMP VALUE 1045.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-LOG PIC S9(8) COMP VALUE 54.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-NOLOG PIC S9(8) COMP VALUE 55.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-READABLE PIC S9(8) COMP VALUE 35.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-NOTREADABLE PIC S9(8) COMP VALUE 36.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-UPDATABLE PIC S9(8) COMP VALUE 37.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-NOTUPDBLE PIC S9(8) COMP VALUE 38.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-CTRLABLE PIC S9(8) COMP VALUE 56.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-NOTCTRLABLE PIC S9(8) COMP VALUE 57.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-ALTERABLE PIC S9(8) COMP VALUE 52.\n",(FILE*)fp2);
+             fputs("       77  DFHVALUE-NOTALTERABLE PIC S9(8) COMP VALUE 53.\n",(FILE*)fp2);
            }
            if (!eibPresent && !lookupSymbolInInput("DFHEIBLK")) {
                includeCbk("DFHEIBLC",(FILE*)fp2,NULL,NULL,1);
@@ -1634,36 +1673,24 @@ void processLine(char *buf, FILE *fp2) {
               fputs("       77  DFHRESP-ITEMERR PIC S9(8) COMP VALUE 26.\n",(FILE*)fp2);
               fputs("       77  DFHVALUE-CLIENT PIC S9(8) COMP VALUE 1122.\n",(FILE*)fp2);
               fputs("       77  DFHVALUE-SENDER PIC S9(8) COMP VALUE 1045.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-LOG PIC S9(8) COMP VALUE 54.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-NOLOG PIC S9(8) COMP VALUE 55.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-READABLE PIC S9(8) COMP VALUE 35.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-NOTREADABLE PIC S9(8) COMP VALUE 36.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-UPDATABLE PIC S9(8) COMP VALUE 37.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-NOTUPDBLE PIC S9(8) COMP VALUE 38.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-CTRLABLE PIC S9(8) COMP VALUE 56.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-NOTCTRLABLE PIC S9(8) COMP VALUE 57.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-ALTERABLE PIC S9(8) COMP VALUE 52.\n",(FILE*)fp2);
+              fputs("       77  DFHVALUE-NOTALTERABLE PIC S9(8) COMP VALUE 53.\n",(FILE*)fp2);
             }
             if (!eibPresent && !lookupSymbolInInput("DFHEIBLK")) {
                 includeCbk("DFHEIBLC",(FILE*)fp2,NULL,NULL,1);
             }
           }
 
-          char *f = strstr(buf,"DFHRESP");
-          if (f != NULL) {
-            f[7] = '-';
-            int i = 8;
-            while ((f[i] != ')') && (f[i] != 0x00)) {
-              i++;
-            }
-            if (f[i] == ')') {
-              f[i] = ' ';
-            }
-          }
-
-          f = strstr(buf,"DFHVALUE");
-          if (f != NULL) {
-            f[8] = '-';
-            int i = 9;
-            while ((f[i] != ')') && (f[i] != 0x00)) {
-              i++;
-            }
-            if (f[i] == ')') {
-              f[i] = ' ';
-            }
-          }
-
+          replaceDFHFuncs(buf);
+ 
           if (inProcDivision) {
             if (strstr_noverb(buf," CALL ") != 0) {
                 char callBuf[255];
@@ -1873,6 +1900,16 @@ void processLine(char *buf, FILE *fp2) {
        fputs("       77  DFHRESP-ITEMERR PIC S9(8) COMP VALUE 26.\n",(FILE*)fp2);
        fputs("       77  DFHVALUE-CLIENT PIC S9(8) COMP VALUE 1122.\n",(FILE*)fp2);
        fputs("       77  DFHVALUE-SENDER PIC S9(8) COMP VALUE 1045.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-LOG PIC S9(8) COMP VALUE 54.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-NOLOG PIC S9(8) COMP VALUE 55.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-READABLE PIC S9(8) COMP VALUE 35.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-NOTREADABLE PIC S9(8) COMP VALUE 36.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-UPDATABLE PIC S9(8) COMP VALUE 37.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-NOTUPDBLE PIC S9(8) COMP VALUE 38.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-CTRLABLE PIC S9(8) COMP VALUE 56.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-NOTCTRLABLE PIC S9(8) COMP VALUE 57.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-ALTERABLE PIC S9(8) COMP VALUE 52.\n",(FILE*)fp2);
+       fputs("       77  DFHVALUE-NOTALTERABLE PIC S9(8) COMP VALUE 53.\n",(FILE*)fp2);
   }
 }
 
