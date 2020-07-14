@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 13.07.2020                                  */
+/*   Author: Philipp Brune               Date: 14.07.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1367,6 +1367,22 @@ int execCallback(char *cmd, void *var) {
             respFields[1] = NULL;
             return 1;
         }
+        if (strcmp(cmd,"QUERY") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -23;
+            (*memParamsState) = 0;
+            *((int*)memParams[0]) = -1;
+            memParams[1] = NULL;
+            memParams[2] = NULL;
+            memParams[3] = NULL;
+            memParams[4] = NULL;
+            (*respFieldsState) = 0;
+            respFields[0] = NULL;
+            respFields[1] = NULL;
+            return 1;
+        }
 
         if (strstr(cmd,"END-EXEC")) {
             int resp = 0;
@@ -1793,6 +1809,48 @@ int execCallback(char *cmd, void *var) {
                   abend(resp,resp2);
                 }
             }
+            if ((*cmdState) == -23) {
+                char buf[2048];
+                // READ
+                readLine((char*)&buf,childfd);
+                int v = atoi(buf);
+                if (memParams[1] != NULL) {
+                    if (((cob_field*)memParams[1])->data != NULL) {
+                        setNumericValue(v,(cob_field*)memParams[1]);                        
+                    }
+                }
+                // UPDATE
+                readLine((char*)&buf,childfd);
+                v = atoi(buf);
+                if (memParams[2] != NULL) {
+                    if (((cob_field*)memParams[2])->data != NULL) {
+                        setNumericValue(v,(cob_field*)memParams[2]);                        
+                    }
+                }
+                // CONTROL
+                readLine((char*)&buf,childfd);
+                v = atoi(buf);
+                if (memParams[3] != NULL) {
+                    if (((cob_field*)memParams[3])->data != NULL) {
+                        setNumericValue(v,(cob_field*)memParams[3]);                        
+                    }
+                }
+                // ALTER
+                readLine((char*)&buf,childfd);
+                v = atoi(buf);
+                if (memParams[4] != NULL) {
+                    if (((cob_field*)memParams[4])->data != NULL) {
+                        setNumericValue(v,(cob_field*)memParams[4]);                        
+                    }
+                }
+                readLine((char*)&buf,childfd);
+                resp = atoi(buf);
+                readLine((char*)&buf,childfd);
+                resp2 = atoi(buf);
+                if (resp > 0) {
+                  abend(resp,resp2);
+                }
+            }
 
             // SET EIBRESP and EIBRESP2
             cob_put_u64_compx(resp,&eibbuf[76],4);
@@ -1837,7 +1895,10 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"FAULTCODE") || strstr(cmd,"ROLE") || strstr(cmd,"ROLELENGTH") || strstr(cmd,"FAULTACTOR") || 
             strstr(cmd,"FAULTACTLEN") || strstr(cmd,"DETAIL") || strstr(cmd,"DETAILLENGTH")|| strstr(cmd,"FROMCCSID") ||
             strstr(cmd,"SERVICE") || strstr(cmd,"WEBSERVICE") || strstr(cmd,"OPERATION") || strstr(cmd,"URI") ||  
-            strstr(cmd,"URIMAP") || strstr(cmd,"SCOPE") || strstr(cmd,"SCOPELEN") || strstr(cmd,"NODATA")) {
+            strstr(cmd,"URIMAP") || strstr(cmd,"SCOPE") || strstr(cmd,"SCOPELEN") || strstr(cmd,"NODATA") ||
+            strstr(cmd,"SECURITY") || strstr(cmd,"RESTYPE") || strstr(cmd,"RESCLASS") || strstr(cmd,"RESIDLENGTH") || 
+            strstr(cmd,"RESID") || strstr(cmd,"LOGMESSAGE") || strstr(cmd,"READ") || strstr(cmd,"UPDATE") ||
+            strstr(cmd,"UPDATE") || strstr(cmd,"ALTER")) {
             sprintf(end,"%s%s",cmd,"\n");
 
             if ((strcmp(cmd,"NOHANDLE") == 0) && ((*respFieldsState) == 0)) {
@@ -2230,6 +2291,22 @@ int execCallback(char *cmd, void *var) {
                     (*memParamsState) = 2;
                 }
             }
+            if ((*cmdState) == -23) {
+                (*memParamsState) = 10;
+
+                if (strcmp(cmd,"READ") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"UPDATE") == 0) {
+                    (*memParamsState) = 2;
+                }
+                if (strcmp(cmd,"CONTROL") == 0) {
+                    (*memParamsState) = 3;
+                }
+                if (strcmp(cmd,"ALTER") == 0) {
+                    (*memParamsState) = 4;
+                }
+            }
 
             if (cmdbuf[0] == '\'') {
               // String constant
@@ -2418,7 +2495,11 @@ int execCallback(char *cmd, void *var) {
                     !(((*cmdState) == -19) && ((*memParamsState) == 2)) &&
                     !(((*cmdState) == -19) && ((*memParamsState) == 3)) &&
                     !(((*cmdState) == -21) && ((*memParamsState) == 1)) &&
-                    !(((*cmdState) == -21) && ((*memParamsState) == 2))) {
+                    !(((*cmdState) == -21) && ((*memParamsState) == 2)) &&
+                    !(((*cmdState) == -23) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -23) && ((*memParamsState) == 2)) &&
+                    !(((*cmdState) == -23) && ((*memParamsState) == 3)) &&
+                    !(((*cmdState) == -23) && ((*memParamsState) == 4))) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
@@ -2736,6 +2817,22 @@ int execCallback(char *cmd, void *var) {
                     (*memParamsState) = 10;
                 }
                 if (((*cmdState) == -21) && ((*memParamsState) == 2)) {
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -23) && ((*memParamsState) == 1)) {
+                    memParams[1] = (void*)cobvar;
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -23) && ((*memParamsState) == 2)) {
+                    memParams[2] = (void*)cobvar;
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -23) && ((*memParamsState) == 3)) {
+                    memParams[3] = (void*)cobvar;
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -23) && ((*memParamsState) == 4)) {
+                    memParams[4] = (void*)cobvar;
                     (*memParamsState) = 10;
                 }
             }
