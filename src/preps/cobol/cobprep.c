@@ -57,6 +57,7 @@ int skipFillerDefs = 0;
 int fillerDefLevel = 0;
 int xmlBlock = 0;
 FILE *fpLookup = NULL;
+char *eiblkAlias = NULL;
 
 
 struct linkageVarDef {
@@ -1816,8 +1817,13 @@ void processLine(char *buf, FILE *fp2) {
                   fputs(buf,(FILE*)fp2);
               }
               if (lookupSymbolInInput("DFHEIBLK")) {
-                  sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET DFHEIBLK\" ",
-                          "EIBLK",getExecTerminator(0));
+                  if (eiblkAlias != NULL) {
+                    sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET DFHEIBLK\" ",
+                              eiblkAlias,getExecTerminator(0));
+                  } else {
+                    sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET DFHEIBLK\" ",
+                              "EIBLK",getExecTerminator(0));
+                  }
               } else {
                   sprintf(buf,"%s%s%s\n","           DISPLAY \"TPMI:SET DFHEIBLK\" ",
                           "DFHEIBLK",getExecTerminator(0));
@@ -1921,7 +1927,7 @@ int main(int argc, char **argv) {
    buf[0] = 0x00;
 
    if (argc < 2) {
-	    printf("%s\n","Usage: cobprep <COBOL-File>");
+	    printf("%s\n","Usage: cobprep <COBOL-File> [DFHEIBLK-Alias]");
 	    return -1;
    }
 
@@ -1931,6 +1937,10 @@ int main(int argc, char **argv) {
 	    return -1;
    }
    fpLookup = fopen(argv[1], "r");
+
+   if (argc >= 3) {
+        eiblkAlias = argv[2];
+   }
 
    declareTmpFile = fopen("declare.tmp", "w");
    if (declareTmpFile == NULL) {
