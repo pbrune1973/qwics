@@ -102,6 +102,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private static Integer taskIdCounter = 1;
 	private Runnable stopHandler = null;
 	private Runnable serviceHandler = null;
+	private Runnable securityHandler = null;
 	private boolean ignoreClose = false;
 
 	public QwicsMapResultSet(QwicsConnection conn, long eibCALen, char eibAID, String progId) {
@@ -1692,6 +1693,79 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 					
 					conn.sendCmd("" + resp);
 					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("QUERY")) {
+					String name = "";
+					int read = 0;
+					int update = 0;
+					int control = 0;
+					int alter = 0;
+					putMapValue("READ", "0");	
+					putMapValue("UPDATE", "0");	
+					putMapValue("CONTROL", "0");	
+					putMapValue("ALTER", "0");	
+
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								putMapValue(vals[0], vals[1]);							}
+						} else {
+							lastMapName = name;
+							
+							if ("READ".equals(name)) {
+								putMapValue(name, "1");	
+							}
+							if ("UPDATE".equals(name)) {
+								putMapValue(name, "1");	
+							}
+							if ("CONTROL".equals(name)) {
+								putMapValue(name, "1");	
+							}
+							if ("ALTER".equals(name)) {
+								putMapValue(name, "1");	
+							}
+						}
+					}
+
+					if (securityHandler != null) {
+						putMapValue("RESP","0");
+						putMapValue("RESP2","0");
+
+						securityHandler.run();
+						
+						try {
+							resp = this.getInt("RESP");
+							resp2 = this.getInt("RESP2");
+
+							read = this.getInt("READ");
+							update = this.getInt("UPDATE");
+							control = this.getInt("CONTROL");
+							alter = this.getInt("ALTER");
+						} catch (Exception e) {
+							resp = 16; 
+							resp2 = 10; 		
+						}
+					} else {
+						// Not in service
+						resp = 16;
+						resp2 = 10;
+					}
+
+					conn.sendCmd("" + read);
+					conn.sendCmd("" + update);
+					conn.sendCmd("" + control);
+					conn.sendCmd("" + alter);
+
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
 				} else {
 					if (!"".equals(mapCmd)) {
 						putMapValue("MAP_CMD", mapCmd);
@@ -2492,6 +2566,10 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 			this.serviceHandler = (Runnable) x;
 			return;
 		}
+		if ("SECURITYHANDLER".equals(columnLabel)) {
+			this.securityHandler = (Runnable) x;
+			return;
+		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
 	}
 
@@ -2532,6 +2610,10 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 		}
 		if ("SERVICEHANDLER".equals(columnLabel)) {
 			this.serviceHandler = (Runnable) x;
+			return;
+		}
+		if ("SECURITYHANDLER".equals(columnLabel)) {
+			this.securityHandler = (Runnable) x;
 			return;
 		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
