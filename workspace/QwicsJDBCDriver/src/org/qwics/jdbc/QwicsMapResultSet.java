@@ -103,6 +103,8 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 	private Runnable stopHandler = null;
 	private Runnable serviceHandler = null;
 	private Runnable securityHandler = null;
+	private Statement fileBrowser = null;
+	private static HashMap<String, ResultSet> openFiles = new HashMap<String, ResultSet>();
 	private boolean ignoreClose = false;
 
 	public QwicsMapResultSet(QwicsConnection conn, long eibCALen, char eibAID, String progId) {
@@ -1035,13 +1037,13 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 									q = new ArrayList<char[]>();
 									tsQueues.put(queue, q);
 									tsQueuesLastRead.put(queue, -1);
-								}
-								if ((item > 0) && (q.size() > 0)) {
-									if ((item <= q.size()) && rewrite) {
+								}								
+								if ((item > 0) && rewrite) {
+									if (item <= q.size()) {
 										q.set(item - 1, buf);
 									} else {
 										resp = 26;
-									}
+									}									
 								} else {
 									q.add(buf);
 									item = q.size();
@@ -1146,7 +1148,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 								if (q != null) {
 									if (next) {
 										item = tsQueuesLastRead.get(queue) + 1;
-										if (item >= tsQueues.size()) {
+										if (item >= q.size()) {
 											resp = 26;
 										} else {
 											tsQueuesLastRead.put(queue, item);
@@ -1182,7 +1184,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 								ArrayList<char[]> q = tdQueues.get(queue);
 								if (q != null) {
 									item = tdQueuesLastRead.get(queue) + 1;
-									if (item >= tdQueues.size()) {
+									if (item >= q.size()) {
 										resp = 23;
 									} else {
 										buf = tdQueues.get(queue).get(item);
@@ -1764,6 +1766,70 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 					conn.sendCmd("" + control);
 					conn.sendCmd("" + alter);
 
+					conn.sendCmd("" + resp);
+					conn.sendCmd("" + resp2);
+				} else if (mapCmd.startsWith("READ") && !mapCmd.startsWith("READQ")) {
+					String name = "";
+					String file = "";
+					String ridfld = "";
+					int keyLen = 0;
+					int len = 0;
+					char data[] = new char[0];
+					
+					while (!"".equals(name = conn.readResult())) {
+						if (name.contains("=")) {
+							String vals[] = null;
+							if (name.startsWith("=")) {
+								vals = new String[2];
+								vals[0] = lastMapName;
+								vals[1] = name.substring(1);
+							}
+							if ((vals != null) && (vals.length == 2)) {
+								if (vals[1].startsWith("'")) {
+									vals[1] = vals[1].substring(1, vals[1].length() - 1);
+								}
+								if ("FILE".equals(vals[0])) {
+									file = vals[1];
+								}
+								if ("RIDFLD".equals(vals[0])) {
+									ridfld = vals[1];
+								}
+								if ("KEYLENGTH".equals(vals[0])) {
+									try {
+										keyLen= Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+									}
+								}
+								if ("LENGTH".equals(vals[0])) {
+									try {
+										len= Integer.parseInt(vals[1]);
+									} catch (Exception e) {
+									}
+								}
+							}
+						} else {
+							lastMapName = name;
+							
+							if ("RBA".equals(name)) {								
+							}
+							if ("RRN".equals(name)) {								
+							}
+							if ("XRBA".equals(name)) {								
+							}
+						}
+					}
+
+					if (fileBrowser != null) {
+						try {
+							ResultSet recs = fileBrowser.executeQuery("READ "+file+" "+ridfld);
+							data = recs.getString(0).toCharArray();
+							recs.close();
+						} catch (Exception e) {							
+						}
+					}
+
+					conn.sendBuf(data);
+					
 					conn.sendCmd("" + resp);
 					conn.sendCmd("" + resp2);
 				} else {
@@ -2570,6 +2636,10 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 			this.securityHandler = (Runnable) x;
 			return;
 		}
+		if ("FILEBROWSER".equals(columnLabel)) {
+			this.fileBrowser = (Statement) x;
+			return;
+		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
 	}
 
@@ -2614,6 +2684,10 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 		}
 		if ("SECURITYHANDLER".equals(columnLabel)) {
 			this.securityHandler = (Runnable) x;
+			return;
+		}
+		if ("FILEBROWSER".equals(columnLabel)) {
+			this.fileBrowser = (Statement) x;
 			return;
 		}
 		mapValues.set(getColumnIndex(columnLabel), "" + x);
