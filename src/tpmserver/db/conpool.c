@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Database Connection Pool (currently PostgreSQL only)                     */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 26.06.20120                                  */
+/*   Author: Philipp Brune               Date: 28.07.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -120,7 +120,7 @@ PGconn *getDBConnection() {
     }
 
     PGresult *res;
-    res = PQexec(conn, "START TRANSACTION ISOLATION LEVEL SERIALIZABLE READ WRITE");
+    res = PQexec(conn, "START TRANSACTION ISOLATION LEVEL READ COMMITTED READ WRITE");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
         printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
     }
@@ -279,8 +279,9 @@ char* execSQLCmd(PGconn *conn, char *sql) {
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
         printf("ERROR: Failure while executing SQL %s:\n %s", sql, PQerrorMessage(conn));
         ret = NULL;
+    } else {
+        ret = PQcmdTuples(res);
     }
-    ret = PQcmdTuples(res);
     PQclear(res);
     return ret;
 }
