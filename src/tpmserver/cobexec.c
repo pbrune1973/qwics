@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 14.07.2020                                  */
+/*   Author: Philipp Brune               Date: 28.07.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -494,9 +494,9 @@ void _execSql(char *sql, void *fd, int sendRes) {
     }
     if (strstr(sql,"COMMIT")) {
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
-        char *r = execSQLCmd(conn, sql);
+        int r = returnDBConnection(conn, 1);
         if (sendRes == 1) {
-            if (r == NULL) {
+            if (r == 0) {
                 sprintf(response,"%s\n","ERROR");
                 write(*((int*)fd),&response,strlen(response));
             } else {
@@ -504,14 +504,13 @@ void _execSql(char *sql, void *fd, int sendRes) {
                 write(*((int*)fd),&response,strlen(response));
             }
         }
-        returnDBConnection(conn, 1);
         return;
     }
     if (strstr(sql,"ROLLBACK")) {
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
-        char *r = execSQLCmd(conn, sql);
+        int r = returnDBConnection(conn, 0);
         if (sendRes == 1) {
-            if (r == NULL) {
+            if (r == 0) {
                 sprintf(response,"%s\n","ERROR");
                 write(*((int*)fd),&response,strlen(response));
             } else {
@@ -519,7 +518,6 @@ void _execSql(char *sql, void *fd, int sendRes) {
                 write(*((int*)fd),&response,strlen(response));
             }
         }
-        returnDBConnection(conn, 0);
         return;
     }
     if ((strstr(sql,"SELECT") || strstr(sql,"FETCH") || strstr(sql,"select") || strstr(sql,"fetch")) &&
