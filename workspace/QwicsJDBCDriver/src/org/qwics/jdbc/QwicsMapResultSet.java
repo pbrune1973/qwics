@@ -1030,47 +1030,51 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 					if (!td) {
 						char[] buf = new char[len];
 						conn.readBuf(buf);
-						if (!"".equals(queue) && (resp == 0)) {
-							synchronized (tsQueues) {
-								ArrayList<char[]> q = tsQueues.get(queue);
-								if (q == null) {
-									q = new ArrayList<char[]>();
-									tsQueues.put(queue, q);
-									tsQueuesLastRead.put(queue, -1);
-								}								
-								if ((item > 0) && rewrite) {
-									if (item <= q.size()) {
-										q.set(item - 1, buf);
+						if (resp == 0) {
+							if (!"".equals(queue)) {
+								synchronized (tsQueues) {
+									ArrayList<char[]> q = tsQueues.get(queue);
+									if (q == null) {
+										q = new ArrayList<char[]>();
+										tsQueues.put(queue, q);
+										tsQueuesLastRead.put(queue, -1);
+									}
+									if ((item > 0) && rewrite) {
+										if (item <= q.size()) {
+											q.set(item - 1, buf);
+										} else {
+											resp = 26;
+										}
 									} else {
-										resp = 26;
-									}									
-								} else {
-									q.add(buf);
-									item = q.size();
-									if (item > 32768) {
-										resp = 26;
+										q.add(buf);
+										item = q.size();
+										if (item > 32768) {
+											resp = 26;
+										}
 									}
 								}
+							} else {
+								resp = 16;
 							}
-						} else {
-							resp = 16;
 						}
 					} else {
 						char[] buf = new char[len];
 						conn.readBuf(buf);
-						if (!"".equals(queue) && (resp == 0)) {
-							synchronized (tdQueues) {
-								ArrayList<char[]> q = tdQueues.get(queue);
-								if (q == null) {
-									q = new ArrayList<char[]>();
-									tdQueues.put(queue, q);
-									tdQueuesLastRead.put(queue, -1);
+						if (resp == 0) {
+							if (!"".equals(queue)) {
+								synchronized (tdQueues) {
+									ArrayList<char[]> q = tdQueues.get(queue);
+									if (q == null) {
+										q = new ArrayList<char[]>();
+										tdQueues.put(queue, q);
+										tdQueuesLastRead.put(queue, -1);
+									}
+									q.add(buf);
+									item = q.size();
 								}
-								q.add(buf);
-								item = q.size();
+							} else {
+								resp = 16;
 							}
-						} else {
-							resp = 16;
 						}
 					}
 
@@ -1081,7 +1085,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 					String name = "";
 					String queue = "";
 					int item = -1;
-					int len = -1, size = 0;
+					int len = -1, size = -1;
 					boolean next = false;
 					boolean td = false;
 					while (!"".equals(name = conn.readResult())) {
@@ -1134,80 +1138,93 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 							}
 						}
 					}
-					if (len < 0) {
-						len = 0;
-					}
-					if (len < size) {
-						resp = 22;
+					if (size >= 0) {
+						// INTO
+						if (len < 0) {
+							len = size;
+						}
+						if (len < size) {
+							resp = 22;
+						}						
+					} else {
+						// SET
+						size = 0;
+						if (len < 0) {
+							len = 0;
+						}
 					}
 					char buf[] = new char[size];
 					if (!td) {
-						if (!"".equals(queue) && (resp == 0)) {
-							synchronized (tsQueues) {
-								ArrayList<char[]> q = tsQueues.get(queue);
-								if (q != null) {
-									if (next) {
-										item = tsQueuesLastRead.get(queue) + 1;
-										if (item >= q.size()) {
-											resp = 26;
+						if (resp == 0) {
+							if (!"".equals(queue)) {
+								synchronized (tsQueues) {
+									ArrayList<char[]> q = tsQueues.get(queue);
+									if (q != null) {
+										if (next) {
+											item = tsQueuesLastRead.get(queue) + 1;
+											if (item >= q.size()) {
+												resp = 26;
+											} else {
+												tsQueuesLastRead.put(queue, item);
+												buf = tsQueues.get(queue).get(item);
+												item++;
+											}
+										} else if ((item >= 1) && (item <= q.size())) {
+											buf = tsQueues.get(queue).get(item - 1);
+											tsQueuesLastRead.put(queue, item - 1);
 										} else {
-											tsQueuesLastRead.put(queue, item);
-											buf = tsQueues.get(queue).get(item);
+											resp = 26;
+										}
+										if (buf.length != size) {
+											char hbuf[] = new char[size];
+											Arrays.fill(hbuf, ' ');
+											int l = size;
+											if (buf.length < size) {
+												l = buf.length;
+											}
+											System.arraycopy(buf, 0, hbuf, 0, l);
+											buf = hbuf;
+										}
+									} else {
+										resp = 44;
+									}
+								}
+							} else {
+								resp = 16;
+							}
+						}
+					} else {
+						if (resp == 0) {
+							if (!"".equals(queue)) {
+								synchronized (tdQueues) {
+									ArrayList<char[]> q = tdQueues.get(queue);
+									if (q != null) {
+										item = tdQueuesLastRead.get(queue) + 1;
+										if (item >= q.size()) {
+											resp = 23;
+										} else {
+											buf = tdQueues.get(queue).get(item);
+											tdQueues.get(queue).remove(item);
+											tdQueuesLastRead.put(queue, item - 1);
 											item++;
 										}
-									} else if ((item >= 1) && (item <= q.size())) {
-										buf = tsQueues.get(queue).get(item - 1);
-										tsQueuesLastRead.put(queue, item - 1);
 									} else {
-										resp = 26;
+										resp = 44;
 									}
 									if (buf.length != size) {
 										char hbuf[] = new char[size];
-										Arrays.fill(hbuf,' ');
+										Arrays.fill(hbuf, ' ');
 										int l = size;
 										if (buf.length < size) {
 											l = buf.length;
 										}
-										System.arraycopy(buf,0,hbuf,0,l);
+										System.arraycopy(buf, 0, hbuf, 0, l);
 										buf = hbuf;
 									}
-								} else {
-									resp = 44;
 								}
+							} else {
+								resp = 16;
 							}
-						} else {
-							resp = 16;
-						}
-					} else {
-						if (!"".equals(queue) && (resp == 0)) {
-							synchronized (tdQueues) {
-								ArrayList<char[]> q = tdQueues.get(queue);
-								if (q != null) {
-									item = tdQueuesLastRead.get(queue) + 1;
-									if (item >= q.size()) {
-										resp = 23;
-									} else {
-										buf = tdQueues.get(queue).get(item);
-										tdQueues.get(queue).remove(item);
-										tdQueuesLastRead.put(queue, item - 1);
-										item++;
-									}
-								} else {
-									resp = 44;
-								}
-								if (buf.length != size) {
-									char hbuf[] = new char[size];
-									Arrays.fill(hbuf,' ');
-									int l = size;
-									if (buf.length < size) {
-										l = buf.length;
-									}
-									System.arraycopy(buf,0,hbuf,0,l);
-									buf = hbuf;
-								}
-							}
-						} else {
-							resp = 16;
 						}
 					}
 
