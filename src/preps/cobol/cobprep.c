@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 14.07.2020                                  */
+/*   Author: Philipp Brune               Date: 11.08.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -1366,6 +1366,15 @@ void processExecLine(char *buf, FILE *fp2) {
                         value = 0;
                         token[0] = buf[i];
                         token[1] = 0x00;
+                        if (i < m-1) {
+                            if ((token[0] == '<') || (token[0] == '>') || (token[0] == '=')) {
+                                if ((buf[i+1] == '=') || (buf[i+1] == '>')) {
+                                    token[1] = buf[i+1];
+                                    token[2] = 0x00;
+                                    i++;
+                                }
+                            }
+                        }
                         sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
                                 token,getExecTerminator(1));
                         if (inProcDivision) {
