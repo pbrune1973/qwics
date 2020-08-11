@@ -1,0 +1,18 @@
+#!/bin/bash
+
+../bin/cobbatchprep $1
+PROG=${1%.*}
+PROG=$(echo $PROG | tr a-z A-Z)
+cobc -std=ibm -fstatic-call -m exec_$PROG.cob
+
+var=.
+
+if [ -z ${var} ]; then
+  var='../loadmod'
+fi
+
+echo 'Copying to load module dir ' $var
+ 
+mv exec_$PROG.dylib $var/$PROG.dylib
+#mv exec_$PROG.so $var/$PROG.so
+
