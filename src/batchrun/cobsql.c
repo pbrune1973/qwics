@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <libcob.h>
 #include "../tpmserver/config.h"
@@ -259,15 +260,63 @@ int execCallback(char *cmd, void *var) {
 
 
 static int (*loadmod)();
-     
+char *job = "";
+char *step = "";
+char *pgm = "";
+char jobId[9];
+
+
+char *getJob() {
+    return job;
+}
+
+
+char *getStep() {
+    return job;
+}
+
+
+char *getPgm() {
+    return job;
+}
+
+
+char *getJobId() {
+    jobId[0] = 'J';
+    jobId[1] = 'O';
+    jobId[2] = 'B';
+    int i = 3;
+    srandom((unsigned int)time(NULL));
+    while (i < 8) {
+        long r = 48 + random() % 10;
+        jobId[i] = (char)r;
+        i++;
+    }
+    jobId[8] = 0x00;
+
+    printf("getJobId = %s\n",jobId);
+    return jobId;
+}
+
 
 int main(int argc, char *argv[]) {
     int ret = 0;
 
     if (argc < 2) {
-        fprintf(stderr," Usage: batchrun <loadmod>\n");
+        fprintf(stderr," Usage: batchrun <loadmod> [<jobname> <step> <pgm>]\n");
         return 1;
-    } 
+    } else {
+        if ((argc > 2) && !(argc == 5)) {
+            fprintf(stderr," Usage: batchrun <loadmod> [<jobname> <step> <pgm>]\n");
+            return 1;
+        }
+    }
+
+    if (argc == 5) {
+        job = argv[2];
+        step = argv[3];
+        pgm = argv[4];
+    }
 
     fprintf(stdout,"Starting batchrun of %s\n",argv[1]);
     performEXEC = &execCallback;
