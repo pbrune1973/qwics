@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 10.08.2020                                  */
+/*   Author: Philipp Brune               Date: 12.08.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -285,6 +285,14 @@ int main(int argc, char *argv[]) {
     // Opening DB connection
     conn = getDBConnection(GETENV_STRING(connectStr,"QWICS_DB_CONNECTSTR","dbname=qwics"));
     ret = loadmod();
+
+    PGresult *res = PQexec(conn, "COMMIT");
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        fprintf(stderr,"ERROR: COMMIT failed:\n%s", PQerrorMessage(conn));
+        PQexec(conn, "ROLLBACK");
+    }
+    PQclear(res);
+
     PQfinish(conn);
     cob_stop_run(ret);
 

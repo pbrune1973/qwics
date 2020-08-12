@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Database Connection Handler (currently PostgreSQL only)                         */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 11.08.2020                                  */
+/*   Author: Philipp Brune               Date: 12.08.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2020by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de                */
 /*                                                                                         */
@@ -44,11 +44,11 @@ PGconn *getDBConnection(char *conInfo) {
     }
 
     PGresult *res;
-    //res = PQexec(conn, "SET AUTOCOMMIT TO ON");
-    //if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-    //    printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
-    //}
-    //PQclear(res);
+    res = PQexec(conn, "START TRANSACTION ISOLATION LEVEL READ COMMITTED READ WRITE");
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
+    }
+    PQclear(res);
     res = PQexec(conn, "DROP TABLE IF EXISTS qwics_decl");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
         printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
