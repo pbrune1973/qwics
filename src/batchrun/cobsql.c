@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.08.2020                                  */
+/*   Author: Philipp Brune               Date: 13.08.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -27,6 +27,7 @@
 #include "../tpmserver/config.h"
 #include "../tpmserver/env/envconf.h"
 #include "db.h"
+#include "libjclpars.h"
 
 #ifdef __APPLE__
 #include "macosx/fmemopen.h"
@@ -260,44 +261,6 @@ int execCallback(char *cmd, void *var) {
 
 
 static int (*loadmod)();
-char *job = "";
-char *step = "";
-char *pgm = "";
-char jobId[9];
-
-
-char *getJob() {
-    return job;
-}
-
-
-char *getStep() {
-    return job;
-}
-
-
-char *getPgm() {
-    return job;
-}
-
-
-char *getJobId() {
-    jobId[0] = 'J';
-    jobId[1] = 'O';
-    jobId[2] = 'B';
-    int i = 3;
-    srandom((unsigned int)time(NULL));
-    while (i < 8) {
-        long r = 48 + random() % 10;
-        jobId[i] = (char)r;
-        i++;
-    }
-    jobId[8] = 0x00;
-
-    printf("getJobId = %s\n",jobId);
-    return jobId;
-}
-
 
 int main(int argc, char *argv[]) {
     int ret = 0;
