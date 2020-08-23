@@ -120,6 +120,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 		channelStack.add(new HashMap<String, HashMap<String, char[]>>());
 		channelStack.get(0).put("DFHTRANSACTION", new HashMap<String, char[]>());
 		channelStack.get(0).put("current", new HashMap<String, char[]>());
+		putMapValue("SYNCPOINT", "false");
 		try {
 			String trnId = "    ";
 			try {
@@ -365,6 +366,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 					mapNames.clear();
 					mapValues.clear();
 					nameIndices.clear();
+					putMapValue("SYNCPOINT", "false");
 					putMapValue("MAP_CMD", mapCmd);
 					readMapValues();
 					return true;
