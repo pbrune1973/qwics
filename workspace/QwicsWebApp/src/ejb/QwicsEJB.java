@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Java EE Web Application                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 17.02.2020                                  */
+/*   Author: Philipp Brune               Date: 23.08.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018-2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de          */
 /*                                                                                         */
@@ -131,6 +131,7 @@ public class QwicsEJB {
 				program = transactionProgNames.get(transId);
 				// System.out.println("Program name "+program);
 				try {
+					maps = (ResultSet)maps.getObject("THISMAP");
 					utx.commit();
 					utx.begin();
 					con.close();
@@ -138,6 +139,7 @@ public class QwicsEJB {
 					con.setClientInfo("TRANSID", transId);
 				} catch (Exception e) {
 					e.printStackTrace();
+					maps = (ResultSet)maps.getObject("THISMAP");
 					utx.rollback();
 					utx.begin();
 					con.close();
