@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.07.2020                                  */
+/*   Author: Philipp Brune               Date: 23.08.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1873,7 +1873,7 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"CONTROL") || strstr(cmd,"FREEKB") || strstr(cmd,"PROGRAM") || strstr(cmd,"XCTL") ||
             strstr(cmd,"ABEND") || strstr(cmd,"ABCODE") || strstr(cmd,"NODUMP") || strstr(cmd,"LINK") ||
             strstr(cmd,"FLENGTH") || strstr(cmd,"DATA") || strstr(cmd,"DATAPOINTER") || strstr(cmd,"SHARED") ||
-            strstr(cmd,"CWA") || strstr(cmd,"TWA") || strstr(cmd,"EIB") || strstr(cmd,"TCTUA") || strstr(cmd,"TCTUALENG") || strstr(cmd,"PUT") || strstr(cmd,"GET") ||
+            strstr(cmd,"CWA") || strstr(cmd,"TWA") || (strstr(cmd,"EIB") && !strstr(cmd,"EIBAID")) || strstr(cmd,"TCTUA") || strstr(cmd,"TCTUALENG") || strstr(cmd,"PUT") || strstr(cmd,"GET") ||
             strstr(cmd,"CONTAINER") || strstr(cmd,"CHANNEL") || strstr(cmd,"BYTEOFFSET") || strstr(cmd,"NODATA-FLENGTH") ||
             strstr(cmd,"INTOCCSID") || strstr(cmd,"INTOCODEPAGE") || strstr(cmd,"CONVERTST") || strstr(cmd,"CCSID") ||
             strstr(cmd,"FROMCCSID") || strstr(cmd,"FROMCODEPAGE") || strstr(cmd,"DATATYPE") ||
@@ -1921,8 +1921,6 @@ int execCallback(char *cmd, void *var) {
                 (*memParamsState) = 10;
             }
             if ((*cmdState) == -2) {
-                (*memParamsState) = 10;
-
                 if (strcmp(cmd,"LENGTH") == 0) {
                     (*memParamsState) = 1;
                 }
@@ -2356,6 +2354,7 @@ int execCallback(char *cmd, void *var) {
                         }
                     }
                     buf[pos] = 0x00;
+                    // printf("read %s\n",buf);
                     cob_put_picx(cobvar->data,cobvar->size,buf);
                 }
                 if (((*cmdState) == -2) && ((*memParamsState) == 2)) {
