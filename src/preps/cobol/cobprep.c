@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 19.08.2020                                  */
+/*   Author: Philipp Brune               Date: 22.08.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -681,9 +681,9 @@ void processCopyLine(char *buf, FILE *fp2) {
         if ((buf[i] == ' ') || (buf[i] == '\n') ||
             (buf[i] == '\r') || (buf[i] == '.') ||
             (buf[i] == ',')) {
-            if ((include >= 2) && (buf[i] == '.')) {
+            if ((include >= 2) && ((buf[i] == '.') || (buf[i] == '\n'))) {
                 if (include >= 4) {
-		    include = 0;
+		            include = 0;
                     if (includeCbk(cbkFile,fp2,findStr,replStr,0) < 0) {
                         includeCbkIO(cbkFile,fp2);
                     }
@@ -892,7 +892,7 @@ void processExecLine(char *buf, FILE *fp2) {
                     if (strstr(token,"TCTUA") != NULL) {
                         isPtrField = 1;
                     }
-                    if (strstr(token,"SET") != NULL) {
+                    if ((strstr(token,"SET") != NULL) && (strstr(token,"MAPSET") == NULL)) {
                         isPtrField = 1;
                     }
                     if (strstr(token,"DATA") != NULL) {
@@ -932,7 +932,7 @@ void processExecLine(char *buf, FILE *fp2) {
                     if (strstr(token,"START") != NULL) {
                         allowFromParam = 1;
                     }
-                    if (strstr(token,"MAP") != NULL) {
+                    if ((strstr(token,"MAP") != NULL) && (strstr(token,"MAPSET") == NULL)) {
                         mapNameMode = 1;
                     }
                     if (strstr(token,"MAPSET") != NULL) {
@@ -1102,6 +1102,7 @@ void processExecLine(char *buf, FILE *fp2) {
                     i++;
                     if (buf[i] == '\'') {
                         i--;
+                        value = 1;
                         continue;
                     }
                     while ((buf[i] != ')') || (bracketLevel > 0)) {
@@ -1197,7 +1198,7 @@ void processExecLine(char *buf, FILE *fp2) {
                             if (strstr(token,"START") != NULL) {
                                 allowFromParam = 1;
                             }
-                            if (strstr(token,"MAP") != NULL) {
+                            if ((strstr(token,"MAP") != NULL) && (strstr(token,"MAPSET") == NULL)) {
                                 mapNameMode = 1;
                             }
                             if (strstr(token,"MAPSET") != NULL) {
