@@ -2856,32 +2856,33 @@ int execCallback(char *cmd, void *var) {
         if ((strlen(cmd) == 0) && (var != NULL)) {
             cob_field *cobvar = (cob_field*)var;
             if ((*cmdState) < 2) {
-                FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
-                if ((COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) || 
-                    (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP)) putc('\'',f);
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP) {
-                    putc('\\',f);
-                    putc('x',f);
+                    end[0] = '\'';
+                    end[1] = '\\';
+                    end[2] = 'x';
                     int i = 0;
                     char hex[3];
                     for (i = 0; i < cobvar->size; i++) {
-                        sprintf(hex,"%02X",cobvar->data[i]);
-                        putc(hex[0],f);
-                        putc(hex[1],f);
+                        sprintf(hex,"%02X",(unsigned char)cobvar->data[i]);
+                        end[3+i*2] = hex[0];
+                        end[4+i*2] = hex[1];
                     }
+                    end[3+i*2] = ' ';
+                    end[4+i*2] = 0x00;
                 } else {
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
+                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
                        display_cobfield(cobvar,f);
                     }
+                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
+                    putc(' ',f);
+                    putc(0x00,f);
+                    fclose(f);
                 }
-                if ((COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) || 
-                    (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP)) putc('\'',f);
-                putc(' ',f);
-                putc(0x00,f);
-                fclose(f);
             } else {
                 int index = (*cmdState)-2;
                 if (index <= 98) {
