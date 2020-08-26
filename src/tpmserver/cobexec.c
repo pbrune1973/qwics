@@ -41,6 +41,8 @@
 #include "macosx/fmemopen.h"
 #endif
 
+#define CMDBUF_SIZE 32768
+
 #define execSql(sql, fd) _execSql(sql, fd, 1)
 
 // Keys for thread specific data
@@ -2328,7 +2330,7 @@ int execCallback(char *cmd, void *var) {
                 if ((*cmdState) == -1) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
@@ -2374,7 +2376,7 @@ int execCallback(char *cmd, void *var) {
                     // WRITEQ LENGTH
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
@@ -2391,7 +2393,7 @@ int execCallback(char *cmd, void *var) {
                 if ((*cmdState) == -3) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
@@ -2439,7 +2441,7 @@ int execCallback(char *cmd, void *var) {
                 if ((*cmdState) == -5) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
@@ -2503,7 +2505,7 @@ int execCallback(char *cmd, void *var) {
                     !(((*cmdState) == -23) && ((*memParamsState) == 4))) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
@@ -2525,7 +2527,7 @@ int execCallback(char *cmd, void *var) {
                     // GETMAIN LENGTH/FLENGTH param value
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
@@ -2584,7 +2586,7 @@ int execCallback(char *cmd, void *var) {
                     // PUT FLENGTH param value
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
@@ -2611,7 +2613,7 @@ int execCallback(char *cmd, void *var) {
                     // GET FLENGTH param value
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
@@ -2648,7 +2650,7 @@ int execCallback(char *cmd, void *var) {
                     // ENQ LENGTH
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
@@ -2671,7 +2673,7 @@ int execCallback(char *cmd, void *var) {
                     // DEQ LENGTH
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
@@ -2702,7 +2704,7 @@ int execCallback(char *cmd, void *var) {
                     // WRITEQ LENGTH
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
@@ -2733,7 +2735,7 @@ int execCallback(char *cmd, void *var) {
                     // READQ LENGTH
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
@@ -2800,7 +2802,7 @@ int execCallback(char *cmd, void *var) {
                     // START TRANSID LENGTH
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
@@ -2854,15 +2856,9 @@ int execCallback(char *cmd, void *var) {
         if ((strlen(cmd) == 0) && (var != NULL)) {
             cob_field *cobvar = (cob_field*)var;
             if ((*cmdState) < 2) {
-                FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
+                FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                 if ((COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) || 
                     (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP)) putc('\'',f);
-                if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
-                    (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
-                    (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
-                    (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
-                    display_cobfield(cobvar,f);
-                }
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP) {
                     putc('\\',f);
                     putc('x',f);
@@ -2872,6 +2868,13 @@ int execCallback(char *cmd, void *var) {
                         sprintf(hex,"%02X",cobvar->data[i]);
                         putc(hex[0],f);
                         putc(hex[1],f);
+                    }
+                } else {
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
+                       display_cobfield(cobvar,f);
                     }
                 }
                 if ((COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) || 
@@ -3000,7 +3003,7 @@ void clearExec(int initCons) {
 
 
 void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
-    char cmdbuf[2048];
+    char cmdbuf[CMDBUF_SIZE];
     int cmdState = 0;
     int runState = 0;
     int xctlState = 0;
@@ -3129,7 +3132,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
 
 // Exec COBOL module within an existing DB transaction
 void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
-    char cmdbuf[2048];
+    char cmdbuf[CMDBUF_SIZE];
     int cmdState = 0;
     int runState = 0;
     int xctlState = 0;
