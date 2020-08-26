@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 23.08.2020                                  */
+/*   Author: Philipp Brune               Date: 26.08.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -345,6 +345,10 @@ int processCmd(char *cmd, cob_field **outputVars) {
                 if (rows > 0) {
                     while (outputVars[i] != NULL) {
                         if (i < cols) {
+                            if (outputVars[i]->attr->type == COB_TYPE_GROUP) {
+                                unsigned char *v = (unsigned char*)PQgetvalue(res, 0, i);
+                                memcpy(outputVars[i]->data,v,outputVars[i]->size);
+                            } else 
                             if (outputVars[i]->attr->type == COB_TYPE_NUMERIC) {
                               char buf[256];
                               cob_put_picx(outputVars[i]->data,outputVars[i]->size,
@@ -2851,14 +2855,27 @@ int execCallback(char *cmd, void *var) {
             cob_field *cobvar = (cob_field*)var;
             if ((*cmdState) < 2) {
                 FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
+                if ((COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) || 
+                    (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP)) putc('\'',f);
                 if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                     (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                     (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
                     (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
                     display_cobfield(cobvar,f);
                 }
-                if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
+                if (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP) {
+                    putc('\\',f);
+                    putc('x',f);
+                    int i = 0;
+                    char hex[3];
+                    for (i = 0; i < cobvar->size; i++) {
+                        sprintf(hex,"%02X",cobvar->data[i]);
+                        putc(hex[0],f);
+                        putc(hex[1],f);
+                    }
+                }
+                if ((COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) || 
+                    (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP)) putc('\'',f);
                 putc(' ',f);
                 putc(0x00,f);
                 fclose(f);
