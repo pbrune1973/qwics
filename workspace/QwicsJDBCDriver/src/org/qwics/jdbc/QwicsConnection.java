@@ -57,6 +57,7 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -89,6 +90,7 @@ public class QwicsConnection implements Connection {
 	private String conId = "";
 	private HashMap<String, String> clientInfo = new HashMap<String, String>();
 	private static Integer termIdCounter = 1;
+	private ResultSet continueResultSet = null;
 
 	private void createConId() {
 		Random rand = new Random();
@@ -125,10 +127,10 @@ public class QwicsConnection implements Connection {
 				socket = new Socket(host, port);
 			} else {
 				socket = AFUNIXSocket.newInstance();
-				socket.connect(new AFUNIXSocketAddress(new File(host)));				
+				socket.connect(new AFUNIXSocketAddress(new File(host)));
 			}
-			socketWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(),"ISO-8859-1"));
-			socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream(),"ISO-8859-1"));
+			socketWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), "ISO-8859-1"));
+			socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), "ISO-8859-1"));
 			sendSql("BEGIN");
 			closed = false;
 		} catch (Exception e) {
@@ -139,6 +141,7 @@ public class QwicsConnection implements Connection {
 
 	public int sendSql(String sql) throws SQLException {
 		try {
+			System.err.println("Send sql " + sql);
 			socketWriter.write("sql " + sql);
 			socketWriter.newLine();
 			socketWriter.flush();
@@ -545,6 +548,14 @@ public class QwicsConnection implements Connection {
 
 	public HashMap<String, Integer> getNameIndices() {
 		return nameIndices;
+	}
+
+	public ResultSet getContinueResultSet() {
+		return continueResultSet;
+	}
+
+	public void setContinueResultSet(ResultSet continueResultSet) {
+		this.continueResultSet = continueResultSet;
 	}
 
 }

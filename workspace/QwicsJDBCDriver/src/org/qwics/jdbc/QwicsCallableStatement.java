@@ -151,6 +151,9 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 
 	@Override
 	public ResultSet executeQuery() throws SQLException {
+		if (preparedSql.startsWith("CONTINUE") && (conn.getContinueResultSet() != null)) {
+			return conn.getContinueResultSet();
+		}
 		if (preparedSql.startsWith("PROGRAM ")) {
 			conn.sendCmd(preparedSql);
 			try {
@@ -158,6 +161,7 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 				if ("OK".equals(resp)) {
 					String progId = preparedSql.substring(8).trim();
 					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID, progId);
+					conn.setContinueResultSet(resultSet);
 					return resultSet;
 				}
 			} catch (Exception e) {
@@ -175,6 +179,7 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 				if ("OK".equals(resp)) {
 					String progId = preparedSql.substring(7).trim();
 					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID, progId);
+					conn.setContinueResultSet(resultSet);
 					return resultSet;
 				}
 			} catch (Exception e) {
@@ -541,6 +546,9 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 
 	@Override
 	public ResultSet executeQuery(String sql) throws SQLException {
+		if (preparedSql.startsWith("CONTINUE") && (conn.getContinueResultSet() != null)) {
+			return conn.getContinueResultSet();
+		}
 		this.sql = sql;
 		this.preparedSql = sql;
 		if (preparedSql.startsWith("PROGRAM ")) {
@@ -550,6 +558,7 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 				if ("OK".equals(resp)) {
 					String progId = preparedSql.substring(8).trim();
 					resultSet = new QwicsMapResultSet(conn, eibCALen, eibAID, progId);
+					conn.setContinueResultSet(resultSet);
 					return resultSet;
 				}
 			} catch (Exception e) {
@@ -562,6 +571,7 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 				String resp = conn.readResult();
 				if ("OK".equals(resp)) {
 					resultSet = new QwicsResultSet(conn);
+					conn.setContinueResultSet(resultSet);
 					return resultSet;
 				}
 			} catch (Exception e) {
