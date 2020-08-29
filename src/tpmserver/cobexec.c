@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 26.08.2020                                  */
+/*   Author: Philipp Brune               Date: 28.08.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -348,8 +348,15 @@ int processCmd(char *cmd, cob_field **outputVars) {
                     while (outputVars[i] != NULL) {
                         if (i < cols) {
                             if (outputVars[i]->attr->type == COB_TYPE_GROUP) {
-                                unsigned char *v = (unsigned char*)PQgetvalue(res, 0, i);
-                                memcpy(outputVars[i]->data,v,outputVars[i]->size);
+                                // Map VARCHAR to group struct
+                                char *v = (char*)PQgetvalue(res, 0, i);
+                                unsigned int l = (unsigned int)strlen(v);
+		                if (l > (outputVars[i]->size-2)) {
+                                   l = outputVars[i]->size-2;
+                                }
+	                        outputVars[i]->data[0] = (unsigned char)((l >> 8) & 0xFF);
+	                        outputVars[i]->data[1] = (unsigned char)(l & 0xFF);
+                                memcpy(&outputVars[i]->data[2],v,l);
                             } else 
                             if (outputVars[i]->attr->type == COB_TYPE_NUMERIC) {
                               char buf[256];
@@ -886,7 +893,7 @@ int execCallback(char *cmd, void *var) {
 
     struct taskLock *taskLocks = (struct taskLock *)pthread_getspecific(taskLocksKey);
 
-    // printf("%s %s %d %d %x\n","execCallback",cmd,*cmdState,*memParamsState,var);
+    printf("%s %s %d %d %x\n","execCallback",cmd,*cmdState,*memParamsState,var);
 
     if (strstr(cmd,"SET SQLCODE") && (var != NULL)) {
         sqlcode = var;
@@ -1245,6 +1252,7 @@ int execCallback(char *cmd, void *var) {
         }
         if (strcmp(cmd,"SYNCPOINT") == 0) {
             sprintf(cmdbuf,"%s%s",cmd,"\n");
+printf("EXEC %s\n",cmd);
             write(childfd,cmdbuf,strlen(cmdbuf));
             cmdbuf[0] = 0x00;
             (*cmdState) = -13;
@@ -1656,6 +1664,7 @@ int execCallback(char *cmd, void *var) {
                     }
                   }
                   buf[pos] = 0x00;
+printf("END SYNCPOINT %s\n",buf);
                   if (pos > 0) {
                     char *cmd = strstr(buf,"sql");
                     if (cmd) {
@@ -2857,18 +2866,33 @@ int execCallback(char *cmd, void *var) {
             cob_field *cobvar = (cob_field*)var;
             if ((*cmdState) < 2) {
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP) {
-                    end[0] = '\'';
-                    end[1] = '\\';
-                    end[2] = 'x';
-                    int i = 0;
-                    char hex[3];
-                    for (i = 0; i < cobvar->size; i++) {
-                        sprintf(hex,"%02X",(unsigned char)cobvar->data[i]);
-                        end[3+i*2] = hex[0];
-                        end[4+i*2] = hex[1];
+		    // Treat as VARCHAR field
+		    unsigned int l = (unsigned int)cobvar->data[0];	
+                    l = (l << 8) | (unsigned int)cobvar->data[1];
+		    if (l > (cobvar->size-2)) {
+                       l = cobvar->size-2;
                     }
-                    end[3+i*2] = ' ';
-                    end[4+i*2] = 0x00;
+                    end[0] = '\'';
+                    int i = 0;
+                    for (i = 0; i < l; i++) {
+                        unsigned char c = cobvar->data[i+2];
+                        if ((c & 0x80) == 0) {
+                           // Plain ASCII
+                           end[1+i] = c; 
+                        } else {
+                           // Convert ext. ASCII to UTF-8
+                           unsigned char c1 = 0xC0;
+                           c1 = c1 | ((c & 0xC0) >> 6);
+                           end[1+i] = c1; 
+                           i++;
+                           c1 = 0x80;
+                           c1 = c1 | (c & 0x3F);
+                           end[1+i] = c1;
+                        }
+                    }
+                    end[1+i] = '\'';
+                    end[2+i] = ' ';
+                    end[3+i] = 0x00;
                 } else {
                     FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
                     if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
