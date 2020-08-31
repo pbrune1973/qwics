@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.08.2020                                  */
+/*   Author: Philipp Brune               Date: 31.08.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -351,11 +351,11 @@ int processCmd(char *cmd, cob_field **outputVars) {
                                 // Map VARCHAR to group struct
                                 char *v = (char*)PQgetvalue(res, 0, i);
                                 unsigned int l = (unsigned int)strlen(v);
-		                if (l > (outputVars[i]->size-2)) {
+		                        if (l > (outputVars[i]->size-2)) {
                                    l = outputVars[i]->size-2;
                                 }
-	                        outputVars[i]->data[0] = (unsigned char)((l >> 8) & 0xFF);
-	                        outputVars[i]->data[1] = (unsigned char)(l & 0xFF);
+	                            outputVars[i]->data[0] = (unsigned char)((l >> 8) & 0xFF);
+	                            outputVars[i]->data[1] = (unsigned char)(l & 0xFF);
                                 memcpy(&outputVars[i]->data[2],v,l);
                             } else 
                             if (outputVars[i]->attr->type == COB_TYPE_NUMERIC) {
@@ -893,7 +893,7 @@ int execCallback(char *cmd, void *var) {
 
     struct taskLock *taskLocks = (struct taskLock *)pthread_getspecific(taskLocksKey);
 
-    printf("%s %s %d %d %x\n","execCallback",cmd,*cmdState,*memParamsState,var);
+    // printf("%s %s %d %d %x\n","execCallback",cmd,*cmdState,*memParamsState,var);
 
     if (strstr(cmd,"SET SQLCODE") && (var != NULL)) {
         sqlcode = var;
@@ -1015,7 +1015,7 @@ int execCallback(char *cmd, void *var) {
         cob_field *cobvar = (cob_field*)var;
         if (cobvar->data != NULL) {
             int n = 0;
-            for (n = 0; n < 150; n++) {
+            for (n = 0; n < cobvar->size; n++) {
                 ((char*)cobvar->data)[n] = eibbuf[n];
             }
         }
@@ -1252,7 +1252,6 @@ int execCallback(char *cmd, void *var) {
         }
         if (strcmp(cmd,"SYNCPOINT") == 0) {
             sprintf(cmdbuf,"%s%s",cmd,"\n");
-printf("EXEC %s\n",cmd);
             write(childfd,cmdbuf,strlen(cmdbuf));
             cmdbuf[0] = 0x00;
             (*cmdState) = -13;
@@ -1664,12 +1663,11 @@ printf("EXEC %s\n",cmd);
                     }
                   }
                   buf[pos] = 0x00;
-printf("END SYNCPOINT %s\n",buf);
                   if (pos > 0) {
                     char *cmd = strstr(buf,"sql");
                     if (cmd) {
                       char *sql = cmd+4;
-                      execSql(sql, &childfd);
+                      execSql(sql, pthread_getspecific(childfdKey));
                     }
                   }
                 }
@@ -2866,10 +2864,10 @@ printf("END SYNCPOINT %s\n",buf);
             cob_field *cobvar = (cob_field*)var;
             if ((*cmdState) < 2) {
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP) {
-		    // Treat as VARCHAR field
-		    unsigned int l = (unsigned int)cobvar->data[0];	
+		            // Treat as VARCHAR field
+		            unsigned int l = (unsigned int)cobvar->data[0];	
                     l = (l << 8) | (unsigned int)cobvar->data[1];
-		    if (l > (cobvar->size-2)) {
+		            if (l > (cobvar->size-2)) {
                        l = cobvar->size-2;
                     }
                     end[0] = '\'';
