@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.08.2020                                  */
+/*   Author: Philipp Brune               Date: 01.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -119,6 +119,10 @@ struct chnBuf {
     unsigned char *buf;
 };
 
+char *cobDateFormat = "YYYY-MM-dd.hh:mm:ss.uuuu";
+char *dbDateFormat = "dd-MM-YYYY hh:mm:ss.uuu";
+char result[30];
+
 
 unsigned char *getNextChnBuf(int size) {
     int *chnBufListPtr = (int*)pthread_getspecific(chnBufListPtrKey);
@@ -223,6 +227,53 @@ void setNumericValue(long v, cob_field *cobvar) {
     if (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) {
         cob_put_s64_comp5(v,cobvar->data,cobvar->size);
     }
+}
+
+
+char* adjustDateFormatToDb(char *str, int len) {
+    int i = 0, l = strlen(cobDateFormat), pos = 0;
+    char lastc = ' ';
+    if (len < l) {
+        return str;
+    }
+    // Check if str is date
+    for (i = 0; i < l; i++) {
+        if ((cobDateFormat[i] == '-') || (cobDateFormat[i] == ' ') || 
+            (cobDateFormat[i] == ':') || (cobDateFormat[i] == '.')) {
+            if (cobDateFormat[i] != str[i]) {
+                return str;
+            }       
+        }
+    }
+
+    for (i = 0; i < strlen(dbDateFormat); i++) {
+        if ((dbDateFormat[i] == '-') || (dbDateFormat[i] == ' ') || 
+            (dbDateFormat[i] == ':') || (dbDateFormat[i] == '.')) {
+            result[i] = dbDateFormat[i];
+            continue;
+        } else {
+            if (lastc != dbDateFormat[i]) {
+                int j = 0;
+                while (j < l) {
+                    if (dbDateFormat[i] == cobDateFormat[j]) {
+                        break;
+                    }
+                    j++;
+                }                
+                if (j < l) {
+                    pos = j;
+                } else {
+                    return result;                    
+                }
+                lastc = dbDateFormat[i];
+            }
+
+            result[i] = str[pos];
+            pos++;
+        }
+    }
+
+    return result;
 }
 
 
@@ -2891,16 +2942,38 @@ int execCallback(char *cmd, void *var) {
                     end[1+i] = '\'';
                     end[2+i] = ' ';
                     end[3+i] = 0x00;
+                } else
+                if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) {
+                    char *str = adjustDateFormatToDb((char*)cobvar->data,cobvar->size);
+                    end[0] = '\'';
+                    int i = 0, j = 1;
+                    for (i = 0; i < cobvar->size; i++, j++) {
+                        unsigned char c = cobvar->data[i];
+                        if ((c & 0x80) == 0) {
+                           // Plain ASCII
+                           end[j] = c; 
+                        } else {
+                           // Convert ext. ASCII to UTF-8
+                           unsigned char c1 = 0xC0;
+                           c1 = c1 | ((c & 0xC0) >> 6);
+                           end[j] = c1; 
+                           j++;
+                           c1 = 0x80;
+                           c1 = c1 | (c & 0x3F);
+                           end[j] = c1;
+                        }
+                    }
+                    end[j] = '\'';
+                    end[j+1] = ' ';
+                    end[j+2] = 0x00;
                 } else {
                     FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
-                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                    if ((getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
                        display_cobfield(cobvar,f);
                     }
-                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
                     putc(' ',f);
                     putc(0x00,f);
                     fclose(f);
@@ -3004,6 +3077,8 @@ void initExec(int initCons) {
 
     setUpPool(10, GETENV_STRING(connectStr,"QWICS_DB_CONNECTSTR","dbname=qwics"), initCons);
     currentMap[0] = 0x00;
+
+    GETENV_STRING(cobDateFormat,"QWICS_COBDATEFORMAT","YYYY-MM-dd.hh:mm:ss.uuuu");
 }
 
 
