@@ -119,7 +119,7 @@ struct chnBuf {
     unsigned char *buf;
 };
 
-char *cobDateFormat = "YYYY-MM-dd.hh:mm:ss.uuuu";
+char *cobDateFormat = "YYYY-MM-dd-hh.mm.ss.uuuuu";
 char *dbDateFormat = "dd-MM-YYYY hh:mm:ss.uuu";
 char result[30];
 
