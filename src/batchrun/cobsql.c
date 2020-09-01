@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 13.08.2020                                  */
+/*   Author: Philipp Brune               Date: 01.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -33,15 +33,21 @@
 #include "macosx/fmemopen.h"
 #endif
 
+#define CMDBUF_SIZE 32768
+
 // SQLCA
 cob_field *sqlcode = NULL;
 
 char *connectStr = NULL;
 PGconn *conn = NULL;
-char _cmdbuf[2048];
+char _cmdbuf[CMDBUF_SIZE];
 int _cmdState = 0;
 char *end = NULL;
 cob_field* outputVars[100];
+
+char *cobDateFormat = "YYYY-MM-dd-hh.mm.ss.uuuuu";
+char *dbDateFormat = "dd-MM-YYYY hh:mm:ss.uuu";
+char result[30];
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
@@ -126,6 +132,56 @@ void setNumericValue(long v, cob_field *cobvar) {
 }
 
 
+char* adjustDateFormatToDb(char *str, int len) {
+    int i = 0, l = strlen(cobDateFormat), pos = 0;
+    char lastc = ' ';
+    if (len < l) {
+        return str;
+    }
+    // Check if str is date
+    for (i = 0; i < l; i++) {
+        if ((cobDateFormat[i] == '-') || (cobDateFormat[i] == ' ') || 
+            (cobDateFormat[i] == ':') || (cobDateFormat[i] == '.')) {
+            if (cobDateFormat[i] != str[i]) {
+                return str;
+            }       
+        }
+    }
+
+    memset(result,' ',len);
+    result[len] = 0x00;
+
+    for (i = 0; i < strlen(dbDateFormat); i++) {
+        if ((dbDateFormat[i] == '-') || (dbDateFormat[i] == ' ') || 
+            (dbDateFormat[i] == ':') || (dbDateFormat[i] == '.')) {
+            result[i] = dbDateFormat[i];
+            continue;
+        } else {
+            if (lastc != dbDateFormat[i]) {
+                int j = 0;
+                while (j < l) {
+                    if (dbDateFormat[i] == cobDateFormat[j]) {
+                        break;
+                    }
+                    j++;
+                }                
+                if (j < l) {
+                    pos = j;
+                } else {
+                    return result;                    
+                }
+                lastc = dbDateFormat[i];
+            }
+
+            result[i] = str[pos];
+            pos++;
+        }
+    }
+
+    return result;
+}
+
+
 void setSQLCA(int code, char *state) {
     if (sqlcode != NULL) {
         cob_field sqlstate = { 5, sqlcode->data+119, NULL };
@@ -159,6 +215,17 @@ int processCmd(char *cmd) {
                 if (rows > 0) {
                     while (outputVars[i] != NULL) {
                         if (i < cols) {
+                            if (outputVars[i]->attr->type == COB_TYPE_GROUP) {
+                                // Map VARCHAR to group struct
+                                char *v = (char*)PQgetvalue(res, 0, i);
+                                unsigned int l = (unsigned int)strlen(v);
+		                        if (l > (outputVars[i]->size-2)) {
+                                   l = outputVars[i]->size-2;
+                                }
+	                            outputVars[i]->data[0] = (unsigned char)((l >> 8) & 0xFF);
+	                            outputVars[i]->data[1] = (unsigned char)(l & 0xFF);
+                                memcpy(&outputVars[i]->data[2],v,l);
+                            } else 
                             if (outputVars[i]->attr->type == COB_TYPE_NUMERIC) {
                               char buf[256];
                               cob_put_picx(outputVars[i]->data,outputVars[i]->size,
@@ -219,18 +286,70 @@ int execCallback(char *cmd, void *var) {
         if ((strlen(cmd) == 0) && (var != NULL)) {
             cob_field *cobvar = (cob_field*)var;
             if ((*cmdState) < 2) {
-                FILE *f = fmemopen(end, 2048-strlen(cmdbuf), "w");
-                if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
-                    (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
-                    (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
-                    (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
-                    display_cobfield(cobvar,f);
+                if (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP) {
+		            // Treat as VARCHAR field
+		            unsigned int l = (unsigned int)cobvar->data[0];	
+                    l = (l << 8) | (unsigned int)cobvar->data[1];
+		            if (l > (cobvar->size-2)) {
+                       l = cobvar->size-2;
+                    }
+                    end[0] = '\'';
+                    int i = 0;
+                    for (i = 0; i < l; i++) {
+                        unsigned char c = cobvar->data[i+2];
+                        if ((c & 0x80) == 0) {
+                           // Plain ASCII
+                           end[1+i] = c; 
+                        } else {
+                           // Convert ext. ASCII to UTF-8
+                           unsigned char c1 = 0xC0;
+                           c1 = c1 | ((c & 0xC0) >> 6);
+                           end[1+i] = c1; 
+                           i++;
+                           c1 = 0x80;
+                           c1 = c1 | (c & 0x3F);
+                           end[1+i] = c1;
+                        }
+                    }
+                    end[1+i] = '\'';
+                    end[2+i] = ' ';
+                    end[3+i] = 0x00;
+                } else
+                if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) {
+                    char *str = adjustDateFormatToDb((char*)cobvar->data,cobvar->size);
+                    end[0] = '\'';
+                    int i = 0, j = 1;
+                    for (i = 0; i < cobvar->size; i++, j++) {
+                        unsigned char c = cobvar->data[i];
+                        if ((c & 0x80) == 0) {
+                           // Plain ASCII
+                           end[j] = c; 
+                        } else {
+                           // Convert ext. ASCII to UTF-8
+                           unsigned char c1 = 0xC0;
+                           c1 = c1 | ((c & 0xC0) >> 6);
+                           end[j] = c1; 
+                           j++;
+                           c1 = 0x80;
+                           c1 = c1 | (c & 0x3F);
+                           end[j] = c1;
+                        }
+                    }
+                    end[j] = '\'';
+                    end[j+1] = ' ';
+                    end[j+2] = 0x00;
+                } else {
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
+                    if ((getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
+                       display_cobfield(cobvar,f);
+                    }
+                    putc(' ',f);
+                    putc(0x00,f);
+                    fclose(f);
                 }
-                if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
-                putc(' ',f);
-                putc(0x00,f);
-                fclose(f);
             } else {
                 int index = (*cmdState)-2;
                 if (index <= 98) {
@@ -280,6 +399,8 @@ int main(int argc, char *argv[]) {
         step = argv[3];
         pgm = argv[4];
     }
+
+    GETENV_STRING(cobDateFormat,"QWICS_COBDATEFORMAT","YYYY-MM-dd.hh:mm:ss.uuuu");
 
     fprintf(stdout,"Starting batchrun of %s\n",argv[1]);
     performEXEC = &execCallback;
