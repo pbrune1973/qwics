@@ -246,6 +246,9 @@ char* adjustDateFormatToDb(char *str, int len) {
         }
     }
 
+    memset(result,' ',len);
+    result[len] = 0x00;
+
     for (i = 0; i < strlen(dbDateFormat); i++) {
         if ((dbDateFormat[i] == '-') || (dbDateFormat[i] == ' ') || 
             (dbDateFormat[i] == ':') || (dbDateFormat[i] == '.')) {
