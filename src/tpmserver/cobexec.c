@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.09.2020                                  */
+/*   Author: Philipp Brune               Date: 02.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1812,6 +1812,11 @@ int execCallback(char *cmd, void *var) {
                 resp2 = atoi(buf);
                 if (resp > 0) {
                   abend(resp,resp2);
+                  if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) {
+                      memset(cobvar->data,' ',cobvar->size);
+                  } else {
+                      memset(cobvar->data,0x00,cobvar->size);
+                  }
                 }
             }
             if ((*cmdState) == -16) {
