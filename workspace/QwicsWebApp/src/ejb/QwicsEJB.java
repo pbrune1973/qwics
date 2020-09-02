@@ -94,28 +94,28 @@ public class QwicsEJB {
 			if (isSend && maps.getBoolean("SYNCPOINT")) {
 				if (!maps.getBoolean("ROLLBACK")) {
 					try {
-						maps = (ResultSet)maps.getObject("THISMAP");
 						utx.commit();
 						utx.begin();
 						con.close();
 						con = datasource.getConnection(conId, "");
+						maps = con.prepareCall("CONTINUE").executeQuery();						
 						maps.updateString("SYNCPOINTRESULT", "COMMIT");
 					} catch (Exception e) {
 						e.printStackTrace();
-						maps = (ResultSet)maps.getObject("THISMAP");
-						maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 						utx.rollback();
 						utx.begin();
 						con.close();
 						con = datasource.getConnection(conId, "");
+						maps = con.prepareCall("CONTINUE").executeQuery();
+						maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 					}
 				} else {
-					maps = (ResultSet)maps.getObject("THISMAP");
-					maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 					utx.rollback();
 					utx.begin();
 					con.close();
 					con = datasource.getConnection(conId, "");
+					maps = con.prepareCall("CONTINUE").executeQuery();
+					maps.updateString("SYNCPOINTRESULT", "ROLLBACK");
 				}
 				continue;
 			}
@@ -131,20 +131,20 @@ public class QwicsEJB {
 				program = transactionProgNames.get(transId);
 				// System.out.println("Program name "+program);
 				try {
-					maps = (ResultSet)maps.getObject("THISMAP");
 					utx.commit();
 					utx.begin();
 					con.close();
 					con = datasource.getConnection(conId, "");
 					con.setClientInfo("TRANSID", transId);
+					maps = con.prepareCall("CONTINUE").executeQuery();
 				} catch (Exception e) {
 					e.printStackTrace();
-					maps = (ResultSet)maps.getObject("THISMAP");
 					utx.rollback();
 					utx.begin();
 					con.close();
 					con = datasource.getConnection(conId, "");
 					con.setClientInfo("TRANSID", transId);
+					maps = con.prepareCall("CONTINUE").executeQuery();
 					return false;
 				}
 				if ((transId != null) && (transId.length() > 0)) {
