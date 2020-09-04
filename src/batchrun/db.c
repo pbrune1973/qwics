@@ -133,7 +133,7 @@ int execSQL(PGconn *conn, char *sql) {
         return ret;
     }
 
-    if (strstr(sql,"COMMIT") || strstr("ROLLBACK")) {
+    if (strstr(sql,"COMMIT") || strstr(sql,"ROLLBACK")) {
         res = PQexec(conn, "DROP TABLE IF EXISTS qwics_decl");
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
             printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
