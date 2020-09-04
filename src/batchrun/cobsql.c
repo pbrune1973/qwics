@@ -332,7 +332,7 @@ int execCallback(char *cmd, void *var) {
                     end[0] = '\'';
                     int i = 0, j = 1;
                     for (i = 0; i < cobvar->size; i++, j++) {
-                        unsigned char c = cobvar->data[i];
+                        unsigned char c = str[i];
                         if ((c & 0x80) == 0) {
                            // Plain ASCII
                            end[j] = c; 

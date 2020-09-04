@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Database Connection Handler (currently PostgreSQL only)                         */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.08.2020                                  */
+/*   Author: Philipp Brune               Date: 04.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2020by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de                */
 /*                                                                                         */
@@ -132,6 +132,15 @@ int execSQL(PGconn *conn, char *sql) {
     if (checkSQL(conn,sql) > 0) {
         return ret;
     }
+
+    if (strstr(sql,"COMMIT") || strstr("ROLLBACK")) {
+        res = PQexec(conn, "DROP TABLE IF EXISTS qwics_decl");
+        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+            printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
+        }
+        PQclear(res);
+    }
+
     res = PQexec(conn, sql);
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
         printf("ERROR: Failure while executing SQL %s:\n %s", sql, PQerrorMessage(conn));
