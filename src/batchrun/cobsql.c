@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.09.2020                                  */
+/*   Author: Philipp Brune               Date: 04.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -143,6 +143,18 @@ char* adjustDateFormatToDb(char *str, int len) {
         if ((cobDateFormat[i] == '-') || (cobDateFormat[i] == ' ') || 
             (cobDateFormat[i] == ':') || (cobDateFormat[i] == '.')) {
             if (cobDateFormat[i] != str[i]) {
+                if ((i == 10) &&
+                    (cobDateFormat[i] == '-') && (str[i] == ' ')) {
+                   continue;
+                }
+                if ((i == 13) &&
+                    (cobDateFormat[i] == '.') && (str[i] == ':')) {
+                   continue;
+                }
+                if ((i == 16) &&
+                    (cobDateFormat[i] == '.') && (str[i] == ':')) {
+                   continue;
+                }
                 return str;
             }       
         }
