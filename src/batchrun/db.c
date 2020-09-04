@@ -75,8 +75,18 @@ int checkSQL(PGconn *conn, char *sql) {
         }
         token[pos] = 0x00;
 
+        if (state == 3) {
+            char q[255];
+            sprintf(q,"DELETE FROM qwics_decl WHERE curname='%s'",token);
+            res = PQexec(conn, q);
+            if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+                printf("ERROR: Failure while executing SQL %s:\n %s", q, PQerrorMessage(conn));
+                PQclear(res);
+                return 0;
+            }
+        }
         if (state == 1) {
-            // Remeber delared cursors in temp table
+            // Remember delared cursors in temp table
             res = PQexec(conn, "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text)");
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
                 printf("ERROR: Failure while executing SQL %s:\n %s", 
@@ -113,6 +123,10 @@ int checkSQL(PGconn *conn, char *sql) {
             if (strcmp(token,"OPEN") == 0) {
                 return 1;
             }
+            if (strcmp(token,"CLOSE") == 0) {
+                pos = 0;
+                state = 3;
+            } else
             if (strcmp(token,"DECLARE") == 0) {
                 pos = 0;
                 state++;
