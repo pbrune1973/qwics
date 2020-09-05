@@ -89,10 +89,11 @@ int checkSQL(PGconn *conn, char *sql) {
         }
         if (state == 1) {
             // Remember delared cursors in temp table
-            res = PQexec(conn, "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text)");
+            res = PQexec(conn, "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)");
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
                 printf("ERROR: Failure while executing SQL %s:\n %s", 
-                        "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text)", PQerrorMessage(conn));
+                        "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)", 
+                        PQerrorMessage(conn));
                 PQclear(res);
                 return 0;
             }
@@ -118,6 +119,15 @@ int checkSQL(PGconn *conn, char *sql) {
                 printf("ERROR: Failure while executing SQL %s:\n %s", q, PQerrorMessage(conn));
             }
             PQclear(res);
+
+            if (strstr(sql,"WITH HOLD") != NULL) {
+               sprintf(q,"UPDATE qwics_decl SET curhold=true WHERE curname='%s'",token);
+               res = PQexec(conn, q);
+               if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+                   printf("ERROR: Failure while executing SQL %s:\n %s", q, PQerrorMessage(conn));
+               }
+               PQclear(res);
+            }
 
             state++;
         }
@@ -157,11 +167,11 @@ int execSQL(PGconn *conn, char *sql) {
     }
 
     if (strstr(sql,"COMMIT") || strstr(sql,"ROLLBACK")) {
-        res = PQexec(conn, "DROP TABLE IF EXISTS qwics_decl");
-        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-            printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
-        }
-        PQclear(res);
+       res = PQexec(conn, "DELETE FROM qwics_decl WHERE curhold=false");
+       if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+           printf("ERROR: SYNC connection problem: %s", PQerrorMessage(conn));
+       }
+       PQclear(res);
     }
 
     res = PQexec(conn, sql);
