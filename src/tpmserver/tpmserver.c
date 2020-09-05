@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Main Tcp Connection Handler                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 26.06.2020                                  */
+/*   Author: Philipp Brune               Date: 05.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018-2020 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
 /*                                                                                         */
@@ -98,7 +98,7 @@ void *handle_client(void *fd) {
       }
     }
   }
-  _execSql("COMMIT", &childfd, 0);
+  _execSql("COMMIT", &childfd, 0, 0);
   close(childfd);
   return NULL;
 }

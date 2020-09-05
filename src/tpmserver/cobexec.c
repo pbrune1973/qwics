@@ -43,7 +43,7 @@
 
 #define CMDBUF_SIZE 32768
 
-#define execSql(sql, fd) _execSql(sql, fd, 1)
+#define execSql(sql, fd) _execSql(sql, fd, 1, 0)
 
 // Keys for thread specific data
 pthread_key_t connKey;
@@ -563,17 +563,27 @@ void clearMain() {
 
 
 // Execute SQL pure instruction
-void _execSql(char *sql, void *fd, int sendRes) {
+void _execSql(char *sql, void *fd, int sendRes, int sync) {
     char response[1024];
     pthread_setspecific(childfdKey, fd);
     if (strstr(sql,"BEGIN")) {
-        PGconn *conn = getDBConnection();
-        pthread_setspecific(connKey, (void*)conn);
+        if (!sync) {
+           PGconn *conn = getDBConnection();
+           pthread_setspecific(connKey, (void*)conn);
+        } else {
+           PGconn *conn = (PGconn*)pthread_getspecific(connKey);
+           beginDBConnection(conn);            
+        }
         return;
     }
     if (strstr(sql,"COMMIT")) {
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
-        int r = returnDBConnection(conn, 1);
+        int r = 0;
+        if (!sync) {
+           r = returnDBConnection(conn, 1);
+        } else {
+           r = syncDBConnection(conn, 1);
+        }
         if (sendRes == 1) {
             if (r == 0) {
                 sprintf(response,"%s\n","ERROR");
@@ -587,7 +597,12 @@ void _execSql(char *sql, void *fd, int sendRes) {
     }
     if (strstr(sql,"ROLLBACK")) {
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
-        int r = returnDBConnection(conn, 0);
+        int r = 0;
+        if (!sync) {
+           r = returnDBConnection(conn, 0);
+        } else {
+           r = syncDBConnection(conn, 0);
+        }
         if (sendRes == 1) {
             if (r == 0) {
                 sprintf(response,"%s\n","ERROR");
@@ -1733,7 +1748,7 @@ int execCallback(char *cmd, void *var) {
                     char *cmd = strstr(buf,"sql");
                     if (cmd) {
                       char *sql = cmd+4;
-                      execSql(sql, pthread_getspecific(childfdKey));
+                      _execSql(sql, pthread_getspecific(childfdKey),1,1);
                     }
                   }
                 }
