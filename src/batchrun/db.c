@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Database Connection Handler (currently PostgreSQL only)                         */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.09.2020                                  */
+/*   Author: Philipp Brune               Date: 05.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2020by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de                */
 /*                                                                                         */
@@ -138,6 +138,12 @@ int checkSQL(PGconn *conn, char *sql) {
             }
         }
     } while ((state < 2) || (state == 3));
+
+    // Filter out Db2 WITh UR clause, as PosgreSQL does not support it, nor read uncommitted at all
+    char *clause = strstr(sql,"WITH UR");
+    if (clause != NULL) {
+        memset(clause,' ',7);
+    }
 
     return 0;
 }
