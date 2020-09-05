@@ -130,6 +130,18 @@ PGconn *getDBConnection() {
         printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
     }
     PQclear(res);
+
+    // Remember delared cursors in temp table
+    res = PQexec(conn, "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)");
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        printf("ERROR: Failure while executing SQL %s:\n %s", 
+               "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)", 
+               PQerrorMessage(conn));
+        PQclear(res);
+        return 0;
+    }
+    PQclear(res);
+
     return conn;
 }
 
@@ -139,7 +151,7 @@ int returnDBConnection(PGconn *conn, int commit) {
     PGresult *res;
 
     res = PQexec(conn, "SELECT curname FROM qwics_decl WHERE curhold=true");
-    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+    if (PQresultStatus(res) == PGRES_TUPLES_OK) {
         int i = 0;
         int rows = PQntuples(res);
         while (i < rows) {
@@ -208,7 +220,7 @@ int syncDBConnection(PGconn *conn, int commit) {
 
     res = PQexec(conn, "DELETE FROM qwics_decl WHERE curhold=false");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-        printf("ERROR: SYNC connection problem: %s", PQerrorMessage(conn));
+        printf("WARNING in syncDBConnection: %s", PQerrorMessage(conn));
     }
     PQclear(res);
 
@@ -266,17 +278,6 @@ int checkSQL(PGconn *conn, char *sql) {
             state++;
         }
         if (state == 1) {
-            // Remember delared cursors in temp table
-            res = PQexec(conn, "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-                printf("ERROR: Failure while executing SQL %s:\n %s", 
-                        "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)", 
-                        PQerrorMessage(conn));
-                PQclear(res);
-                return 0;
-            }
-            PQclear(res);
-
             char q[255];
             sprintf(q,"SELECT curname FROM qwics_decl WHERE curname='%s'",token);
             res = PQexec(conn, q);
