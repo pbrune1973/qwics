@@ -54,6 +54,18 @@ PGconn *getDBConnection(char *conInfo) {
         printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
     }
     PQclear(res);
+
+    // Remember delared cursors in temp table
+    res = PQexec(conn, "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)");
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        printf("ERROR: Failure while executing SQL %s:\n %s", 
+               "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)", 
+               PQerrorMessage(conn));
+        PQclear(res);
+        return 0;
+    }
+    PQclear(res);
+
     return conn;
 }
 
@@ -88,17 +100,6 @@ int checkSQL(PGconn *conn, char *sql) {
             state++;
         }
         if (state == 1) {
-            // Remember delared cursors in temp table
-            res = PQexec(conn, "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)");
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-                printf("ERROR: Failure while executing SQL %s:\n %s", 
-                        "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)", 
-                        PQerrorMessage(conn));
-                PQclear(res);
-                return 0;
-            }
-            PQclear(res);
-
             char q[255];
             sprintf(q,"SELECT curname FROM qwics_decl WHERE curname='%s'",token);
             res = PQexec(conn, q);
