@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Database Connection Pool (currently PostgreSQL only)                     */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 03.08.2019                                  */
+/*   Author: Philipp Brune               Date: 05.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -37,6 +37,8 @@ void tearDownPool(int closeCons);
 // Pool usage: Used connection always forms one transaction
 PGconn *getDBConnection();
 int returnDBConnection(PGconn *conn, int commit);
+void beginDBConnection(PGconn *conn);
+int syncDBConnection(PGconn *conn, int commit);
 int execSQL(PGconn *conn, char *sql);
 PGresult* execSQLQuery(PGconn *conn, char *sql);
 char* execSQLCmd(PGconn *conn, char *sql);

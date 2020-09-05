@@ -138,9 +138,25 @@ int returnDBConnection(PGconn *conn, int commit) {
     int ret = 1;
     PGresult *res;
 
+    res = PQexec(conn, "SELECT curname FROM qwics_decl WHERE curhold=true");
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        int i = 0;
+        int rows = PQntuples(res);
+        while (i < rows) {
+            char cmd[20];
+            sprintf(cmd,"CLOSE %s",(char*)PQgetvalue(res, i, 0));
+            printf("%s\n",cmd);
+            PQexec(conn, cmd);
+            i++;
+        }
+    } else {
+        printf("ERROR: SELECT curname FROM qwics_decl WHERE curhold=true failed: %s", PQerrorMessage(conn));
+    }
+    PQclear(res);
+
     res = PQexec(conn, "DROP TABLE IF EXISTS qwics_decl");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-        printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
+        printf("ERROR: DROP TABLE failed: %s", PQerrorMessage(conn));
     }
     PQclear(res);
 
@@ -176,6 +192,50 @@ int returnDBConnection(PGconn *conn, int commit) {
 }
 
 
+void beginDBConnection(PGconn *conn) {
+    PGresult *res;
+    res = PQexec(conn, "START TRANSACTION ISOLATION LEVEL READ COMMITTED READ WRITE");
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
+    }
+    PQclear(res);
+}
+
+
+int syncDBConnection(PGconn *conn, int commit) {
+    int ret = 1;
+    PGresult *res;
+
+    res = PQexec(conn, "DELETE FROM qwics_decl WHERE curhold=false");
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        printf("ERROR: SYNC connection problem: %s", PQerrorMessage(conn));
+    }
+    PQclear(res);
+
+    if (commit) {
+        res = PQexec(conn, "COMMIT");
+        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+            ret = 0;
+            printf("ERROR: COMMIT command failed: %s", PQerrorMessage(conn));
+            PQclear(res);
+            res = PQexec(conn, "ROLLBACK");
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+                printf("ERROR: ROLLBACK command failed: %s", PQerrorMessage(conn));
+            }
+        }
+    } else {
+        res = PQexec(conn, "ROLLBACK");
+        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+            printf("ERROR: ROLLBAGCK command failed: %s", PQerrorMessage(conn));
+            ret = 0;
+        }
+    }
+    PQclear(res);
+
+    return ret;
+}
+
+
 int checkSQL(PGconn *conn, char *sql) {
     // Filter out Db2 statements invalid in PostgreSQL
     char token[255];
@@ -206,11 +266,12 @@ int checkSQL(PGconn *conn, char *sql) {
             state++;
         }
         if (state == 1) {
-            // Remeber delared cursors in temp table
-            res = PQexec(conn, "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text)");
+            // Remember delared cursors in temp table
+            res = PQexec(conn, "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)");
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
                 printf("ERROR: Failure while executing SQL %s:\n %s", 
-                        "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text)", PQerrorMessage(conn));
+                        "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)", 
+                        PQerrorMessage(conn));
                 PQclear(res);
                 return 0;
             }
@@ -236,6 +297,15 @@ int checkSQL(PGconn *conn, char *sql) {
                 printf("ERROR: Failure while executing SQL %s:\n %s", q, PQerrorMessage(conn));
             }
             PQclear(res);
+
+            if (strstr(sql,"WITH HOLD") != NULL) {
+               sprintf(q,"UPDATE qwics_decl SET curhold=true WHERE curname='%s'",token);
+               res = PQexec(conn, q);
+               if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+                   printf("ERROR: Failure while executing SQL %s:\n %s", q, PQerrorMessage(conn));
+               }
+               PQclear(res);
+            }
 
             state++;
         }
