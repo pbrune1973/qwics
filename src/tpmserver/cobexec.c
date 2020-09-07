@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.09.2020                                  */
+/*   Author: Philipp Brune               Date: 07.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1244,6 +1244,7 @@ int execCallback(char *cmd, void *var) {
             cmdbuf[0] = 0x00;
             (*cmdState) = -6;
             (*memParamsState) = 0;
+            memParams[2] = (void*)0; // SHARED
             memParams[3] = NULL;
             (*respFieldsState) = 0;
             respFields[0] = NULL;
