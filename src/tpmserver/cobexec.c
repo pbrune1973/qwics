@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 07.09.2020                                  */
+/*   Author: Philipp Brune               Date: 13.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -417,17 +417,17 @@ int processCmd(char *cmd, cob_field **outputVars) {
                                 // Map VARCHAR to group struct
                                 char *v = (char*)PQgetvalue(res, 0, i);
                                 unsigned int l = (unsigned int)strlen(v);
-		                        if (l > (outputVars[i]->size-2)) {
+		                if (l > (outputVars[i]->size-2)) {
                                    l = outputVars[i]->size-2;
                                 }
-	                            outputVars[i]->data[0] = (unsigned char)((l >> 8) & 0xFF);
-	                            outputVars[i]->data[1] = (unsigned char)(l & 0xFF);
+	                        outputVars[i]->data[0] = (unsigned char)((l >> 8) & 0xFF);
+	                        outputVars[i]->data[1] = (unsigned char)(l & 0xFF);
                                 memcpy(&outputVars[i]->data[2],v,l);
                             } else 
                             if (outputVars[i]->attr->type == COB_TYPE_NUMERIC) {
-                              char buf[256];
-                              cob_put_picx(outputVars[i]->data,outputVars[i]->size,
-                                  convertNumeric(PQgetvalue(res, 0, i),
+                                char buf[256];
+                                cob_put_picx(outputVars[i]->data,outputVars[i]->size,
+                                convertNumeric(PQgetvalue(res, 0, i),
                                                  outputVars[i]->attr->digits,
                                                  outputVars[i]->attr->scale,buf));
                             } else
@@ -480,6 +480,7 @@ void *getmain(int length, int shared) {
     allocMem = sharedAllocMem;
     allocMemPtr = sharedAllocMemPtr;
   }
+printf("getmain %d %d %d %d %x\n",length,shared,*allocMemPtr,MEM_POOL_SIZE,allocMem);
   int i = 0;
   for (i = 0; i < (*allocMemPtr); i++) {
       if (allocMem[i] == NULL) {
@@ -1244,7 +1245,7 @@ int execCallback(char *cmd, void *var) {
             cmdbuf[0] = 0x00;
             (*cmdState) = -6;
             (*memParamsState) = 0;
-            memParams[2] = (void*)0; // SHARED
+            memParams[2] = (void*)0;
             memParams[3] = NULL;
             (*respFieldsState) = 0;
             respFields[0] = NULL;
@@ -2951,33 +2952,39 @@ int execCallback(char *cmd, void *var) {
             cob_field *cobvar = (cob_field*)var;
             if ((*cmdState) < 2) {
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP) {
-		            // Treat as VARCHAR field
-		            unsigned int l = (unsigned int)cobvar->data[0];	
+		    // Treat as VARCHAR field
+		    unsigned int l = (unsigned int)cobvar->data[0];	
                     l = (l << 8) | (unsigned int)cobvar->data[1];
 		            if (l > (cobvar->size-2)) {
                        l = cobvar->size-2;
                     }
                     end[0] = '\'';
-                    int i = 0;
-                    for (i = 0; i < l; i++) {
+                    int i = 0, j = 1;
+                    for (i = 0; i < l; i++, j++) {
                         unsigned char c = cobvar->data[i+2];
+                        if (c == 0x00) {
+                           end[j] = '\\';
+                           j++;
+                           end[j] = '0';  
+                           continue; 
+                        }   
                         if ((c & 0x80) == 0) {
                            // Plain ASCII
-                           end[1+i] = c; 
+                           end[j] = c; 
                         } else {
                            // Convert ext. ASCII to UTF-8
                            unsigned char c1 = 0xC0;
                            c1 = c1 | ((c & 0xC0) >> 6);
-                           end[1+i] = c1; 
-                           i++;
+                           end[j] = c1; 
+                           j++;
                            c1 = 0x80;
                            c1 = c1 | (c & 0x3F);
-                           end[1+i] = c1;
+                           end[j] = c1;
                         }
                     }
-                    end[1+i] = '\'';
-                    end[2+i] = ' ';
-                    end[3+i] = 0x00;
+                    end[j] = '\'';
+                    end[j+1] = ' ';
+                    end[j+2] = 0x00;
                 } else
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) {
                     char *str = adjustDateFormatToDb((char*)cobvar->data,cobvar->size);
@@ -2985,6 +2992,12 @@ int execCallback(char *cmd, void *var) {
                     int i = 0, j = 1;
                     for (i = 0; i < cobvar->size; i++, j++) {
                         unsigned char c = str[i];
+                        if (c == 0x00) {
+                           end[j] = '\\';
+                           j++;
+                           end[j] = '0';  
+                           continue; 
+                        }
                         if ((c & 0x80) == 0) {
                            // Plain ASCII
                            end[j] = c; 
