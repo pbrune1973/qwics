@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Database Connection Pool (currently PostgreSQL only)                     */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.09.2020                                  */
+/*   Author: Philipp Brune               Date: 13.09.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -125,6 +125,7 @@ PGconn *getDBConnection() {
         printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
     }
     PQclear(res);
+
     res = PQexec(conn, "DROP TABLE IF EXISTS qwics_decl");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
         printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
@@ -138,7 +139,21 @@ PGconn *getDBConnection() {
                "CREATE TEMP TABLE IF NOT EXISTS qwics_decl(curname text, curhold bool default false)", 
                PQerrorMessage(conn));
         PQclear(res);
-        return 0;
+        return NULL;
+    }
+    PQclear(res);
+
+    res = PQexec(conn, "COMMIT");
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        printf("ERROR: COMMIT command failed: %s", PQerrorMessage(conn));
+        PQclear(res);
+        return NULL;
+    }
+    PQclear(res);
+
+    res = PQexec(conn, "START TRANSACTION ISOLATION LEVEL READ COMMITTED READ WRITE");
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
     }
     PQclear(res);
 
