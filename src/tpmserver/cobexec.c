@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 13.09.2020                                  */
+/*   Author: Philipp Brune               Date: 09.10.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -417,12 +417,23 @@ int processCmd(char *cmd, cob_field **outputVars) {
                                 // Map VARCHAR to group struct
                                 char *v = (char*)PQgetvalue(res, 0, i);
                                 unsigned int l = (unsigned int)strlen(v);
-		                if (l > (outputVars[i]->size-2)) {
+		                        if (l > (outputVars[i]->size-2)) {
                                    l = outputVars[i]->size-2;
                                 }
-	                        outputVars[i]->data[0] = (unsigned char)((l >> 8) & 0xFF);
-	                        outputVars[i]->data[1] = (unsigned char)(l & 0xFF);
-                                memcpy(&outputVars[i]->data[2],v,l);
+                                int n = 0, j = 2;
+                                for (n = 0; n < l; n++, j++) {
+                                    char c = v[n];
+                                    if (n < l-1) {
+                                        if (v[n] == '\\' && v[n+1] == '0') {
+                                            n++;
+                                            c = 0x00;
+                                        }
+                                    }
+                                    outputVars[i]->data[j] = c;
+                                }
+                                l = j-2;
+	                            outputVars[i]->data[0] = (unsigned char)((l >> 8) & 0xFF);
+	                            outputVars[i]->data[1] = (unsigned char)(l & 0xFF);
                             } else 
                             if (outputVars[i]->attr->type == COB_TYPE_NUMERIC) {
                                 char buf[256];
