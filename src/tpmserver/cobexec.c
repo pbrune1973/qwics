@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 09.10.2020                                  */
+/*   Author: Philipp Brune               Date: 21.10.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -427,6 +427,13 @@ int processCmd(char *cmd, cob_field **outputVars) {
                                         if (v[n] == '\\' && v[n+1] == '0') {
                                             n++;
                                             c = 0x00;
+                                        } else 
+                                        if ((c & 0xF0) == 0xC0) {
+                                            // Convert UTF-8 to ASCII                                            
+                                            char ca = (c & 0x03) << 6;
+                                            ca = ca | (v[n+1] & 0x3F);
+                                            c = ca;
+                                            n++;
                                         }
                                     }
                                     outputVars[i]->data[j] = c;
@@ -2963,8 +2970,8 @@ int execCallback(char *cmd, void *var) {
             cob_field *cobvar = (cob_field*)var;
             if ((*cmdState) < 2) {
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_GROUP) {
-		    // Treat as VARCHAR field
-		    unsigned int l = (unsigned int)cobvar->data[0];	
+		            // Treat as VARCHAR field
+		            unsigned int l = (unsigned int)cobvar->data[0];	
                     l = (l << 8) | (unsigned int)cobvar->data[1];
 		            if (l > (cobvar->size-2)) {
                        l = cobvar->size-2;
