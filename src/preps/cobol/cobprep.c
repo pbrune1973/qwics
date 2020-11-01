@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 23.08.2020                                  */
+/*   Author: Philipp Brune               Date: 01.11.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -375,7 +375,7 @@ void parseLinkageVarDef(char *line) {
 }
 
 
-void processLine(char *buf, FILE *fp2);
+void processLine(char *buf, FILE *fp2, FILE *fp);
 
 
 // Insert declares temp file for db cursors etc. declared not in proc division
@@ -442,6 +442,16 @@ void strrep(char *line, char *s, char *r) {
 }
 
 
+void strrepmult(char *line, char *s, char *r) {
+    int sl = 0;
+    while ((sl = strlen(s)) > 0) {
+        strrep(line,s,r);
+        s = &s[sl+1];
+        r = &r[strlen(r)+1];
+    }
+}
+
+
 // Load and insert copybook content
 int includeCbk(char *copybook, FILE *outFile, char *findStr, char *replStr, int raw) {
     FILE *cbk = openCbkFile(copybook,".cpy");
@@ -465,12 +475,12 @@ int includeCbk(char *copybook, FILE *outFile, char *findStr, char *replStr, int 
         }
 
         if ((findStr != NULL) && (replStr != NULL)) {
-            strrep(line,findStr,replStr);
+            strrepmult(line,findStr,replStr);
         }
         if (raw == 1) {
             fputs(line,outFile);
         } else {
-            processLine(line,outFile);
+            processLine(line,outFile,cbk);
         }
         // Avoid inserting other EXEC-Macros
         /*
@@ -624,12 +634,24 @@ int isEmptyLine(char *buf) {
 
 
 // Extract search/replace string
-void processReplacingClause(char *buf, int *pos, char *pattern) {
+int processReplacingClause(char *buf, int *pos, char *pattern) {
+    int pl = 0;
+    while ((pl = strlen(pattern)) > 0) {
+        pattern = &pattern[pl+1];
+    }
+
     int i = *pos;
     int pseudo = 0;
-    while (buf[i] == ' ') {
+    while ((buf[i] == ' ') && (i < 72)) {
         i++;
     }
+    if ((i == 72) || (buf[i] == '.') || (buf[i] == '\n') || (buf[i] == '\r') || 
+        (buf[i] == 0x00)) {
+        i--;
+        (*pos) = i;
+        return 0;
+    }
+
     int j = 0;
     while ((buf[i] == '=') && (j < 2)) {
         i++;
@@ -646,6 +668,7 @@ void processReplacingClause(char *buf, int *pos, char *pattern) {
             j++;
         }
         pattern[j] = 0x00;
+        pattern[j+1] = 0x00;
     } else {
         int j = 0;
         while (buf[i] != ' ') {
@@ -654,17 +677,21 @@ void processReplacingClause(char *buf, int *pos, char *pattern) {
             j++;
         }
         pattern[j] = 0x00;
+        pattern[j+1] = 0x00;
     }
-    while ((buf[i] != ' ') && (buf[i] != '.') && (buf[i] != '\n') && (i < 72)) {
+
+    while ((buf[i] != ' ') && (buf[i] != '.') && (buf[i] != '\n') && 
+           (buf[i] != '\r') && (buf[i] != 0x00) && (i < 72)) {
         i++;
     }
     i--;
     (*pos) = i;
+    return 1;
 }
 
 
 // Process include/copy line
-void processCopyLine(char *buf, FILE *fp2) {
+void processCopyLine(char *buf, FILE *fp2, FILE *fp) {
     char linebuf[255];
     int i,m = strlen(buf);
     char token[255];
@@ -673,6 +700,9 @@ void processCopyLine(char *buf, FILE *fp2) {
     char findStr[255];
     char replStr[255];
 
+    findStr[0] = 0x00;
+    replStr[0] = 0x00;
+    
     if (m > 72) {
       // Ignore reserved characters
       m = 72;
@@ -718,7 +748,22 @@ void processCopyLine(char *buf, FILE *fp2) {
                 if (include == 3) {
                     if (strstr(token,"BY") != NULL) {
                         processReplacingClause(buf,&i,replStr);
-                        include = 4;
+                        i++;
+                        // Look for another REPLACING clause
+                        if (!processReplacingClause(buf,&i,findStr)) {
+                            if (hasDotTerminator(buf)) {                               
+                                include = 4;
+                            } else {
+                                if (fgets(buf, 255, (FILE*)fp) != NULL) {
+                                    i = 7;
+                                    m = strlen(buf);
+                                    if (m > 72) {
+                                        m = 72;
+                                    }
+                                    processReplacingClause(buf,&i,findStr);
+                                }
+                            }
+                        }
                     }
                 }
                 if (include == 2) {
@@ -777,7 +822,7 @@ void prepareSqlHostVar(char *token) {
 
 
 // Process EXEC ... END-EXEC statement line in the procedure division
-void processExecLine(char *buf, FILE *fp2) {
+void processExecLine(char *buf, FILE *fp2, FILE *fp) {
     char execbuf[255];
     int i,m = strlen(buf);
     char token[255];
@@ -1310,7 +1355,7 @@ void processExecLine(char *buf, FILE *fp2) {
                         if (execSQLCnt == 2) {
                           if (strcmp("INCLUDE",token) == 0) {
                             execCmd = 0;
-                            processCopyLine(buf,fp2);
+                            processCopyLine(buf,fp2,fp);
                             execCmd = 2;
                             execSQLCnt = 99;
                           } else
@@ -1472,7 +1517,7 @@ void outputLinkageVar(int *idx, FILE *fp2) {
     *idx = m;
 }
 
-void processLine(char *buf, FILE *fp2) {
+void processLine(char *buf, FILE *fp2, FILE *fp) {
   // Handle comments
   if (buf[6] == '*') {
     fputs(buf,(FILE*)fp2);
@@ -1512,7 +1557,7 @@ void processLine(char *buf, FILE *fp2) {
   }
 
   if (include > 0) {
-     processCopyLine(buf,fp2);
+     processCopyLine(buf,fp2,fp);
      return;
   }
 
@@ -1892,7 +1937,7 @@ void processLine(char *buf, FILE *fp2) {
       }
       if (strlen(copyBuf) > 0) {
           fputs("\n",fp2);
-          processCopyLine(copyBuf,fp2);
+          processCopyLine(copyBuf,fp2,fp);
       }
   } else {
       char *cmd = strstr(buf,"END-EXEC");
@@ -1904,7 +1949,7 @@ void processLine(char *buf, FILE *fp2) {
         }
       }
 
-      processExecLine(buf,fp2);
+      processExecLine(buf,fp2,fp);
 
       if (cmd != NULL) {
           execCmd = 0;
@@ -2009,7 +2054,7 @@ int main(int argc, char **argv) {
    }
 
    while (fgets(buf, 255, (FILE*)fp) != NULL) {
-      processLine(buf,fp2);
+      processLine(buf,fp2,fp);
    }
 
    fclose(fp);
