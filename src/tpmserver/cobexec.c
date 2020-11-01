@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 21.10.2020                                  */
+/*   Author: Philipp Brune               Date: 01.11.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -120,7 +120,8 @@ struct chnBuf {
 };
 
 char *cobDateFormat = "YYYY-MM-dd-hh.mm.ss.uuuuu";
-char *dbDateFormat = "dd-MM-YYYY hh:mm:ss.uuu";
+//char *dbDateFormat = "dd-MM-YYYY hh:mm:ss.uuu";
+char *dbDateFormat = "YYYY-MM-dd hh:mm:ss.uuu";
 char result[30];
 
 
@@ -441,6 +442,34 @@ int processCmd(char *cmd, cob_field **outputVars) {
                                 l = j-2;
 	                            outputVars[i]->data[0] = (unsigned char)((l >> 8) & 0xFF);
 	                            outputVars[i]->data[1] = (unsigned char)(l & 0xFF);
+                            } else 
+                            if (outputVars[i]->attr->type == COB_TYPE_ALPHANUMERIC) {
+                                char *v = (char*)PQgetvalue(res, 0, i);
+                                unsigned int l = (unsigned int)strlen(v);
+		                        if (l > outputVars[i]->size) {
+                                   l = outputVars[i]->size;
+                                }
+                                int n = 0, j = 0;
+                                for (n = 0; n < l; n++, j++) {
+                                    char c = v[n];
+                                    if (n < l-1) {
+                                        if (v[n] == '\\' && v[n+1] == '0') {
+                                            n++;
+                                            c = 0x00;
+                                        } else 
+                                        if ((c & 0xF0) == 0xC0) {
+                                            // Convert UTF-8 to ASCII                                            
+                                            char ca = (c & 0x03) << 6;
+                                            ca = ca | (v[n+1] & 0x3F);
+                                            c = ca;
+                                            n++;
+                                        }
+                                    }
+                                    outputVars[i]->data[j] = c;
+                                }
+                                for (; j < outputVars[i]->size; j++) {
+                                    outputVars[i]->data[j] = ' ';
+                                }
                             } else 
                             if (outputVars[i]->attr->type == COB_TYPE_NUMERIC) {
                                 char buf[256];
@@ -3066,7 +3095,11 @@ int execCallback(char *cmd, void *var) {
                 }
             }
             if ((*cmdState) < 2) {
-                sprintf(end,"%s%s",cmd," ");
+                if (strcmp("IFNULL",cmd) == 0) {
+                    sprintf(end,"%s%s","COALESCE"," ");
+                } else {
+                    sprintf(end,"%s%s",cmd," ");
+                }
             }
         }
     }
