@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.11.2020                                  */
+/*   Author: Philipp Brune               Date: 05.11.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -41,7 +41,7 @@
 #include "macosx/fmemopen.h"
 #endif
 
-#define CMDBUF_SIZE 32768
+#define CMDBUF_SIZE 65536
 
 #define execSql(sql, fd) _execSql(sql, fd, 1, 0)
 
@@ -152,6 +152,70 @@ void clearChnBufList() {
 void cm(int res) {
     if (res != 0) {
       fprintf(stderr,"%s%d\n","Mutex operation failed: ",res);
+    }
+}
+
+
+void displayNumeric(cob_field *f, FILE *fp) {
+    cob_pic_symbol *p;
+    unsigned char q[255];
+    unsigned short digits = COB_FIELD_DIGITS (f);
+    signed short scale = COB_FIELD_SCALE (f);
+    int i, size = digits + !!COB_FIELD_HAVE_SIGN (f) + !!scale;
+    cob_field_attr attr;
+    cob_field temp;
+    cob_pic_symbol pic[6] = {{ '\0' }};
+
+    temp.size = size;
+    temp.data = q;
+    temp.attr = &attr;
+
+    attr.type = COB_TYPE_NUMERIC_EDITED; 
+    attr.digits = digits; 
+    attr.scale = scale; 
+    attr.flags = 0; 
+    attr.pic = (const cob_pic_symbol *)pic; 
+
+    p = pic;
+
+    if (COB_FIELD_HAVE_SIGN(f)) {
+        if (!COB_FIELD_SIGN_SEPARATE(f) || COB_FIELD_SIGN_LEADING(f)) {
+            p->symbol = '+';
+            p->times_repeated = 1;
+            p++;
+        }
+    }
+    if (scale > 0) {
+        if (digits - scale > 0) {
+            p->symbol = '9';
+            p->times_repeated = digits - scale;
+            p++;
+        }
+
+        p->symbol = '.';
+        p->times_repeated = 1;
+        p++;
+
+        p->symbol = '9';
+        p->times_repeated = scale;
+        p++;
+    } else {
+        p->symbol = '9';
+        p->times_repeated = digits;
+        p++;
+    }
+    if (COB_FIELD_HAVE_SIGN (f)) {
+        if (COB_FIELD_SIGN_SEPARATE (f) && !COB_FIELD_SIGN_LEADING(f)) {
+            p->symbol = '+';
+            p->times_repeated = 1;
+            p++;
+        }
+    }
+    p->symbol = '\0';
+
+    cob_move (f, &temp);
+    for (i = 0; i < size; i++) {
+        putc (q[i], fp);
     }
 }
 
@@ -289,6 +353,59 @@ char* adjustDateFormatToDb(char *str, int len) {
         }
     }
 
+    return result;
+}
+
+
+char* adjustTimeFormatToDb(char *str, int len) {
+    int i = 0, l = strlen(cobDateFormat), pos = 0;
+    if (len == 10) {
+        for (i = 0; i < len; i++) {
+            if (str[i] != ' ') {
+                return str;
+            }
+        }
+        sprintf(result,"%s","0001-01-01");
+        return result;
+    }
+    if (len == 26) {
+        for (i = 0; i < len; i++) {
+            if (str[i] != ' ') {
+                return str;
+            }
+        }
+        sprintf(result,"%s","0001-01-01 00:00:00.000   ");
+        return result;
+    }
+    if (len != 5) {
+        return str;
+    }
+    for (i = 0; i < len; i++) {
+        if (str[i] != ' ') {
+            break;
+        }
+    }
+    if (i == len) {
+        sprintf(result,"%s","00:00");
+        return result;
+    }
+    if (str[2] != '.') {
+        return str;
+    }
+    if (!(str[0] >= '0' && str[0] <= '9')) {
+        return str;
+    }
+    if (!(str[1] >= '0' && str[1] <= '9')) {
+        return str;
+    }
+    if (!(str[3] >= '0' && str[3] <= '9')) {
+        return str;
+    }
+    if (!(str[4] >= '0' && str[4] <= '9')) {
+        return str;
+    }
+    sprintf(result,"%s",str);
+    result[2] = ':';
     return result;
 }
 
@@ -3035,6 +3152,10 @@ int execCallback(char *cmd, void *var) {
                 } else
                 if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) {
                     char *str = adjustDateFormatToDb((char*)cobvar->data,cobvar->size);
+                    if ((cobvar->size == 5) || (cobvar->size == 10) || 
+                        ((cobvar->size == 26) && (str == (char*)cobvar->data))) {
+                        str = adjustTimeFormatToDb((char*)cobvar->data,cobvar->size);
+                    }
                     end[0] = '\'';
                     int i = 0, j = 1;
                     for (i = 0; i < cobvar->size; i++, j++) {
@@ -3068,7 +3189,7 @@ int execCallback(char *cmd, void *var) {
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
                         (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
                         (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
-                       display_cobfield(cobvar,f);
+                       displayNumeric(cobvar,f);
                     }
                     putc(' ',f);
                     putc(0x00,f);
