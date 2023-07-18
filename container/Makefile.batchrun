@@ -1,0 +1,28 @@
+OPENCOBOL = /home/qwics/gnucobol-3.1.2
+POSTGRES = /usr
+
+CC = gcc
+CFLAGS = -I$(OPENCOBOL) -I$(POSTGRES)/include/postgresql -L/usr/local/lib -L$(POSTGRES)/lib 
+TPMSRC = ../tpmserver
+SRC = .
+OBJS = $(SRC)/cobsql.o $(SRC)/db.o $(TPMSRC)/env/envconf.o
+LIBS = -lcob -lpq -ljclpars
+
+%.o : %.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+
+batchrun: $(OBJS)
+	$(CC) $(CFLAGS) -o batchrun $(OBJS) $(LIBS)
+	mv batchrun ../../bin
+
+jclpars:
+	$(CC) -fPIC -c libjclpars.c
+	#$(CC) -dynamiclib -undefined suppress -flat_namespace libjclpars.o -o libjclpars.dylib
+	$(CC) -shared libjclpars.o -o libjclpars.so
+	#mv libjclpars.dylib ../../bin
+	mv libjclpars.so ../../bin
+
+clean:
+	rm -r $(OBJS) ../../bin/batchrun  
+        

@@ -1,0 +1,72 @@
+<server description="Default Server">
+    <featureManager>
+        <feature>localConnector-1.0</feature>
+        <feature>webProfile-8.0</feature>
+        <feature>mdb-3.2</feature>
+        <feature>bells-1.0</feature>
+    </featureManager>
+
+    <library id="hibernate">
+        <file name="${server.config.dir}/hibernate/antlr-2.7.7.jar"/>
+        <file name="${server.config.dir}/hibernate/classmate-1.3.4.jar"/>
+        <file name="${server.config.dir}/hibernate/byte-buddy-1.9.5.jar"/>
+        <file name="${server.config.dir}/hibernate/dom4j-2.1.1.jar"/>
+        <file name="${server.config.dir}/hibernate/hibernate-commons-annotations-5.1.0.Final.jar"/>
+        <file name="${server.config.dir}/hibernate/hibernate-core-5.4.1.Final.jar"/>
+        <file name="${server.config.dir}/hibernate/javassist-3.24.0-GA.jar"/>
+        <file name="${server.config.dir}/hibernate/jboss-logging-3.3.2.Final.jar"/>
+    </library>
+    <bell libraryRef="hibernate"/>
+
+    <jpa defaultPersistenceProvider="org.hibernate.jpa.HibernatePersistenceProvider"/>
+
+    <jdbcDriver id="PostgresEmbedded" javax.sql.XADataSource="org.postgresql.xa.PGXADataSource"
+                libraryRef="PostgresLib"/>
+    <library filesetRef="PostgresFileset" id="PostgresLib"/>
+    <fileset dir="${server.config.dir}/drivers" id="PostgresFileset"
+             includes="postgresql-42.2.5.jar"/>
+
+    <dataSource id="jdbc/QwicsDS" jdbcDriverRef="PostgresEmbedded" jndiName="jdbc/QwicsDS"
+                type="javax.sql.XADataSource">
+        <properties databaseName="qwics" password="qwics" portNumber="5432" serverName="localhost" user="qwics"/>
+    </dataSource>
+
+    <jdbcDriver id="QwicsJDBCDriver" javax.sql.XADataSource="org.qwics.jdbc.QwicsXADataSource"
+                libraryRef="QwicsJDBCJar"/>
+    <library filesetRef="QwicsFileset" id="QwicsJDBCJar"/>
+    <fileset dir="${server.config.dir}/drivers" id="QwicsFileset"
+             includes="QwicsJDBCDriver.jar"/>
+
+    <dataSource id="jdbc/QwicsCobolDS" jdbcDriverRef="QwicsJDBCDriver" jndiName="jdbc/QwicsCobolDS"
+                type="javax.sql.XADataSource">
+        <properties URL="jdbc:qwics:localhost:8000"/>
+    </dataSource>
+
+    <!-- JMS MQ configuration -->
+    <messagingEngine>
+        <queue id="MyQueue"/>
+    </messagingEngine>
+
+    <jmsQueueConnectionFactory jndiName="jms/JmsFactory">
+        <properties.wasJms remoteServerAddress="localhost:7276:BootStrapBasicMessaging"/>
+    </jmsQueueConnectionFactory>
+
+    <jmsQueue id="MyQueue" jndiName="jms/MyQueue">
+        <properties.wasJms queueName="MyQueue"/>
+    </jmsQueue>
+
+    <jmsActivationSpec id="QwicsWebApp/QwicsMDB">
+        <properties.wasJms destinationRef="QwicsMDB"/>
+    </jmsActivationSpec>
+
+    <keyStore id="defaultKeyStore" password="Krmpf66"></keyStore>
+    <httpEndpoint host="*" httpPort="9080" httpsPort="9443" id="defaultHttpEndpoint"></httpEndpoint>
+
+    <applicationManager autoExpand="true"></applicationManager>
+    <application context-root="lks" location="lks.war"></application>
+    <applicationMonitor updateTrigger="mbean"></applicationMonitor>
+
+    <webApplication id="QwicsWebApp" location="QwicsWebApp.war" name="QwicsWebApp">
+        <classloader commonLibraryRef="hibernate"/>
+    </webApplication>
+</server>

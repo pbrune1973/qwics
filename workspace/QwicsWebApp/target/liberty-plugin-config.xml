@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<liberty-plugin-config>
+    <activeBuildProfiles>
+        <profileId>production</profileId>
+    </activeBuildProfiles>
+    <installDirectory>/Users/pbrune/qwics/workspace/QwicsWebApp/target/liberty/wlp</installDirectory>
+    <serverDirectory>/Users/pbrune/qwics/workspace/QwicsWebApp/target/liberty/wlp/usr/servers/defaultServer</serverDirectory>
+    <userDirectory>/Users/pbrune/qwics/workspace/QwicsWebApp/target/liberty/wlp/usr</userDirectory>
+    <serverOutputDirectory>/Users/pbrune/qwics/workspace/QwicsWebApp/target/liberty/wlp/usr/servers/defaultServer</serverOutputDirectory>
+    <serverName>defaultServer</serverName>
+    <configDirectory>/Users/pbrune/qwics/workspace/QwicsWebApp/src/main/liberty/config</configDirectory>
+    <configFile>/Users/pbrune/qwics/workspace/QwicsWebApp/src/main/liberty/config/server.xml</configFile>
+    <appsDirectory>apps</appsDirectory>
+    <looseApplication>true</looseApplication>
+    <stripVersion>false</stripVersion>
+    <installAppPackages>project</installAppPackages>
+    <applicationFilename>QwicsWebApp.war.xml</applicationFilename>
+    <assemblyArtifact>
+        <groupId>io.openliberty</groupId>
+        <artifactId>openliberty-kernel</artifactId>
+        <version>23.0.0.6</version>
+        <type>zip</type>
+    </assemblyArtifact>
+    <assemblyArchive>/Users/pbrune/.m2/repository/io/openliberty/openliberty-kernel/23.0.0.6/openliberty-kernel-23.0.0.6.zip</assemblyArchive>
+    <assemblyInstallDirectory>/Users/pbrune/qwics/workspace/QwicsWebApp/target/liberty</assemblyInstallDirectory>
+    <refresh>false</refresh>
+    <installAppsConfigDropins>/Users/pbrune/qwics/workspace/QwicsWebApp/target/liberty/wlp/usr/servers/defaultServer/configDropins/defaults/install_apps_configuration_1491924271.xml</installAppsConfigDropins>
+    <projectType>war</projectType>
+</liberty-plugin-config>

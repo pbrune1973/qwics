@@ -1,6 +1,3 @@
-OPENCOBOL = /Users/pbrune/open-cobol-code-1380-branches-gnu-cobol-2.0
-POSTGRES = /Applications/Postgres.app/Contents/Versions/latest
-
 CC = gcc
 CFLAGS =  
 SRC = .

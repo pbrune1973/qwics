@@ -1,0 +1,8 @@
+
+ Index  Count  Time of first Occurrence    Time of last Occurrence     Exception SourceId ProbeId
+------+------+---------------------------+---------------------------+---------------------------
+     0      1 14.07.23, 01:19:42:405 MESZ 14.07.23, 01:19:42:405 MESZ java.lang.NoClassDefFoundError com.ibm.ws.container.service.state.internal.ApplicationStateManager 56
+                                                                            - /Users/pbrune/qwics/workspace/QwicsWebApp/target/liberty/wlp/usr/servers/defaultServer/logs/ffdc/ffdc_23.07.14_01.19.42.0.log
+     1      1 14.07.23, 01:19:42:422 MESZ 14.07.23, 01:19:42:422 MESZ com.ibm.ws.container.service.state.StateChangeException com.ibm.ws.app.manager.module.internal.SimpleDeployedAppInfoBase 550
+                                                                            - /Users/pbrune/qwics/workspace/QwicsWebApp/target/liberty/wlp/usr/servers/defaultServer/logs/ffdc/ffdc_23.07.14_01.19.42.1.log
+------+------+---------------------------+---------------------------+---------------------------

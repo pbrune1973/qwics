@@ -1,0 +1,7 @@
+ejb/QwicsException.class
+ws/QwicsWSApplication.class
+ws/QwicsWS.class
+ejb/QwicsTopic.class
+ejb/QwicsEJB.class
+ejb/QwicsMDB.class
+ejb/QwicsQueue.class
