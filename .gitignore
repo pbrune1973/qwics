@@ -4,3 +4,4 @@
 *.so
 *.dylib
 **/exec_*
+**/.DS_Store
