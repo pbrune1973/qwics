@@ -24,7 +24,7 @@ COPY --chown=qwics:qwics ./src /home/qwics/src
 COPY --chown=qwics:qwics ./cobsrc /home/qwics/cobsrc
 COPY --chown=qwics:qwics ./maps /home/qwics/maps
 COPY --chown=qwics:qwics ./copybooks /home/qwics/copybooks
-COPY --chown=qwics:qwics ./bin /home/qwics/bin
+COPY --chown=qwics:qwics --chmod=755 ./bin /home/qwics/bin
 COPY --chown=qwics:qwics ./LICENSE /home/qwics
 COPY --chown=qwics:qwics ./COPYING /home/qwics
 COPY --chown=qwics:qwics ./COPYING.LESSER /home/qwics

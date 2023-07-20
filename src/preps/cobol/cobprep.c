@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.11.2020                                  */
+/*   Author: Philipp Brune               Date: 20.07.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
+/*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -33,6 +33,7 @@ int isResponseParam = 0;
 int isPtrField = 0;
 int isLengthField = 0;
 int isErrHandlerField = 0;
+int isAbendHandler = 0;
 char respParam[9];
 char mapName[9];
 char mapsetName[9];
@@ -58,6 +59,7 @@ int fillerDefLevel = 0;
 int xmlBlock = 0;
 FILE *fpLookup = NULL;
 char *eiblkAlias = NULL;
+int addedUsing = 0;
 
 
 struct linkageVarDef {
@@ -406,9 +408,23 @@ int includeDeclares(FILE *outFile) {
 FILE *openCbkFile(char *copybook, char *suffix) {
     char path[255];
     char strbuf[255];
+    char cbkbuf[255];
     FILE *cbk = NULL;
     int pathPos = 0;
     int len = strlen(cbkPath);
+    if (copybook == NULL) {
+        return NULL;
+    }
+    int l = strlen(copybook);
+    if (l == 0) {
+        return NULL;
+    }
+    if (copybook[0] == '\'') {
+        if (l > 1 && copybook[l-1] == '\'') {
+            copybook[l-1] = 0x00;
+            copybook = &copybook[1];
+        }
+    }
     while ((cbk == NULL) && (pathPos < len)) {
       int i = pathPos,j = 0;
       while ((cbkPath[i] != ':') && (cbkPath[i] != 0x00) && (i < len)) {
@@ -711,7 +727,7 @@ void processCopyLine(char *buf, FILE *fp2, FILE *fp) {
         if ((buf[i] == ' ') || (buf[i] == '\n') ||
             (buf[i] == '\r') || (buf[i] == '.') ||
             (buf[i] == ',')) {
-            if ((include >= 2) && ((buf[i] == '.') || (buf[i] == '\n'))) {
+            if ((include >= 2) && ((buf[i] == '.') || (buf[i] == '\n')) && (tokenPos != 9)) {
                 if (include >= 4) {
 		            include = 0;
                     if (includeCbk(cbkFile,fp2,findStr,replStr,0) < 0) {
@@ -768,8 +784,20 @@ void processCopyLine(char *buf, FILE *fp2, FILE *fp) {
                 }
                 if (include == 2) {
                     if (strstr(token,"REPLACING") != NULL) {
-                        processReplacingClause(buf,&i,findStr);
-                        include = 3;
+                        if (processReplacingClause(buf,&i,findStr)) {
+                            include = 3;
+                        } else {
+                            do {
+                                if (fgets(buf, 255, (FILE*)fp) != NULL) {
+                                    i = 7;
+                                    m = strlen(buf);
+                                    if (m > 72) {
+                                        m = 72;
+                                    }
+                                }
+                            } while (!processReplacingClause(buf,&i,findStr));
+                            include = 3;
+                        }
                     }
                 }
                 if (include == 1) {
@@ -1006,6 +1034,9 @@ void processExecLine(char *buf, FILE *fp2, FILE *fp) {
                         isResponseParam = 1;
                         sprintf(respParam,"%s",token);
                     }
+                    if (strcmp(token,"LABEL") == 0) {
+                        isAbendHandler = 1;
+                    }
                     if (!isResponseParam) {
                         sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
                                 token,getExecTerminator(1));
@@ -1137,6 +1168,34 @@ void processExecLine(char *buf, FILE *fp2, FILE *fp) {
                           fputs(execbuf, (FILE*)fp2);
                         }
                         isLengthField = 0;
+                        tokenPos = 0;
+                    }
+
+                    if (isAbendHandler) {
+                        do {
+                          i++;
+                          if ((buf[i] != ' ') && (buf[i] != ')')) {
+                            token[tokenPos] = toupper(buf[i]);
+                            tokenPos++;
+                          } else {
+                            if (tokenPos > 0) {
+                              token[tokenPos] = 0x00;
+                              tokenPos = 0;
+                            }
+                          }
+                        } while (buf[i] != ')');
+
+                        sprintf(execbuf,"%s%s\n","           GO TO JMP",getExecTerminator(0));
+                        fputs(execbuf, (FILE*)fp2);
+                        sprintf(execbuf,"%s%s\n","           ENTRY 'ABNDHNDL'",getExecTerminator(0));
+                        fputs(execbuf, (FILE*)fp2);
+                        sprintf(execbuf,"%s%s%s\n","           PERFORM ",token,getExecTerminator(0));
+                        fputs(execbuf, (FILE*)fp2);
+                        sprintf(execbuf,"%s%s\n","           GOBACK",getExecTerminator(0));
+                        fputs(execbuf, (FILE*)fp2);
+                        sprintf(execbuf,"%s%s\n","       JMP",getExecTerminator(0));
+                        fputs(execbuf, (FILE*)fp2);
+                        isAbendHandler = 0;
                         tokenPos = 0;
                     }
                 }
@@ -1619,7 +1678,10 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
              fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
              fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
              fputs("       77  DFHRESP-NORMAL PIC S9(8) COMP VALUE 0.\n",(FILE*)fp2);
+             fputs("       77  DFHRESP-DUPREC PIC S9(8) COMP VALUE 14.\n",(FILE*)fp2);
+             fputs("       77  DFHRESP-DUPKEY PIC S9(8) COMP VALUE 15.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-INVREQ PIC S9(8) COMP VALUE 16.\n",(FILE*)fp2);
+             fputs("       77  DFHRESP-ENDFILE PIC S9(8) COMP VALUE 20.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
              fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
@@ -1746,7 +1808,10 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
               fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
               fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
               fputs("       77  DFHRESP-NORMAL PIC S9(8) COMP VALUE 0.\n",(FILE*)fp2);
+              fputs("       77  DFHRESP-DUPREC PIC S9(8) COMP VALUE 14.\n",(FILE*)fp2);
+              fputs("       77  DFHRESP-DUPKEY PIC S9(8) COMP VALUE 15.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-INVREQ PIC S9(8) COMP VALUE 16.\n",(FILE*)fp2);
+              fputs("       77  DFHRESP-ENDFILE PIC S9(8) COMP VALUE 20.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
               fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);
@@ -1773,6 +1838,17 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
           replaceDFHFuncs(buf);
  
           if (inProcDivision) {
+            if (addedUsing) {
+                char *p = strstr(buf,"USING");
+                if (p != NULL) {
+                    p[0] = ' ';
+                    p[1] = ' ';
+                    p[2] = ' ';
+                    p[3] = ' ';
+                    p[4] = ',';
+                } 
+                addedUsing = 0;        
+            }
             if (strstr_noverb(buf," CALL ") != 0) {
                 char callBuf[255];
                 char *end = NULL;
@@ -1799,6 +1875,7 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
                     l = (int)(end-buf);
                     strncpy(callBuf,buf,l);
                     strcpy(&callBuf[l]," USING DFHCOMMAREA\n");
+                    addedUsing = 1;
                     l = l + 19;
                 }
                 callBuf[l] = 0x00;
@@ -1978,7 +2055,10 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
        fputs("       77  QWICSLEN PIC 9(9).\n",(FILE*)fp2);
        fputs("       77  QWICSJMP PIC X(200).\n",(FILE*)fp2);
        fputs("       77  DFHRESP-NORMAL PIC S9(8) COMP VALUE 0.\n",(FILE*)fp2);
+       fputs("       77  DFHRESP-DUPREC PIC S9(8) COMP VALUE 14.\n",(FILE*)fp2);
+       fputs("       77  DFHRESP-DUPKEY PIC S9(8) COMP VALUE 15.\n",(FILE*)fp2);
        fputs("       77  DFHRESP-INVREQ PIC S9(8) COMP VALUE 16.\n",(FILE*)fp2);
+       fputs("       77  DFHRESP-ENDFILE PIC S9(8) COMP VALUE 20.\n",(FILE*)fp2);
        fputs("       77  DFHRESP-LENGERR PIC S9(8) COMP VALUE 22.\n",(FILE*)fp2);
        fputs("       77  DFHRESP-QIDERR PIC S9(8) COMP VALUE 44.\n",(FILE*)fp2);
        fputs("       77  DFHRESP-NOTFND PIC S9(8) COMP VALUE 13.\n",(FILE*)fp2);

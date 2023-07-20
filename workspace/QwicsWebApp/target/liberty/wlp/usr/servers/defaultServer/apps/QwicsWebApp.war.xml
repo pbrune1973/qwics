@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<archive>
-    <dir sourceOnDisk="/Users/pbrune/qwics/workspace/QwicsWebApp/src/main/webapp" targetInArchive="/"/>
-    <dir sourceOnDisk="/Users/pbrune/qwics/workspace/QwicsWebApp/target/classes" targetInArchive="/WEB-INF/classes"/>
-    <file sourceOnDisk="/Users/pbrune/qwics/workspace/QwicsWebApp/target/tmp/META-INF/MANIFEST.MF" targetInArchive="/META-INF/MANIFEST.MF"/>
-</archive>

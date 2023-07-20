@@ -5,8 +5,8 @@ POSTGRES = /usr
 CC = gcc
 CFLAGS = -I$(OPENCOBOL) -I$(POSTGRES)/include/postgresql -L/usr/local/lib -L$(POSTGRES)/lib 
 TPMSRC = src/tpmserver
-TPMOBJS = $(TPMSRC)/tpmserver.o $(TPMSRC)/cobexec.o $(TPMSRC)/db/conpool.o $(TPMSRC)/msg/queueman.o $(TPMSRC)/shm/shmtpm.o $(TPMSRC)/enqdeq/enqdeq.o $(TPMSRC)/env/envconf.o 
-LIBS = -lcob -lpthread -lpq -ldl
+TPMOBJS = $(TPMSRC)/tpmserver.o $(TPMSRC)/cobexec.o $(TPMSRC)/db/conpool.o $(TPMSRC)/dataset/isamdb.o $(TPMSRC)/msg/queueman.o $(TPMSRC)/shm/shmtpm.o $(TPMSRC)/enqdeq/enqdeq.o $(TPMSRC)/env/envconf.o 
+LIBS = -lcob -lpthread -lpq -ldl -ldb
 
 
 .c.o:

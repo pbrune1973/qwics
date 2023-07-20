@@ -36,6 +36,7 @@
 #include "msg/queueman.h"
 #include "shm/shmtpm.h"
 #include "enqdeq/enqdeq.h"
+#include "dataset/isamdb.h"
 
 #ifdef __APPLE__
 #include "macosx/fmemopen.h"
@@ -77,6 +78,7 @@ pthread_key_t callStackKey;
 pthread_key_t callStackPtrKey;
 pthread_key_t chnBufListKey;
 pthread_key_t chnBufListPtrKey;
+pthread_key_t isamTxKey;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
@@ -100,6 +102,7 @@ int mem_pool_size = -1;
 char *jsDir = NULL;
 char *loadmodDir = NULL;
 char *connectStr = NULL;
+char *datasetDir = NULL;
 
 void **sharedAllocMem;
 int *sharedAllocMemLen;
@@ -1641,6 +1644,22 @@ int execCallback(char *cmd, void *var) {
             respFields[1] = NULL;
             return 1;
         }
+        if (strcmp(cmd,"STARTBR") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -24;
+            (*memParamsState) = 0;
+            *((int*)memParams[0]) = -1;
+            memParams[1] = NULL;
+            memParams[2] = NULL;
+            memParams[3] = NULL;
+            memParams[4] = NULL;
+            (*respFieldsState) = 0;
+            respFields[0] = NULL;
+            respFields[1] = NULL;
+            return 1;
+        }
 
         if (strstr(cmd,"END-EXEC")) {
             int resp = 0;
@@ -2161,7 +2180,9 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"URIMAP") || strstr(cmd,"SCOPE") || strstr(cmd,"SCOPELEN") || strstr(cmd,"NODATA") ||
             strstr(cmd,"SECURITY") || strstr(cmd,"RESTYPE") || strstr(cmd,"RESCLASS") || strstr(cmd,"RESIDLENGTH") || 
             strstr(cmd,"RESID") || strstr(cmd,"LOGMESSAGE") || strstr(cmd,"READ") || strstr(cmd,"UPDATE") ||
-            strstr(cmd,"UPDATE") || strstr(cmd,"ALTER")) {
+            strstr(cmd,"UPDATE") || strstr(cmd,"ALTER") || strstr(cmd,"KEYLENGTH") || strstr(cmd,"RIDFLD") || 
+            strstr(cmd,"DATASET") || strstr(cmd,"GTEQ") || strstr(cmd,"STARTBR")  || strstr(cmd,"ENDBR") || 
+            strstr(cmd,"FILE") || strstr(cmd,"READNEXT") || strstr(cmd,"READPREV")) {
             sprintf(end,"%s%s",cmd,"\n");
 
             if ((strcmp(cmd,"NOHANDLE") == 0) && ((*respFieldsState) == 0)) {
@@ -3275,6 +3296,7 @@ void initExec(int initCons) {
     pthread_key_create(&callStackPtrKey, NULL);
     pthread_key_create(&chnBufListKey, NULL);
     pthread_key_create(&chnBufListPtrKey, NULL);
+    pthread_key_create(&isamTxKey, NULL);
 
 #ifndef _USE_ONLY_PROCESSES_
     pthread_mutex_init(&moduleMutex,NULL);
@@ -3300,6 +3322,7 @@ void initExec(int initCons) {
     currentMap[0] = 0x00;
 
     GETENV_STRING(cobDateFormat,"QWICS_COBDATEFORMAT","YYYY-MM-dd.hh:mm:ss.uuuu");
+    startIsamDB(GETENV_STRING(datasetDir,"QWICS_DATASET_DIR","../dataset"));
 }
 
 
@@ -3307,6 +3330,7 @@ void clearExec(int initCons) {
 #ifndef _USE_ONLY_PROCESSES_
     pthread_cond_destroy(&waitForModuleChange);
 #endif
+    stopIsamDB();
     tearDownPool(initCons);
     sharedFree(sharedAllocMem,MEM_POOL_SIZE*sizeof(void*));
     sharedFree(sharedAllocMemLen,MEM_POOL_SIZE*sizeof(int));
@@ -3351,6 +3375,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     struct callLoadlib callStack[1024];
     int chnBufListPtr = 0;
     struct chnBuf chnBufList[256];
+    void *isamTx = NULL;
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
@@ -3432,6 +3457,8 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     sigemptyset( &a.sa_mask );
     sigaction( SIGSEGV, &a, NULL );
 
+    isamTx = beginTransaction();
+    pthread_setspecific(isamTx, isamTx);
     PGconn *conn = getDBConnection();
     pthread_setspecific(connKey, (void*)conn);
     initMain();
@@ -3443,6 +3470,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     free(linkArea);
     clearChnBufList();
     returnDBConnection(conn,1);
+    endTransaction(isamTx,1);
     // Flush output buffers
     fflush(stdout);
     fflush(stderr);
@@ -3480,6 +3508,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     struct callLoadlib callStack[1024];
     int chnBufListPtr = 0;
     struct chnBuf chnBufList[256];
+    void *isamTx = NULL;
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
