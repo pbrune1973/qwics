@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server Mapset Definition Preprocessor                                           */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.08.2019                                  */
+/*   Author: Philipp Brune               Date: 21.07.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018-2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de          */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -48,12 +48,15 @@ struct fieldDef {
     int x,y;
     int justify;
     int attr;
+    int cpypos;
 } currentField;
 
 int currentFieldSet = 0;
 int currentMapIsSet = 0;
 int firstFieldOfMap = 1;
 int firstMapOfSet   = 1;
+int fieldPos = 0;
+int tioapfx = 0;
 
 
 // Field Definition Status
@@ -70,6 +73,7 @@ int firstMapOfSet   = 1;
 #define LINE     10
 #define COLUMN   11
 #define CTRL     12
+#define TIOAPFX  13
 
 // ATTRB flags
 #define ATTR_ASKIP   1
@@ -98,6 +102,16 @@ char *cbkDir = "../copybooks";
 
 void processToken(char *token) {
     // printf("%s\n",token);
+
+    // Mapset definition params
+    if (status == TIOAPFX) {
+        if (strcmp(token,"YES") == 0) {
+            tioapfx = 1;
+        }
+        status = NONE;
+        valCount = 0;
+        return;
+    }
 
     // Map definition params
     if (status == LINE) {
@@ -146,6 +160,9 @@ void processToken(char *token) {
     // Field definition params
     if (status == LENGTH) {
         currentField.length = atoi(token);
+        if (strlen(currentField.name) > 0) {
+            fieldPos = fieldPos + currentField.length;
+        }
         status = NONE;
         valCount = 0;
         return;
@@ -292,6 +309,10 @@ void processToken(char *token) {
         status = CTRL;
         valCount = 0;
     }
+    if (strcmp(token,"TIOAPFX") == 0) {
+        status = TIOAPFX;
+        valCount = 0;
+    }
 }
 
 
@@ -399,6 +420,11 @@ int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *f
         // Output field definition
         if (!firstFieldOfMap) {
             fprintf(fp2,"%s",",");
+        } else {
+            if (tioapfx == 1) {
+                fprintf(fp3,"%s\n","           02  FILLER PIC X(12).");
+                fprintf(fp4,"%s\n","           02  FILLER PIC X(12).");
+            }
         }
         fprintf(fp2,"%s%s%s","{\"name\":\"",currentField.name,"\",");
         fprintf(fp2,"%s%s%s","\"value\":",currentField.value,",");
@@ -408,23 +434,46 @@ int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *f
         fprintf(fp2,"%s%d%s","\"x\":",currentField.x,",");
         fprintf(fp2,"%s%d%s","\"y\":",currentField.y,",");
         fprintf(fp2,"%s%d%s","\"justify\":",currentField.justify,",");
+        fprintf(fp2,"%s%d%s","\"cpypos\":",currentField.cpypos,",");
         fprintf(fp2,"%s%d%s","\"attr\":",currentField.attr,"}");
 
         if (strlen(currentField.name) > 0) {
+            fprintf(fp3,"%s%s%s\n",
+                        "           02  ",currentField.name,"L    COMP  PIC  S9(4).");
+            fprintf(fp3,"%s%s%s\n",
+                        "           02  ",currentField.name,"F    PICTURE X.");
+            fprintf(fp3,"%s%s%s\n",
+                        "           02  FILLER REDEFINES ",currentField.name,"F.");
+            fprintf(fp3,"%s%s%s\n",
+                        "             03 ",currentField.name,"A    PICTURE X.");
+            fprintf(fp3,"%s\n",
+                        "           02  FILLER   PICTURE X(4).");
+
+            fprintf(fp4,"%s\n",
+                        "           02  FILLER PICTURE X(3).");
+            fprintf(fp4,"%s%s%s\n",
+                        "           02  ",currentField.name,"C    PICTURE X.");
+            fprintf(fp4,"%s%s%s\n",
+                        "           02  ",currentField.name,"P    PICTURE X.");
+            fprintf(fp4,"%s%s%s\n",
+                        "           02  ",currentField.name,"H    PICTURE X.");
+            fprintf(fp4,"%s%s%s\n",
+                        "           02  ",currentField.name,"V    PICTURE X.");
+
             if ((currentField.attr & ATTR_NUM) > 0) {
                 fprintf(fp3,"%s%s%s%d%s",
-                            "           05  ",currentField.name,"I PIC 9(",currentField.length,")");
+                            "           02  ",currentField.name,"I PIC 9(",currentField.length,")");
                 fprintf(fp4,"%s%s%s%d%s",
-                            "           05  ",currentField.name,"O PIC 9(",currentField.length,")");
+                            "           02  ",currentField.name,"O PIC 9(",currentField.length,")");
                 fprintf(fp7,"%s%s%s%d%s",
-                            "           05  ",currentField.name,"L PIC 9(",currentField.length,")");
+                            "           02  ",currentField.name,"L PIC 9(",currentField.length,")");
             } else {
                 fprintf(fp3,"%s%s%s%d%s",
-                        "           05  ",currentField.name,"I PIC X(",currentField.length,")");
+                        "           02  ",currentField.name,"I PIC X(",currentField.length,")");
                 fprintf(fp4,"%s%s%s%d%s",
-                        "           05  ",currentField.name,"O PIC X(",currentField.length,")");
+                        "           02  ",currentField.name,"O PIC X(",currentField.length,")");
                 fprintf(fp7,"%s%s%s%d%s",
-                        "           05  ",currentField.name,"L PIC X(",currentField.length,")");
+                        "           02  ",currentField.name,"L PIC X(",currentField.length,")");
             }
             if (strlen(currentField.value) > 2) {
                 fprintf(fp3,"%s%s"," VALUE ",currentField.value);
@@ -443,7 +492,8 @@ int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *f
     if (strstr(currentMacro,"DFHMSD") != NULL) {
         sprintf(currentMapSet,"%s",currentName);
         firstMapOfSet = 1;
-        return -2;
+        tioapfx = 0;
+        //return -2;
     }
     if (strstr(currentMacro,"DFHMDI") != NULL) {
         sprintf(currentMap.name,"%s",currentName);
@@ -454,8 +504,15 @@ int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *f
         currentMap.ctrl  = 0;
         currentMapIsSet = 1;
         firstFieldOfMap = 1;
+        fieldPos = 0;
+        if (tioapfx == 1) {
+            fieldPos = 12;    
+        }
     }
     if (strstr(currentMacro,"DFHMDF") != NULL) {
+        if (strlen(currentName) > 0) {
+            fieldPos = fieldPos + 7;
+        }
         sprintf(currentField.name,"%s",currentName);
         sprintf(currentField.picout,"%s","\"\"");
         sprintf(currentField.picin,"%s","\"\"");
@@ -465,6 +522,7 @@ int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *f
         currentField.y = 0;
         currentField.justify = 0;
         currentField.attr = 0;
+        currentField.cpypos = fieldPos;
         currentFieldSet = 1;
     }
     return i+offset;
@@ -473,7 +531,7 @@ int processMapDef(char *buf, FILE *fp2, FILE *fp3, FILE *fp4, FILE *fp5, FILE *f
 
 int main(int argc, char **argv) {
    FILE *fp,*fp2,*fp3,*fp4,*fp5,*fp6,*fp7;
-   char buf[255],oname[255];
+   char buf[255],iname[255],oname[255];
 
    buf[0] = 0x00;
 
@@ -483,6 +541,10 @@ int main(int argc, char **argv) {
    }
 
    fp = fopen(argv[1], "r");
+   if (fp == NULL) {
+        sprintf(iname,"%s%s",argv[1],".bms");
+        fp = fopen(iname, "r");
+   }
    if (fp == NULL) {
 	    printf("%s%s\n","No input file: ",argv[1]);
 	    return -1;

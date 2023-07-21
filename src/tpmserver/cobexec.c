@@ -742,6 +742,12 @@ void _execSql(char *sql, void *fd, int sendRes, int sync) {
            PGconn *conn = (PGconn*)pthread_getspecific(connKey);
            beginDBConnection(conn);            
         }
+        void* tx = pthread_getspecific(isamTxKey);
+        if (tx != NULL) {
+            endTransaction(tx,1);            
+        }
+        tx = beginTransaction();
+        pthread_setspecific(isamTxKey,tx);
         return;
     }
     if (strstr(sql,"COMMIT")) {
@@ -752,6 +758,14 @@ void _execSql(char *sql, void *fd, int sendRes, int sync) {
         } else {
            r = syncDBConnection(conn, 1);
         }
+        void* tx = pthread_getspecific(isamTxKey);
+        if (tx != NULL) {
+            if (endTransaction(tx,1) != 0) {
+                r = 0;
+            }          
+        }
+        pthread_setspecific(isamTxKey,NULL);
+
         if (sendRes == 1) {
             if (r == 0) {
                 sprintf(response,"%s\n","ERROR");
@@ -771,6 +785,14 @@ void _execSql(char *sql, void *fd, int sendRes, int sync) {
         } else {
            r = syncDBConnection(conn, 0);
         }
+        void* tx = pthread_getspecific(isamTxKey);
+        if (tx != NULL) {
+            if (endTransaction(tx,0) != 0) {
+                r = 0;
+            }          
+        }
+        pthread_setspecific(isamTxKey,NULL);
+        
         if (sendRes == 1) {
             if (r == 0) {
                 sprintf(response,"%s\n","ERROR");
@@ -3458,7 +3480,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     sigaction( SIGSEGV, &a, NULL );
 
     isamTx = beginTransaction();
-    pthread_setspecific(isamTx, isamTx);
+    pthread_setspecific(isamTxKey, isamTx);
     PGconn *conn = getDBConnection();
     pthread_setspecific(connKey, (void*)conn);
     initMain();
@@ -3545,6 +3567,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(callStackPtrKey, &callStackPtr);
     pthread_setspecific(chnBufListKey, &chnBufList);
     pthread_setspecific(chnBufListPtrKey, &chnBufListPtr);
+    pthread_setspecific(isamTxKey, NULL);
 
     // Oprionally read in content of commarea
     if (setCommArea == 1) {

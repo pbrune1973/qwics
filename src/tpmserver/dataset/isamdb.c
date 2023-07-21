@@ -137,11 +137,15 @@ int endTransaction(void *txptr, int commit) {
 	int ret = 0;
 	if (commit > 0) {
 		ret = txn->commit(txn, 0);
+		if (ret != 0) {
+			envp->err(envp, ret, "Transaction commit failed.");
+			ret = txn->abort(txn);
+		}
 	} else {
 		ret = txn->abort(txn);
 	}
 	if (ret != 0) {
-		envp->err(envp, ret, "Transaction commit failed.");
+		envp->err(envp, ret, "End transaction failed.");
  	}
 	return ret;
 }
