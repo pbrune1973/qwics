@@ -239,13 +239,14 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 				}
 			} else {
 				lastMapName = name;
-				if (!"MAP".equals(name) && !"MAPSET".equals(name) && !"FROM".equals(name)) {
+				if (!"MAP".equals(name) && !"MAPSET".equals(name) && !"FROM".equals(name) && !"SIZE".equals(name)) {
 					putMapValue(name, "true");
 				}
-				if ("FROM".equals(name)) {
-					name = conn.readResult();
-				}
 			}
+		}
+
+		if ((name = conn.readResult()).startsWith("JSON")) {
+			putMapValue("JSON", name.substring(5));
 		}
 	}
 

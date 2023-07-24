@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.11.2020                                  */
+/*   Author: Philipp Brune               Date: 24.07.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
+/*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -86,7 +86,9 @@ extern void* (*resolveCALL)(char*);
 
 // SQLCA
 cob_field *sqlcode = NULL;
+
 char currentMap[9];
+char currentMapSet[9];
 
 // Making COBOl thread safe
 int runningModuleCnt = 0;
@@ -459,9 +461,17 @@ void endModule(char *progname) {
 
 void writeJson(char *map, char *mapset, int childfd) {
     int n = 0, l = strlen(map), found = 0, brackets = 0;
+    char m[9], ms[9];
+    sprintf(m,"%s",map);
+    sprintf(ms,"%s",mapset);
+    for (int i = 0; i < 8; i++) {
+        if (m[i] == ' ') m[i] = 0x00;
+        if (ms[i] == ' ') ms[i] = 0x00;
+    }
+    l = strlen(m);
     write(childfd,"JSON=",5);
     char jsonFile[255];
-    sprintf(jsonFile,"%s%s%s%s",GETENV_STRING(jsDir,"QWICS_JSDIR","../copybooks"),"/",mapset,".js");
+    sprintf(jsonFile,"%s%s%s%s",GETENV_STRING(jsDir,"QWICS_JSDIR","../copybooks"),"/",ms,".js");
     FILE *js = fopen(jsonFile,"rb");
     if (js != NULL) {
         while (1) {
@@ -470,7 +480,7 @@ void writeJson(char *map, char *mapset, int childfd) {
                 break;
             }
             if (found == 0) {
-                if (map[n] == c) {
+                if (m[n] == c) {
                     n++;
                 } else {
                     n = 0;
@@ -1377,7 +1387,10 @@ int execCallback(char *cmd, void *var) {
             sprintf(cmdbuf,"%s%s",cmd,"\n");
             write(childfd,cmdbuf,strlen(cmdbuf));
             cmdbuf[0] = 0x00;
+            (*cmdState) = -1;
+            (*memParamsState) = 0;
             (*respFieldsState) = 0;
+            *((int*)memParams[0]) = -1;
             respFields[0] = NULL;
             respFields[1] = NULL;
             return 1;
@@ -1689,6 +1702,38 @@ int execCallback(char *cmd, void *var) {
             cmdbuf[0] = 0x00;
             outputVars[0] = NULL; // NULL terminated list
             write(childfd,"\n",1);
+
+            if (((*cmdState) == -1) && ((*memParamsState) >= 1)) {
+                writeJson(currentMap,currentMapSet,childfd);
+
+                int len = *((int*)memParams[0]);
+                cob_field *cobvar = (cob_field*)memParams[1];
+                int i,l;
+                if ((len >= 0) && (len <= cobvar->size)) {
+                  l = len;
+                } else {
+                  l = cobvar->size;
+                }
+                write(childfd,cobvar->data,l);
+                if (l < len) {
+                  char zero[1];
+                  zero[0] = 0x00;
+                  for (i = l; i < len; i++) {
+                    write(childfd,&zero,1);
+                  }
+                }
+                
+                char buf[2048];
+                readLine((char*)&buf,childfd);
+                resp = atoi(buf);
+                readLine((char*)&buf,childfd);
+                resp2 = atoi(buf);
+                write(childfd,"\n",1);
+                write(childfd,"\n",1);
+                if (resp > 0) {
+                  abend(resp,resp2);
+                }
+            }
             if (((*cmdState) == -2) && ((*memParamsState) >= 1)) {
                 int len = *((int*)memParams[0]);
                 cob_field *cobvar = (cob_field*)memParams[1];
@@ -2204,7 +2249,7 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"RESID") || strstr(cmd,"LOGMESSAGE") || strstr(cmd,"READ") || strstr(cmd,"UPDATE") ||
             strstr(cmd,"UPDATE") || strstr(cmd,"ALTER") || strstr(cmd,"KEYLENGTH") || strstr(cmd,"RIDFLD") || 
             strstr(cmd,"DATASET") || strstr(cmd,"GTEQ") || strstr(cmd,"STARTBR")  || strstr(cmd,"ENDBR") || 
-            strstr(cmd,"FILE") || strstr(cmd,"READNEXT") || strstr(cmd,"READPREV")) {
+            strstr(cmd,"FILE") || strstr(cmd,"READNEXT") || strstr(cmd,"READPREV") || strstr(cmd,"CURSOR")) {
             sprintf(end,"%s%s",cmd,"\n");
 
             if ((strcmp(cmd,"NOHANDLE") == 0) && ((*respFieldsState) == 0)) {
@@ -2222,6 +2267,50 @@ int execCallback(char *cmd, void *var) {
                 respFields[1] = (void*)cobvar;
                 (*respFieldsState) = 2;
               }
+            }
+            if (((*cmdState) == -1) && ((*memParamsState) == 1)) {
+                // SEND FROM LENGTH param value
+                (*((int*)memParams[0])) = atoi(cmd);
+                (*memParamsState) = 10;
+            }
+            if (((*cmdState) == -1) && ((*memParamsState) == 3)) {
+                int l = strlen(cmd);
+                int i = 0, j = 0;
+                for (i = 0; i < l && j < 8; i++) {
+                    if ((cmd[i] != '\'') && (cmd[i] != ' ')) {
+                        currentMap[j] = cmd[i];
+                        j++;
+                    }         
+                }
+                currentMap[j] = 0x00;
+                (*memParamsState) = 10;
+            }
+            if (((*cmdState) == -1) && ((*memParamsState) == 4)) {
+                int l = strlen(cmd);
+                int i = 0, j = 0;
+                for (i = 0; i < l && j < 8; i++) {
+                    if ((cmd[i] != '\'') && (cmd[i] != ' ')) {
+                        currentMapSet[j] = cmd[i];
+                        j++;
+                    }         
+                }
+                currentMapSet[j] = 0x00;
+                (*memParamsState) = 10;
+            }
+            if ((*cmdState) == -1) {
+                if (strcmp(cmd,"LENGTH") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"FROM") == 0) {
+                    (*memParamsState) = 2;
+                }
+                if ((strcmp(cmd,"MAP") == 0) && 
+                    (strcmp(cmd,"MAPSET") != 0)) {
+                    (*memParamsState) = 3;
+                }
+                if (strcmp(cmd,"MAPSET") == 0) {
+                    (*memParamsState) = 4;
+                }
             }
             if (((*cmdState) == 2) && ((*memParamsState) == 1)) {
                 // RECEIVE INTO LENGTH param value
@@ -2618,18 +2707,10 @@ int execCallback(char *cmd, void *var) {
             }
             write(childfd,cmdbuf,strlen(cmdbuf));
             cmdbuf[0] = 0x00;
-            if ((*cmdState) == -1) {
-                if (strstr(cmd,"MAP=")) {
-                    sprintf(currentMap,"%s",(cmd+4));
-                }
-                if (strstr(cmd,"MAPSET=")) {
-                    writeJson(currentMap,(cmd+7),childfd);
-                }
-            }
         } else {
             if (var != NULL) {
                 cob_field *cobvar = (cob_field*)var;
-                if ((*cmdState) == -1) {
+                if (((*cmdState) == -1) && ((*memParamsState) == 4)) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
@@ -2645,6 +2726,93 @@ int execCallback(char *cmd, void *var) {
                     fclose(f);
                     write(childfd,cmdbuf,strlen(cmdbuf));
                     write(childfd,"\n",1);
+
+                    f = fmemopen(&currentMapSet, 9, "w");
+                    if (cobvar->data[0] != 0) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -1) && ((*memParamsState) == 3)) {
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
+                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    if (COB_FIELD_TYPE(cobvar) == COB_TYPE_ALPHANUMERIC) putc('\'',f);
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+
+                    f = fmemopen(&currentMap, 9, "w");
+                    if (cobvar->data[0] != 0) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -1) && ((*memParamsState) == 2)) {
+                    memParams[1] = (void*)cobvar;
+                    (*memParamsState) = 10;
+                    char str[20];
+                    sprintf((char*)&str,"%s\n","SIZE");
+                    write(childfd,str,strlen(str));
+                    sprintf((char*)&str,"%s%d\n","=",(int)cobvar->size);
+                    write(childfd,str,strlen(str));
+                }
+                if (((*cmdState) == -1) && ((*memParamsState) == 1)) {
+                    // WRITEQ LENGTH
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+                    (*((int*)memParams[0])) = atoi(end);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -2) && ((*memParamsState) == 2)) {
+                    memParams[1] = (void*)cobvar;
+                    (*memParamsState) = 10;
+                    char str[20];
+                    sprintf((char*)&str,"%s\n","SIZE");
+                    write(childfd,str,strlen(str));
+                    sprintf((char*)&str,"%s%d\n","=",(int)cobvar->size);
+                    write(childfd,str,strlen(str));
+                }
+                if (((*cmdState) == -2) && ((*memParamsState) == 1)) {
+                     //RECEIVE LENGTH
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+                    (*((int*)memParams[0])) = atoi(end);
+                    (*memParamsState) = 10;
                 }
                 if (((*cmdState) == -2) && ((*memParamsState) == 0)) {
                     sprintf(end,"%s%s",cmd,"\n");
@@ -2664,33 +2832,6 @@ int execCallback(char *cmd, void *var) {
                     buf[pos] = 0x00;
                     // printf("read %s\n",buf);
                     cob_put_picx(cobvar->data,cobvar->size,buf);
-                }
-                if (((*cmdState) == -2) && ((*memParamsState) == 2)) {
-                    memParams[1] = (void*)cobvar;
-                    (*memParamsState) = 10;
-                    char str[20];
-                    sprintf((char*)&str,"%s\n","SIZE");
-                    write(childfd,str,strlen(str));
-                    sprintf((char*)&str,"%s%d\n","=",(int)cobvar->size);
-                    write(childfd,str,strlen(str));
-                }
-                if (((*cmdState) == -2) && ((*memParamsState) == 1)) {
-                    // WRITEQ LENGTH
-                    sprintf(end,"%s%s",cmd,"=");
-                    end = &cmdbuf[strlen(cmdbuf)];
-                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
-                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
-                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
-                        (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
-                        (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
-                        display_cobfield(cobvar,f);
-                    }
-                    putc(0x00,f);
-                    fclose(f);
-                    write(childfd,cmdbuf,strlen(cmdbuf));
-                    write(childfd,"\n",1);
-                    (*((int*)memParams[0])) = atoi(end);
-                    (*memParamsState) = 10;
                 }
                 if ((*cmdState) == -3) {
                     sprintf(end,"%s%s",cmd,"=");
@@ -3342,6 +3483,7 @@ void initExec(int initCons) {
 
     setUpPool(10, GETENV_STRING(connectStr,"QWICS_DB_CONNECTSTR","dbname=qwics"), initCons);
     currentMap[0] = 0x00;
+    currentMapSet[0] = 0x00;
 
     GETENV_STRING(cobDateFormat,"QWICS_COBDATEFORMAT","YYYY-MM-dd.hh:mm:ss.uuuu");
     startIsamDB(GETENV_STRING(datasetDir,"QWICS_DATASET_DIR","../dataset"));

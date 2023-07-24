@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor                                                       */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 20.07.2023                                  */
+/*   Author: Philipp Brune               Date: 24.07.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -25,9 +25,9 @@
 #include <unistd.h>
 
 int sqlca = 0;
-int mapNameMode = 0;
-int isMapIO = 0;
-int mapCmd = 0; // 1: RECEIVE, 0: SEND
+//int mapNameMode = 0;
+//int isMapIO = 0;
+//int mapCmd = 0; // 1: RECEIVE, 0: SEND
 int isBranchLabel = 0;
 int isResponseParam = 0;
 int isPtrField = 0;
@@ -35,8 +35,8 @@ int isLengthField = 0;
 int isErrHandlerField = 0;
 int isAbendHandler = 0;
 char respParam[9];
-char mapName[9];
-char mapsetName[9];
+//char mapName[9];
+//char mapsetName[9];
 char lcopybookNames[20][9];
 int numOfLCopybooks = 0;
 int eibPresent = 0;
@@ -269,13 +269,6 @@ void getVarInSuffix(int n, char *suffix, char *subscript) {
                 }
 
                 int l = strlen(suffix);
-/*
-                if (l == 0) {
-                  sprintf(&suffix[l],"%s%s"," IN ",linkageVars[i].name);
-                } else {
-                  sprintf(&suffix[l],"%s%s","\n            IN  ",linkageVars[i].name);
-                }
-*/
                 sprintf(&suffix[l],"%s%s","\n            IN  ",linkageVars[i].name);
                 getVarInSuffix(i,suffix,subscript);
                 break;
@@ -498,21 +491,6 @@ int includeCbk(char *copybook, FILE *outFile, char *findStr, char *replStr, int 
         } else {
             processLine(line,outFile,cbk);
         }
-        // Avoid inserting other EXEC-Macros
-        /*
-        if (!inExec && strstr(line,"EXEC")) {
-            inExec = 1;
-        }
-        if (!inExec) {
-            fputs(line,outFile);
-            if (inLinkageSection) {
-              parseLinkageVarDef(line);
-            }
-        }
-        if (inExec && strstr(line,"END-EXEC")) {
-            inExec = 0;
-        }
-        */
     }
 
     fputs("\n",outFile);
@@ -580,43 +558,6 @@ int includeCbkL(FILE *outFile) {
     return 1;
 }
 
-
-int includeMapDisplays(char *mapset, char *map, FILE *outFile, int input) {
-    FILE *cbk = NULL;
-    if (input) {
-        cbk = openCbkFile(mapset,"I.dsp");
-    } else {
-        cbk = openCbkFile(mapset,"O.dsp");
-    }
-    if (cbk == NULL) {
-        printf("%s%s\n","Copybook file not found: ",mapset);
-        return -1;
-    }
-
-    if (input) { // Read in attention identifier value for RECEIVE
-        fputs("           DISPLAY \"TPMI:EIBAID\" EIBAID.\n",outFile);
-    }
-
-    int outOn = 0;
-    char line[255];
-    while (fgets(line, 255, (FILE*)cbk) != NULL) {
-        if ((line[0] == '*') && (outOn == 1)) {
-            outOn = 2;
-        }
-        if (outOn == 1) {
-            fputs(line,outFile);
-        }
-        if ((line[0] == '*') && (outOn == 0) && (strstr(line,map) != NULL)) {
-            outOn = 1;
-        }
-    }
-
-    fputs("\n",outFile);
-    fclose(cbk);
-    return 1;
-}
-
-
 int hasDotTerminator(char *buf) {
     int l = strlen(buf);
     if (l > 72) {
@@ -631,7 +572,6 @@ int hasDotTerminator(char *buf) {
     }
     return 0;
 }
-
 
 int isEmptyLine(char *buf) {
     int l = strlen(buf);
@@ -886,43 +826,16 @@ void processExecLine(char *buf, FILE *fp2, FILE *fp) {
             token[tokenPos] = buf[i];
             tokenPos++;
             token[tokenPos] = 0x00;
-            if (mapNameMode == 0) {
-                sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
-                        token,getExecTerminator(1));
-                if ((execCmd == 1) || ((execCmd == 2) && (execSQLCnt == 3))) {
-                  fputs(execbuf, (FILE*)fp2);
-                }
-                if (!inProcDivision && (execCmd == 2) && (execSQLCnt == 4)) {
-                  fputs(execbuf, (FILE*)declareTmpFile);
-                }
+
+            sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
+                    token,getExecTerminator(1));
+            if ((execCmd == 1) || ((execCmd == 2) && (execSQLCnt == 3))) {
+                fputs(execbuf, (FILE*)fp2);
             }
-            if (mapNameMode == 1) {
-                token[strlen(token)-1] = 0x00;
-                sprintf(mapName,"%s",token+1);
-                sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:MAP=",
-                        mapName,getExecTerminator(1));
-                if ((execCmd == 1) || ((execCmd == 2) && (execSQLCnt == 3))) {
-                  fputs(execbuf, (FILE*)fp2);
-                }
-                if (!inProcDivision && (execCmd == 2) && (execSQLCnt == 4)) {
-                  fputs(execbuf, (FILE*)declareTmpFile);
-                }
-                mapNameMode = 0;
+            if (!inProcDivision && (execCmd == 2) && (execSQLCnt == 4)) {
+                fputs(execbuf, (FILE*)declareTmpFile);
             }
-            if (mapNameMode == 2) {
-                token[strlen(token)-1] = 0x00;
-                sprintf(mapsetName,"%s",token+1);
-                mapNameMode = 0;
-                sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:MAPSET=",
-                        mapsetName,getExecTerminator(1));
-                if ((execCmd == 1) || ((execCmd == 2) && (execSQLCnt == 3))) {
-                  fputs(execbuf, (FILE*)fp2);
-                }
-                if (!inProcDivision && (execCmd == 2) && (execSQLCnt == 4)) {
-                  fputs(execbuf, (FILE*)declareTmpFile);
-                }
-                includeMapDisplays(mapsetName,mapName,(FILE*)fp2,mapCmd);
-            }
+
             tokenPos = 0;
             verbatim = 0;
             continue;
@@ -981,11 +894,11 @@ void processExecLine(char *buf, FILE *fp2, FILE *fp) {
                         isLengthField = 1;
                     }
                     if (strstr(token,"RECEIVE") != NULL) {
-                        mapCmd = 1;
+                        //mapCmd = 1;
                         allowIntoParam = 1;
                     }
                     if (strstr(token,"SEND") != NULL) {
-                        mapCmd = 0;
+                        //mapCmd = 0;
                     }
                     if (strstr(token,"RETRIEVE") != NULL) {
                         allowIntoParam = 1;
@@ -1004,18 +917,6 @@ void processExecLine(char *buf, FILE *fp2, FILE *fp) {
                     }
                     if (strstr(token,"START") != NULL) {
                         allowFromParam = 1;
-                    }
-                    if ((strstr(token,"MAP") != NULL) && (strstr(token,"MAPSET") == NULL)) {
-                        mapNameMode = 1;
-                    }
-                    if (strstr(token,"MAPSET") != NULL) {
-                        mapNameMode = 2;
-                    }
-                    if (!allowFromParam && (strstr(token,"FROM") != NULL)) {
-                        isMapIO = 1;
-                    }
-                    if (!allowIntoParam && (strstr(token,"INTO") != NULL)) {
-                        isMapIO = 1;
                     }
                     if (strstr(token,"ERROR") != NULL) {
                         isBranchLabel = 1;
@@ -1252,15 +1153,6 @@ void processExecLine(char *buf, FILE *fp2, FILE *fp) {
                     if (tokenPos > 0) {
                         token[tokenPos] = 0x00;
                         if (value == 1) {
-                            if (isMapIO) {
-                                // Insert map attribute display statements
-                                if (token[strlen(token)-1] == 'I') {
-                                    includeMapDisplays(mapsetName,mapName,(FILE*)fp2,1);
-                                } else {
-                                    includeMapDisplays(mapsetName,mapName,(FILE*)fp2,0);
-                                }
-                                isMapIO = 0;
-                            } else
                             if (isBranchLabel) {
                                 sprintf(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:",
                                         token,getExecTerminator(1));
@@ -1288,11 +1180,11 @@ void processExecLine(char *buf, FILE *fp2, FILE *fp) {
                             i--;
 
                             if (strstr(token,"RECEIVE") != NULL) {
-                                mapCmd = 1;
+                                //mapCmd = 1;
                                 allowIntoParam = 1;
                             }
                             if (strstr(token,"SEND") != NULL) {
-                                mapCmd = 0;
+                                //mapCmd = 0;
                             }
                             if (strstr(token,"RETRIEVE") != NULL) {
                                 allowIntoParam = 1;
@@ -1311,18 +1203,6 @@ void processExecLine(char *buf, FILE *fp2, FILE *fp) {
                             }
                             if (strstr(token,"START") != NULL) {
                                 allowFromParam = 1;
-                            }
-                            if ((strstr(token,"MAP") != NULL) && (strstr(token,"MAPSET") == NULL)) {
-                                mapNameMode = 1;
-                            }
-                            if (strstr(token,"MAPSET") != NULL) {
-                                mapNameMode = 2;
-                            }
-                            if (!allowFromParam && (strstr(token,"FROM") != NULL)) {
-                                isMapIO = 1;
-                            }
-                            if (!allowIntoParam && (strstr(token,"INTO") != NULL)) {
-                                isMapIO = 1;
                             }
                             if (strstr(token,"ERROR") != NULL) {
                                 isBranchLabel = 1;
