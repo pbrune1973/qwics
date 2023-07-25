@@ -219,6 +219,8 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 
 	private void readMapValues() throws Exception {
 		String name = "";
+		int len = -1, size = 0;
+
 		while (!"".equals(name = conn.readResult())) {
 			if (name.contains("=")) {
 				String vals[] = null;
@@ -233,27 +235,79 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 					if (vals[1].startsWith("'")) {
 						vals[1] = vals[1].substring(1, vals[1].length() - 1);
 					}
-					putMapValue(vals[0], vals[1]);
+					if ("LENGTH".equals(vals[0])) {
+						try {
+							len = Integer.parseInt(vals[1]);
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					} else
+					if ("SIZE".equals(vals[0])) {
+						try {
+							size = Integer.parseInt(vals[1]);
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					} else {
+						putMapValue(vals[0], vals[1].trim());
+					}
 				} else {
 					putMapValue(vals[0], "");
 				}
 			} else {
 				lastMapName = name;
-				if (!"MAP".equals(name) && !"MAPSET".equals(name) && !"FROM".equals(name) && !"SIZE".equals(name)) {
+				if (!"MAP".equals(name) && !"MAPSET".equals(name) &&
+						!"FROM".equals(name) && !"SIZE".equals(name) &&
+						!"LENGTH".equals(name)) {
 					putMapValue(name, "true");
 				}
 			}
 		}
+		int resp = 0, resp2 = 0;
 
+		String json = "";
 		if ((name = conn.readResult()).startsWith("JSON")) {
-			putMapValue("JSON", name.substring(5));
+			json = name.substring(5);
+			putMapValue("JSON", json);
 		}
+
+		if (len >= 0) {
+			size = len;
+		}
+		char[] buf = new char[size];
+		conn.readBuf(buf);
+
+		int pos = json.indexOf("\"fields\":",0);
+		if (pos >= 0) {
+			while ((pos = json.indexOf("\"name\":",pos)) >= 0) {
+				pos = pos + 7;
+				String fname = json.substring(pos+1,json.indexOf("\",",pos+1));
+				if (!"".equals(fname)) {
+					try {
+						pos = json.indexOf("\"length\":", pos) + 9;
+						String v = json.substring(pos, json.indexOf(",", pos));
+						int flen = Integer.parseInt(v);
+
+						pos = json.indexOf("\"cpypos\":", pos) + 9;
+						v = json.substring(pos, json.indexOf(",", pos));
+						int fpos = Integer.parseInt(v);
+System.out.println(name+" "+fpos+" "+flen);
+						putMapValue(fname, new String(Arrays.copyOfRange(buf,fpos,fpos+flen)));
+					} catch (Exception e) {
+						putMapValue(fname, "");
+					}
+				}
+			}
+		}
+
+		conn.sendCmd("" + resp);
+		conn.sendCmd("" + resp2);
 	}
 
 	private void sendMapValues() throws Exception {
 		String name = "";
 		int len = -1, size = 0;
-		boolean useInto = false;
+
 		while (!"".equals(name = conn.readResult())) {
 			if (name.contains("=")) {
 				String vals[] = null;
@@ -287,54 +341,86 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 				}
 			} else {
 				lastMapName = name;
-				if ("INTO".equals(name)) {
-					useInto = true;
+				if (!"MAP".equals(name) && !"MAPSET".equals(name) &&
+						!"INTO".equals(name) && !"SIZE".equals(name) &&
+						!"LENGTH".equals(name)) {
+					putMapValue(name, "true");
 				}
-				if (!"MAP".equals(name) && !"MAPSET".equals(name) && !"INTO".equals(name) && !"LENGTH".equals(name)
-						&& !"SIZE".equals(name)) {
+			}
+		}
+
+		int resp = 0, resp2 = 0;
+		if (len < 0) {
+			len = 0;
+		}
+		if (len < size) {
+			resp = 22;
+		}
+
+		String json = "";
+		Integer i = nameIndices.get("JSON");
+		if (i != null) {
+			json = mapValues.get(i);
+		}
+
+		char buf[] = new char[size];
+
+		int pos = json.indexOf("\"fields\":",0);
+		if (pos >= 0) {
+			while ((pos = json.indexOf("\"name\":",pos)) >= 0) {
+				pos = pos + 7;
+				String fname = json.substring(pos+1,json.indexOf("\",",pos+1));
+				if (!"".equals(fname)) {
+					i = nameIndices.get(fname);
 					try {
-						if ("EIBAID".equals(name)) {
-							conn.sendCmd("" + eibAID);
-							eibAID = ' ';
-						} else {
-							conn.sendCmd(mapValues.get(nameIndices.get(name)));
+						pos = json.indexOf("\"length\":", pos) + 9;
+						String v = json.substring(pos, json.indexOf(",", pos));
+						int flen = Integer.parseInt(v);
+
+						pos = json.indexOf("\"cpypos\":", pos) + 9;
+						v = json.substring(pos, json.indexOf(",", pos));
+						int fpos = Integer.parseInt(v);
+						System.out.println(name+" "+fpos+" "+flen);
+
+						if (i != null) {
+							char[] data = mapValues.get(i).toCharArray();
+							if (data != null) {
+								for (int j = 0; j < flen; j++) {
+									if (j < data.length) {
+										buf[fpos+j] = data[j];
+									} else {
+										buf[fpos+j] = ' ';
+									}
+								}
+							}
 						}
 					} catch (Exception e) {
-						conn.sendCmd("");
 					}
 				}
 			}
 		}
-		if (useInto) {
-			int resp = 0, resp2 = 0;
-			if (len < 0) {
-				len = 0;
-			}
-			if (len < size) {
-				resp = 22;
-			}
-			char buf[] = new char[size];
-			try {
-				String input = getString("TERMINPUT");
-				if (input != null) {
-					int l = 0;
-					if (input.length() < buf.length) {
-						l = input.length();
-					} else {
-						l = buf.length;
-					}
-					for (int i = 0; i < l; i++) {
-						buf[i] = input.charAt(i);
-					}
+
+		try {
+			String input = getString("TERMINPUT");
+			if (input != null) {
+				int l = 0;
+				if (input.length() < buf.length) {
+					l = input.length();
+				} else {
+					l = buf.length;
 				}
-			} catch (Exception e) {
+				for (int j = 0; j < l; j++) {
+					buf[j] = input.charAt(j);
+				}
 			}
-			conn.sendBuf(buf);
-
-			conn.sendCmd("" + resp);
-			conn.sendCmd("" + resp2);
-
+		} catch (Exception e) {
 		}
+		conn.sendBuf(buf);
+
+		conn.sendCmd("" + eibAID);
+		eibAID = ' ';
+		conn.sendCmd("" + resp);
+		conn.sendCmd("" + resp2);
 	}
 
 	@Override

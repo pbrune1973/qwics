@@ -1633,7 +1633,7 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
   }
 
   if (execCmd == 0) {
-      char *cmd = strstr(buf,"EXEC");
+      char *cmd = strstr_noverb(buf,"EXEC");
       if (cmd != NULL) {
          cmd[0] = '\n';
          cmd[1] = 0x00;
@@ -1642,7 +1642,7 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
          cmd[1] = 'X';
          memset(buf,' ',(int)(cmd-buf));
       }
-      if ((cmd != NULL) && strstr(buf,"CICS")) {
+      if ((cmd != NULL) && strstr_noverb(buf,"CICS")) {
           allowIntoParam = 0;
           allowFromParam = 0;
           execCmd = 1;
@@ -1651,7 +1651,7 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
           execSQLCnt = 0;
           setptrbuf[0] = 0;
       }
-      if ((cmd != NULL) && strstr(buf,"SQL")) {
+      if ((cmd != NULL) && strstr_noverb(buf,"SQL")) {
           allowIntoParam = 0;
           allowFromParam = 0;
           execCmd = 2;
@@ -1897,7 +1897,7 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
           processCopyLine(copyBuf,fp2,fp);
       }
   } else {
-      char *cmd = strstr(buf,"END-EXEC");
+      char *cmd = strstr_noverb(buf,"END-EXEC");
       if (cmd != NULL) {
         if (hasDotTerminator(buf)) {
             outputDot = 1;

@@ -57,6 +57,7 @@ pthread_key_t xctlStateKey;
 pthread_key_t retrieveStateKey;
 pthread_key_t xctlParamsKey;
 pthread_key_t eibbufKey;
+pthread_key_t eibaidKey;
 pthread_key_t linkAreaKey;
 pthread_key_t linkAreaPtrKey;
 pthread_key_t linkAreaAdrKey;
@@ -1154,6 +1155,7 @@ int execCallback(char *cmd, void *var) {
     int *retrieveState = (int*)pthread_getspecific(retrieveStateKey);
     char **xctlParams = (char**)pthread_getspecific(xctlParamsKey);
     char *eibbuf = (char*)pthread_getspecific(eibbufKey);
+    char *eibaid = (char*)pthread_getspecific(eibaidKey);
     char *linkArea = (char*)pthread_getspecific(linkAreaKey);
     int *linkAreaPtr = (int*)pthread_getspecific(linkAreaPtrKey);
     char **linkAreaAdr = (char**)pthread_getspecific(linkAreaAdrKey);
@@ -1204,19 +1206,13 @@ int execCallback(char *cmd, void *var) {
         (*areaMode) = 0;
         // Handle EIBAID
         cob_field *cobvar = (cob_field*)var;
+        if (cobvar->data != NULL) {
+            eibaid = (char*)cobvar->data;
+            pthread_setspecific(eibaidKey, eibaid);
+        }
         // Read in client response value
         char buf[2048];
-        buf[0] = 0x00;
-        char c = 0x00;
-        int pos = 0;
-        while (c != '\n') {
-            int n = read(childfd,&c,1);
-            if ((n == 1) && (pos < 2047) && (c != '\n') && (c != '\r') && (c != '\'')) {
-                buf[pos] = c;
-                pos++;
-            }
-        }
-        buf[pos] = 0x00;
+        readLine((char*)&buf,childfd);
         cob_put_picx(cobvar->data,(size_t)cobvar->size,buf);
         return 1;
     }
@@ -1760,6 +1756,10 @@ int execCallback(char *cmd, void *var) {
                 }
 
                 char buf[2048];
+                // Read EIBAID
+                readLine((char*)&buf,childfd);
+                cob_put_picx(eibaid,1,buf);
+
                 readLine((char*)&buf,childfd);
                 resp = atoi(buf);
                 readLine((char*)&buf,childfd);
@@ -2814,25 +2814,6 @@ int execCallback(char *cmd, void *var) {
                     (*((int*)memParams[0])) = atoi(end);
                     (*memParamsState) = 10;
                 }
-                if (((*cmdState) == -2) && ((*memParamsState) == 0)) {
-                    sprintf(end,"%s%s",cmd,"\n");
-                    write(childfd,cmdbuf,strlen(cmdbuf));
-                    // Read in client response value
-                    char buf[2048];
-                    buf[0] = 0x00;
-                    char c = 0x00;
-                    int pos = 0;
-                    while (c != '\n') {
-                        int n = read(childfd,&c,1);
-                        if ((n == 1) && (pos < 2047) && (c != '\n') && (c != '\r') && (c != '\'')) {
-                            buf[pos] = c;
-                            pos++;
-                        }
-                    }
-                    buf[pos] = 0x00;
-                    // printf("read %s\n",buf);
-                    cob_put_picx(cobvar->data,cobvar->size,buf);
-                }
                 if ((*cmdState) == -3) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
@@ -3440,6 +3421,7 @@ void initExec(int initCons) {
     pthread_key_create(&xctlStateKey, NULL);
     pthread_key_create(&xctlParamsKey, NULL);
     pthread_key_create(&eibbufKey, NULL);
+    pthread_key_create(&eibaidKey, NULL);
     pthread_key_create(&linkAreaKey, NULL);
     pthread_key_create(&linkAreaPtrKey, NULL);
     pthread_key_create(&linkAreaAdrKey, NULL);
@@ -3517,6 +3499,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     char progname[9];
     char *xctlParams[10];
     char eibbuf[150];
+    char eibaid[2];
     char *linkArea = malloc(16000000);
     char commArea[32768];
     int linkAreaPtr = 0;
@@ -3555,6 +3538,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(xctlStateKey, &xctlState);
     pthread_setspecific(xctlParamsKey, &xctlParams);
     pthread_setspecific(eibbufKey, &eibbuf);
+    pthread_setspecific(eibaidKey, &eibaid);
     pthread_setspecific(linkAreaKey, linkArea);
     pthread_setspecific(linkAreaPtrKey, &linkAreaPtr);
     pthread_setspecific(linkAreaAdrKey, &linkAreaAdr);
@@ -3649,6 +3633,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     int xctlState = 0;
     char *xctlParams[10];
     char eibbuf[150];
+    char eibaid[2];
     char *linkArea = malloc(16000000);
     char commArea[32768];
     int linkAreaPtr = 0;
@@ -3688,6 +3673,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(xctlStateKey, &xctlState);
     pthread_setspecific(xctlParamsKey, &xctlParams);
     pthread_setspecific(eibbufKey, &eibbuf);
+    pthread_setspecific(eibaidKey, &eibaid);
     pthread_setspecific(linkAreaKey, linkArea);
     pthread_setspecific(linkAreaPtrKey, &linkAreaPtr);
     pthread_setspecific(linkAreaAdrKey, &linkAreaAdr);
