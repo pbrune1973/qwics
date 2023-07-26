@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 24.07.2023                                  */
+/*   Author: Philipp Brune               Date: 25.07.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -80,6 +80,7 @@ pthread_key_t callStackPtrKey;
 pthread_key_t chnBufListKey;
 pthread_key_t chnBufListPtrKey;
 pthread_key_t isamTxKey;
+pthread_key_t currentNamesKey;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
@@ -88,8 +89,27 @@ extern void* (*resolveCALL)(char*);
 // SQLCA
 cob_field *sqlcode = NULL;
 
-char currentMap[9];
-char currentMapSet[9];
+#define MAX_OPENDATASETS 10
+#define MAX_OPENCURSORS 10
+
+struct openCursorType {
+    int id;
+    void* curHandle;
+    unsigned char *lastRid;
+};
+
+struct openDatasetType {
+    char dsName[46];
+    void* dsHandle;
+    struct openCursorType openCursors[MAX_OPENCURSORS];
+};
+
+struct currentNamesType {
+    char currentMap[9];
+    char currentMapSet[9];
+    char fileName[46];
+    struct openDatasetType openDatasets[MAX_OPENDATASETS];
+};
 
 // Making COBOl thread safe
 int runningModuleCnt = 0;
@@ -129,6 +149,79 @@ char *cobDateFormat = "YYYY-MM-dd-hh.mm.ss.uuuuu";
 //char *dbDateFormat = "dd-MM-YYYY hh:mm:ss.uuu";
 char *dbDateFormat = "YYYY-MM-dd hh:mm:ss.uuu";
 char result[30];
+
+
+int putOpenDataset(struct openDatasetType *ds, char *dsName, void *dsHandle) {
+    int i = 0;
+    for (i = 0; i < MAX_OPENDATASETS; i++) {
+        if (ds[i].dsHandle == NULL) {
+            sprintf(ds[i].dsName,"%s",dsName);
+            ds[i].dsHandle = dsHandle;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+void *getOpenDataset(struct openDatasetType *ds, char *dsName) {
+    int i = 0;
+    for (i = 0; i < MAX_OPENDATASETS; i++) {
+        if ((ds[i].dsHandle != NULL) && (strcmp(ds[i].dsName,dsName) == 0)) {
+            return ds[i].dsHandle;
+        }
+    }
+    return NULL;
+}
+
+
+void closeOpenDatasets(struct openDatasetType *ds) {
+    int i = 0, j = 0;
+    for (i = 0; i < MAX_OPENDATASETS; i++) {
+        if (ds[i].dsHandle != NULL) {
+            for (j = 0; j < MAX_OPENCURSORS; j++) {
+                if (ds[i].openCursors[j].curHandle != NULL) {
+                    closeCursor(ds[i].openCursors[j].curHandle);
+                }
+            }
+            closeDataset(ds[i].dsHandle);
+        }
+    }
+}
+
+
+int putOpenCursor(struct openDatasetType *ds, char *dsName, int id, void *curHandle, unsigned char *rid) {
+    int i = 0, j = 0;
+    for (i = 0; i < MAX_OPENDATASETS; i++) {
+        if ((ds[i].dsHandle != NULL) && (strcmp(ds[i].dsName,dsName) == 0)) {
+            for (j = 0; j < MAX_OPENCURSORS; j++) {
+                if (ds[i].openCursors[j].curHandle == NULL) {
+                    ds[i].openCursors[j].id = id;
+                    ds[i].openCursors[j].curHandle = curHandle;
+                    return 1;
+                }
+            }
+            return 0;
+        }
+    }
+    return 0;
+}
+
+
+struct openCursorType *getOpenCursor(struct openDatasetType *ds, char *dsName, int id) {
+    int i = 0, j = 0;
+    for (i = 0; i < MAX_OPENDATASETS; i++) {
+        if ((ds[i].dsHandle != NULL) && (strcmp(ds[i].dsName,dsName) == 0)) {
+            for (j = 0; j < MAX_OPENCURSORS; j++) {
+                if ((ds[i].openCursors[j].curHandle != NULL) && (ds[i].openCursors[j].id == id)) {
+                    return &ds[i].openCursors[j];
+                }
+            }
+            return NULL;
+        }
+    }
+    return NULL;
+}
 
 
 unsigned char *getNextChnBuf(int size) {
@@ -1171,6 +1264,8 @@ int execCallback(char *cmd, void *var) {
     int *respFieldsState = (int*)pthread_getspecific(respFieldsStateKey);
     void **respFields = (void**)pthread_getspecific(respFieldsKey);
     int *callStackPtr = (int*)pthread_getspecific(callStackPtrKey);
+    void *isamTx = (void*)pthread_getspecific(isamTxKey);
+    struct currentNamesType *currentNames = ( struct currentNamesType*)pthread_getspecific(currentNamesKey);
     int respFieldsStateLocal = 0;
     void *respFieldsLocal[2];
 
@@ -1683,9 +1778,39 @@ int execCallback(char *cmd, void *var) {
             (*memParamsState) = 0;
             *((int*)memParams[0]) = -1;
             memParams[1] = NULL;
-            memParams[2] = NULL;
-            memParams[3] = NULL;
-            memParams[4] = NULL;
+            *((int*)memParams[2]) = 0;
+            *((int*)memParams[3]) = 0;
+            (*respFieldsState) = 0;
+            respFields[0] = NULL;
+            respFields[1] = NULL;
+            return 1;
+        }
+        if (strcmp(cmd,"ENDBR") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -25;
+            (*memParamsState) = 0;
+            *((int*)memParams[0]) = -1;
+            *((int*)memParams[1]) = 0;
+            (*respFieldsState) = 0;
+            respFields[0] = NULL;
+            respFields[1] = NULL;
+            return 1;
+        }
+        if ((strcmp(cmd,"READ") == 0) ||
+            (strcmp(cmd,"READNEXT") == 0) ||   
+            (strcmp(cmd,"READPREV") == 0) || 
+            (strcmp(cmd,"WRITE") == 0)) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -26;
+            (*memParamsState) = 0;
+            *((int*)memParams[0]) = -1;
+            memParams[1] = NULL;
+            *((int*)memParams[2]) = 0;
+            *((int*)memParams[3]) = 0;
             (*respFieldsState) = 0;
             respFields[0] = NULL;
             respFields[1] = NULL;
@@ -1700,7 +1825,7 @@ int execCallback(char *cmd, void *var) {
             write(childfd,"\n",1);
 
             if (((*cmdState) == -1) && ((*memParamsState) >= 1)) {
-                writeJson(currentMap,currentMapSet,childfd);
+                writeJson(currentNames->currentMap,currentNames->currentMapSet,childfd);
 
                 int len = *((int*)memParams[0]);
                 cob_field *cobvar = (cob_field*)memParams[1];
@@ -2200,6 +2325,83 @@ int execCallback(char *cmd, void *var) {
                   abend(resp,resp2);
                 }
             }
+            if (((*cmdState) == -24) && ((*memParamsState) >= 1)) {
+                void* ds = getOpenDataset(currentNames->openDatasets,currentNames->fileName);
+                if (ds == NULL) {
+                    ds = openDataset(currentNames->fileName);
+                    if (ds != NULL) {
+                        putOpenDataset(currentNames->openDatasets,currentNames->fileName,ds);
+                        int reqId = *((int*)memParams[2]);
+                        struct openCursorType *cur = getOpenCursor(currentNames->openDatasets,currentNames->fileName,reqId);
+                        if (cur != NULL) {
+                            resp = 16;
+                            resp2 = 33;
+                        } else {
+                            void* curptr = NULL;
+                            if (openCursor(ds,isamTx,&curptr,1,0) != 0) {
+                                resp = 17;
+                                resp2 = 120;
+                            } else {
+                                unsigned char *rid = (unsigned char*)memParams[1];
+                                if (!putOpenCursor(currentNames->openDatasets,
+                                                   currentNames->fileName,
+                                                   reqId,curptr,rid)) {
+                                    resp = 17;
+                                    resp2 = 120;
+                                } else {
+                                    if (rid != NULL) {
+                                        if (get(ds,isamTx,curptr,rid,*((int*)memParams[0]),NULL,0,MODE_SET)) {
+                                            resp = 13;
+                                            resp2 = 80;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        resp = 12;
+                        resp2 = 1;
+                    }
+                }
+                if (resp > 0) {
+                  abend(resp,resp2);
+                }
+            }
+            if (((*cmdState) == -25) && ((*memParamsState) >= 1)) {
+                void* ds = getOpenDataset(currentNames->openDatasets,currentNames->fileName);
+                if (ds == NULL) {
+                    resp = 12;
+                    resp2 = 1;
+                } else {
+                    int reqId = *((int*)memParams[1]);
+                    struct openCursorType *cur = getOpenCursor(currentNames->openDatasets,currentNames->fileName,reqId);
+                    if (cur != NULL) {
+                        if (closeCursor(cur->curHandle) != 0) {
+                            resp = 17;
+                            resp2 = 120; 
+                        }
+                        cur->curHandle = NULL;
+                    } else {
+                        resp = 16;
+                        resp2 = 35;
+                    }
+                }
+                if (resp > 0) {
+                  abend(resp,resp2);
+                }
+            }
+            if (((*cmdState) == -26) && ((*memParamsState) >= 1)) {
+                void* ds = getOpenDataset(currentNames->openDatasets,currentNames->fileName);
+                if (ds == NULL) {
+                    ds = openDataset(currentNames->fileName);
+                    if (ds != NULL) {
+                        putOpenDataset(currentNames->openDatasets,currentNames->fileName,ds);
+                    }
+                }
+                if (resp > 0) {
+                  abend(resp,resp2);
+                }
+            }
 
             // SET EIBRESP and EIBRESP2
             cob_put_u64_compx(resp,&eibbuf[76],4);
@@ -2249,7 +2451,11 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"RESID") || strstr(cmd,"LOGMESSAGE") || strstr(cmd,"READ") || strstr(cmd,"UPDATE") ||
             strstr(cmd,"UPDATE") || strstr(cmd,"ALTER") || strstr(cmd,"KEYLENGTH") || strstr(cmd,"RIDFLD") || 
             strstr(cmd,"DATASET") || strstr(cmd,"GTEQ") || strstr(cmd,"STARTBR")  || strstr(cmd,"ENDBR") || 
-            strstr(cmd,"FILE") || strstr(cmd,"READNEXT") || strstr(cmd,"READPREV") || strstr(cmd,"CURSOR")) {
+            strstr(cmd,"FILE") || strstr(cmd,"READNEXT") || strstr(cmd,"READPREV") || strstr(cmd,"CURSOR") || 
+            strstr(cmd,"DEBKEY") || strstr(cmd,"DEBREC") || strstr(cmd,"FILE") || strstr(cmd,"EQUAL") || 
+            strstr(cmd,"GENERIC") || strstr(cmd,"RBA") || strstr(cmd,"RRN") || strstr(cmd,"XRBA") || 
+            strstr(cmd,"REQID") || strstr(cmd,"TOKEN") || strstr(cmd,"UNCOMMITTED") || strstr(cmd,"REPEATABLE") || 
+            strstr(cmd,"CONSISTENT") || strstr(cmd,"NOSUSPEND")) {
             sprintf(end,"%s%s",cmd,"\n");
 
             if ((strcmp(cmd,"NOHANDLE") == 0) && ((*respFieldsState) == 0)) {
@@ -2278,11 +2484,11 @@ int execCallback(char *cmd, void *var) {
                 int i = 0, j = 0;
                 for (i = 0; i < l && j < 8; i++) {
                     if ((cmd[i] != '\'') && (cmd[i] != ' ')) {
-                        currentMap[j] = cmd[i];
+                        currentNames->currentMap[j] = cmd[i];
                         j++;
                     }         
                 }
-                currentMap[j] = 0x00;
+                currentNames->currentMap[j] = 0x00;
                 (*memParamsState) = 10;
             }
             if (((*cmdState) == -1) && ((*memParamsState) == 4)) {
@@ -2290,11 +2496,11 @@ int execCallback(char *cmd, void *var) {
                 int i = 0, j = 0;
                 for (i = 0; i < l && j < 8; i++) {
                     if ((cmd[i] != '\'') && (cmd[i] != ' ')) {
-                        currentMapSet[j] = cmd[i];
+                        currentNames->currentMapSet[j] = cmd[i];
                         j++;
                     }         
                 }
-                currentMapSet[j] = 0x00;
+                currentNames->currentMapSet[j] = 0x00;
                 (*memParamsState) = 10;
             }
             if ((*cmdState) == -1) {
@@ -2700,6 +2906,89 @@ int execCallback(char *cmd, void *var) {
                     (*memParamsState) = 4;
                 }
             }
+            if (((*cmdState) == -24) && ((*memParamsState) == 1)) {
+                // KEYLENGTH param value
+                (*((int*)memParams[0])) = atoi(cmd);
+                (*memParamsState) = 10;
+            }
+            if (((*cmdState) == -24) && ((*memParamsState) == 2)) {
+                int l = strlen(cmd);
+                int i = 0, j = 0;
+                for (i = 0; i < l && j < 45; i++) {
+                    if ((cmd[i] != '\'') && (cmd[i] != ' ')) {
+                        currentNames->fileName[j] = cmd[i];
+                        j++;
+                    }         
+                }
+                currentNames->fileName[j] = 0x00;
+                (*memParamsState) = 10;
+            }
+            if (((*cmdState) == -24) && ((*memParamsState) == 4)) {
+                // REQID param value
+                (*((int*)memParams[2])) = atoi(cmd);
+                (*memParamsState) = 10;
+            }
+            if ((*cmdState) == -24) {
+                (*memParamsState) = 10;
+
+                if (strcmp(cmd,"KEYLENGTH") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"FILE") == 0) {
+                    (*memParamsState) = 2;
+                }
+                if (strcmp(cmd,"RIDFLD") == 0) {
+                    (*memParamsState) = 3;
+                }
+                if (strcmp(cmd,"REQID") == 0) {
+                    (*memParamsState) = 4;
+                }
+                if (strcmp(cmd,"GTEQ") == 0) {
+                    *((int*)memParams[3]) = *((int*)memParams[3]) | 1;
+                }
+                if (strcmp(cmd,"EQUAL") == 0) {
+                    *((int*)memParams[3]) = *((int*)memParams[3]) | 2;
+                }
+                if (strcmp(cmd,"GENERIC") == 0) {
+                    *((int*)memParams[3]) = *((int*)memParams[3]) | 4;
+                }
+                if (strcmp(cmd,"RBA") == 0) {
+                    *((int*)memParams[3]) = *((int*)memParams[3]) | 8;
+                }
+                if (strcmp(cmd,"RRN") == 0) {
+                    *((int*)memParams[3]) = *((int*)memParams[3]) | 16;
+                }
+                if (strcmp(cmd,"XRBA") == 0) {
+                    *((int*)memParams[3]) = *((int*)memParams[3]) | 32;
+                }
+            }
+            if (((*cmdState) == -25) && ((*memParamsState) == 1)) {
+                int l = strlen(cmd);
+                int i = 0, j = 0;
+                for (i = 0; i < l && j < 45; i++) {
+                    if ((cmd[i] != '\'') && (cmd[i] != ' ')) {
+                        currentNames->fileName[j] = cmd[i];
+                        j++;
+                    }         
+                }
+                currentNames->fileName[j] = 0x00;
+                (*memParamsState) = 10;
+            }
+            if (((*cmdState) == -25) && ((*memParamsState) == 2)) {
+                // REQID param value
+                (*((int*)memParams[1])) = atoi(cmd);
+                (*memParamsState) = 10;
+            }
+            if ((*cmdState) == -25) {
+                (*memParamsState) = 10;
+
+                if (strcmp(cmd,"FILE") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"REQID") == 0) {
+                    (*memParamsState) = 2;
+                }
+            }
 
             if (cmdbuf[0] == '\'') {
               // String constant
@@ -2727,7 +3016,7 @@ int execCallback(char *cmd, void *var) {
                     write(childfd,cmdbuf,strlen(cmdbuf));
                     write(childfd,"\n",1);
 
-                    f = fmemopen(&currentMapSet, 9, "w");
+                    f = fmemopen(&currentNames->currentMapSet, 9, "w");
                     if (cobvar->data[0] != 0) {
                         display_cobfield(cobvar,f);
                     }
@@ -2752,7 +3041,7 @@ int execCallback(char *cmd, void *var) {
                     write(childfd,cmdbuf,strlen(cmdbuf));
                     write(childfd,"\n",1);
 
-                    f = fmemopen(&currentMap, 9, "w");
+                    f = fmemopen(&currentNames->currentMap, 9, "w");
                     if (cobvar->data[0] != 0) {
                         display_cobfield(cobvar,f);
                     }
@@ -2926,7 +3215,13 @@ int execCallback(char *cmd, void *var) {
                     !(((*cmdState) == -23) && ((*memParamsState) == 1)) &&
                     !(((*cmdState) == -23) && ((*memParamsState) == 2)) &&
                     !(((*cmdState) == -23) && ((*memParamsState) == 3)) &&
-                    !(((*cmdState) == -23) && ((*memParamsState) == 4))) {
+                    !(((*cmdState) == -23) && ((*memParamsState) == 4)) &&
+                    !(((*cmdState) == -24) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -24) && ((*memParamsState) == 2)) &&
+                    !(((*cmdState) == -24) && ((*memParamsState) == 3)) &&
+                    !(((*cmdState) == -24) && ((*memParamsState) == 4)) &&
+                    !(((*cmdState) == -25) && ((*memParamsState) == 1)) &&
+                    !(((*cmdState) == -25) && ((*memParamsState) == 2))) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
@@ -3262,6 +3557,79 @@ int execCallback(char *cmd, void *var) {
                     memParams[4] = (void*)cobvar;
                     (*memParamsState) = 10;
                 }
+                if (((*cmdState) == -24) && ((*memParamsState) == 1)) {
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+                    (*((int*)memParams[0])) = atoi(end);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -24) && ((*memParamsState) == 2)) {
+                    FILE *f = fmemopen(&currentNames->fileName, 46, "w");
+                    if (cobvar->data[0] != 0) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -24) && ((*memParamsState) == 3)) {
+                    memParams[1] = (void*)cobvar;
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -24) && ((*memParamsState) == 4)) {
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+                    (*((int*)memParams[2])) = atoi(end);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -25) && ((*memParamsState) == 1)) {
+                    FILE *f = fmemopen(&currentNames->fileName, 46, "w");
+                    if (cobvar->data[0] != 0) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    (*memParamsState) = 10;
+                }
+                if (((*cmdState) == -25) && ((*memParamsState) == 2)) {
+                    sprintf(end,"%s%s",cmd,"=");
+                    end = &cmdbuf[strlen(cmdbuf)];
+                    FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
+                    if ((cobvar->data[0] != 0) || (getCobType(cobvar) == COB_TYPE_NUMERIC_BINARY) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_COMP5) ||
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC) || 
+                        (getCobType(cobvar) == COB_TYPE_NUMERIC_PACKED)) {
+                        display_cobfield(cobvar,f);
+                    }
+                    putc(0x00,f);
+                    fclose(f);
+                    write(childfd,cmdbuf,strlen(cmdbuf));
+                    write(childfd,"\n",1);
+                    (*((int*)memParams[1])) = atoi(end);
+                    (*memParamsState) = 10;
+                }
             }
             cmdbuf[0] = 0x00;
         }
@@ -3442,6 +3810,7 @@ void initExec(int initCons) {
     pthread_key_create(&chnBufListKey, NULL);
     pthread_key_create(&chnBufListPtrKey, NULL);
     pthread_key_create(&isamTxKey, NULL);
+    pthread_key_create(&currentNamesKey, NULL);
 
 #ifndef _USE_ONLY_PROCESSES_
     pthread_mutex_init(&moduleMutex,NULL);
@@ -3464,8 +3833,6 @@ void initExec(int initCons) {
     pthread_mutex_init(&sharedMemMutex,&attr);
 
     setUpPool(10, GETENV_STRING(connectStr,"QWICS_DB_CONNECTSTR","dbname=qwics"), initCons);
-    currentMap[0] = 0x00;
-    currentMapSet[0] = 0x00;
 
     GETENV_STRING(cobDateFormat,"QWICS_COBDATEFORMAT","YYYY-MM-dd.hh:mm:ss.uuuu");
     startIsamDB(GETENV_STRING(datasetDir,"QWICS_DATASET_DIR","../dataset"));
@@ -3523,6 +3890,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     int chnBufListPtr = 0;
     struct chnBuf chnBufList[256];
     void *isamTx = NULL;
+    struct currentNamesType currentNames;
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
@@ -3530,6 +3898,9 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     cob_field* outputVars[100];
     outputVars[0] = NULL; // NULL terminated list
     cmdbuf[0] = 0x00;
+    currentNames.currentMap[0] = 0x00;
+    currentNames.currentMapSet[0] = 0x00;
+    currentNames.fileName[0] = 0x00;
     pthread_setspecific(childfdKey, fd);
     pthread_setspecific(cmdbufKey, &cmdbuf);
     pthread_setspecific(cmdStateKey, &cmdState);
@@ -3560,6 +3931,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(callStackPtrKey, &callStackPtr);
     pthread_setspecific(chnBufListKey, &chnBufList);
     pthread_setspecific(chnBufListPtrKey, &chnBufListPtr);
+    pthread_setspecific(currentNamesKey, &currentNames);
 
     // Optionally read in content of commarea
     if (setCommArea == 1) {
@@ -3618,6 +3990,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     free(linkArea);
     clearChnBufList();
     returnDBConnection(conn,1);
+    closeOpenDatasets(currentNames.openDatasets);
     endTransaction(isamTx,1);
     // Flush output buffers
     fflush(stdout);
@@ -3658,6 +4031,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     int chnBufListPtr = 0;
     struct chnBuf chnBufList[256];
     void *isamTx = NULL;
+    struct currentNamesType currentNames;
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
@@ -3665,6 +4039,9 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     cob_field* outputVars[100];
     outputVars[0] = NULL; // NULL terminated list
     cmdbuf[0] = 0x00;
+    currentNames.currentMap[0] = 0x00;
+    currentNames.currentMapSet[0] = 0x00;
+    currentNames.fileName[0] = 0x00;
     pthread_setspecific(childfdKey, fd);
     pthread_setspecific(cmdbufKey, &cmdbuf);
     pthread_setspecific(cmdStateKey, &cmdState);
@@ -3696,6 +4073,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(chnBufListKey, &chnBufList);
     pthread_setspecific(chnBufListPtrKey, &chnBufListPtr);
     pthread_setspecific(isamTxKey, NULL);
+    pthread_setspecific(currentNamesKey, &currentNames);
 
     // Oprionally read in content of commarea
     if (setCommArea == 1) {
@@ -3749,6 +4127,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     free(allocMem);
     free(linkArea);
     clearChnBufList();
+    closeOpenDatasets(currentNames.openDatasets);
     // Flush output buffers
     fflush(stdout);
     fflush(stderr);

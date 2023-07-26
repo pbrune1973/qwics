@@ -15,10 +15,25 @@
 <script type="text/javascript">
 
 $(document).ready(function() {
-	loadMap('ws://localhost:8080/QwicsWebApp/endpoints/qwicsejb','MN1APP','#screen',function(endpoint){
-        endpoint.send("DEFINE MM01 MN1APP"); 
-        endpoint.send("DEFINE AMSQ MN1SQL"); 
-        endpoint.send("DEFINE CQU1 CQ2UPD"); 
+	loadMap('ws://localhost:8080/QwicsWebApp/endpoints/qwicsejb','COSGN00C','#screen',function(endpoint){
+        endpoint.send("DEFINE CC00 COSGN00C");
+        endpoint.send("DEFINE CAUP COACTUPC");
+        endpoint.send("DEFINE CAVW COACTVWC");
+        endpoint.send("DEFINE CA00 COADM01C");
+        endpoint.send("DEFINE CB00 COBIL00C");
+        endpoint.send("DEFINE CCDL COCRDSLC");
+        endpoint.send("DEFINE CCLI COCRDLIC");
+        endpoint.send("DEFINE CCUP COCRDUPC");
+        endpoint.send("DEFINE CDV1 COCRDSEC");
+        endpoint.send("DEFINE CM00 COMEN01C");
+        endpoint.send("DEFINE CR00 CORPT00C");
+        endpoint.send("DEFINE CT00 COTRN00C");
+        endpoint.send("DEFINE CT01 COTRN01C");
+        endpoint.send("DEFINE CT02 COTRN02C");
+        endpoint.send("DEFINE CU00 COUSR00C");
+        endpoint.send("DEFINE CU01 COUSR01C");
+        endpoint.send("DEFINE CU02 COUSR02C");
+        endpoint.send("DEFINE CU03 COUSR03C");
 	});
 });
 

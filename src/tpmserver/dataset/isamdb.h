@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Dataset-based ISAM DB (VSAM replacement)                                 */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 20.07.2023                                  */
+/*   Author: Philipp Brune               Date: 25.07.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -24,14 +24,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define MODE_SET   0
+#define MODE_NEXT  1
+#define MODE_PREV  2
+
 // Set up environment
 int startIsamDB(char *dir);
 int stopIsamDB();
 
 // Dataset access
 void* openDataset(char *name);
-int put(void *dsptr, void *txptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl);
-int get(void *dsptr, void *txptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl);
+int put(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl);
+int get(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl, int mode);
+int openCursor(void *dsptr, void *txptr, void** curptr, int update, int dirtyread);
+int closeCursor(void* curptr);
 int closeDataset(void *dsptr);
 
 // Transaction control

@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Dataset-based ISAM DB (VSAM replacement)                                 */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 20.07.2023                                  */
+/*   Author: Philipp Brune               Date: 25.07.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -35,7 +35,7 @@ int startIsamDB(char *dir) {
  				db_strerror(ret));
  		return ret;
  	}
-	ret = envp->open(envp, dir, DB_CREATE | DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_INIT_MPOOL, 0);
+	ret = envp->open(envp, dir, DB_CREATE | DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_INIT_MPOOL | DB_INIT_CDB, 0);
 	if (ret != 0) {
  		fprintf(stderr, "Error opening environment: %s\n",
  				db_strerror(ret));
@@ -69,42 +69,90 @@ void* openDataset(char *name) {
 	return (void*)dbp;
 }
 
-int put(void *dsptr, void *txptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl) {
+int put(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl) {
 	DB *dbp = (DB*)dsptr;
 	DB_TXN *txn = (DB_TXN*)txptr;
+	DBC *cur = (DBC*)curptr;
 	DBT key, data;
 	int ret = 0;
 
 	memset(&key, 0, sizeof(DBT));
  	memset(&data, 0, sizeof(DBT));
- 	key.data = &rid;
+ 	key.data = rid;
  	key.size = idlen;
- 	data.data = &rec;
+ 	data.data = rec;
  	data.size = lrecl;
 
-	ret = dbp->put(dbp, txn, &key, &data, 0);
+    if (curptr == NULL) {
+		ret = dbp->put(dbp, txn, &key, &data, 0);		
+	} else {
+		ret = cur->put(cur, &key, &data, DB_KEYFIRST);
+	}
  	if (ret != 0) {
  		envp->err(envp, ret, "Database put failed.");
  	}
 	return ret;
 }
 
-int get(void *dsptr, void *txptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl) {
+int get(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl, int mode) {
 	DB *dbp = (DB*)dsptr;
 	DB_TXN *txn = (DB_TXN*)txptr;
+	DBC *cur = (DBC*)curptr;
 	DBT key, data;
 	int ret = 0;
 
 	memset(&key, 0, sizeof(DBT));
  	memset(&data, 0, sizeof(DBT));
- 	key.data = &rid;
- 	key.size = idlen;
- 	data.data = &rec;
- 	data.size = lrecl;
+	if ((rid != NULL) && (mode == MODE_SET)) {
+	 	key.data = rid;
+ 		key.size = idlen;
+	}
+	if (rec != NULL) {
+ 		data.data = rec;
+ 		data.size = lrecl;
+	}
 
-	ret = dbp->get(dbp, txn, &key, &data, 0);
+    if (curptr == NULL) {
+		ret = dbp->get(dbp, txn, &key, &data, 0);
+	} else {
+		int flags = DB_SET;
+		if (mode == MODE_NEXT) {
+			flags = DB_NEXT;
+		}
+		if (mode == MODE_PREV) {
+			flags = DB_PREV;
+		}
+		ret = cur->get(cur, &key, &data, flags);
+	}
  	if (ret != 0) {
  		envp->err(envp, ret, "Database put failed.");
+ 	}
+	return ret;
+}
+
+int openCursor(void *dsptr, void *txptr, void** curptr, int update, int dirtyread) {
+	DB *dbp = (DB*)dsptr;
+	DB_TXN *txn = (DB_TXN*)txptr;
+	int ret = 0, flags = 0;
+	if (update) {
+		flags = flags | DB_WRITECURSOR;
+	}
+	if (dirtyread) {
+		flags = flags | DB_DIRTY_READ;
+	}
+	ret = dbp->cursor(dbp, txn, (DBC**)curptr, flags);
+	if (ret != 0) {
+ 		envp->err(envp, ret, "Database open cursor failed.");
+ 	}
+	return ret;
+}
+
+int closeCursor(void* curptr) {
+	DBC *cur = (DBC*)curptr;
+	int ret = 0;
+	ret = cur->close(cur);
+	if (ret != 0) {
+ 		envp->err(envp, ret, "Database close cursor failed.");
  	}
 	return ret;
 }
