@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Dataset-based ISAM DB (VSAM replacement)                                 */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 25.07.2023                                  */
+/*   Author: Philipp Brune               Date: 27.07.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -126,6 +126,23 @@ int get(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, u
 	}
  	if (ret != 0) {
  		envp->err(envp, ret, "Database put failed.");
+ 	}
+	return ret;
+}
+
+int del(void *dsptr, void *txptr, unsigned char *rid, int idlen) {
+	DB *dbp = (DB*)dsptr;
+	DB_TXN *txn = (DB_TXN*)txptr;
+	DBT key;
+	int ret = 0;
+
+	memset(&key, 0, sizeof(DBT));
+	key.data = rid;
+ 	key.size = idlen;
+
+	ret = dbp->del(dbp, txn, &key, 0);
+	if (ret != 0) {
+ 		envp->err(envp, ret, "Database delete failed.");
  	}
 	return ret;
 }
