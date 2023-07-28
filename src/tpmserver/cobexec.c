@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 27.07.2023                                  */
+/*   Author: Philipp Brune               Date: 28.07.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -111,6 +111,7 @@ struct currentNamesType {
     char currentMapSet[9];
     char fileName[46];
     struct openDatasetType openDatasets[MAX_OPENDATASETS];
+    int memParamInts[10];
 };
 
 // Making COBOl thread safe
@@ -178,6 +179,23 @@ void *getOpenDataset(struct openDatasetType *ds, char *dsName, struct openDatase
         }
     }
     return NULL;
+}
+
+
+void initOpenDatasets(struct openDatasetType *ds) {
+    int i = 0, j = 0;
+    for (i = 0; i < MAX_OPENDATASETS; i++) {
+        ds[i].dsHandle = NULL;
+        ds[i].dsName[0] = 0x00;
+        for (j = 0; j < MAX_OPENCURSORS; j++) {
+            ds[i].openCursors[j].id = 0;
+            ds[i].openCursors[j].curHandle = NULL;
+            ds[i].openCursors[j].keylen = 0;
+        }
+        ds[i].rewriteCur.id = -1;
+        ds[i].rewriteCur.curHandle = NULL;
+        ds[i].rewriteCur.keylen = 0;
+    }
 }
 
 
@@ -1809,6 +1827,8 @@ int execCallback(char *cmd, void *var) {
             cmdbuf[0] = 0x00;
             (*cmdState) = -24;
             (*memParamsState) = 0;
+            memParams[2] = &currentNames->memParamInts[2];
+            memParams[3] = &currentNames->memParamInts[3];
             *((int*)memParams[0]) = -1;
             memParams[1] = NULL;
             *((int*)memParams[2]) = 0;
@@ -1824,6 +1844,7 @@ int execCallback(char *cmd, void *var) {
             cmdbuf[0] = 0x00;
             (*cmdState) = -25;
             (*memParamsState) = 0;
+            memParams[1] = &currentNames->memParamInts[1];
             *((int*)memParams[0]) = -1;
             *((int*)memParams[1]) = 0;
             (*respFieldsState) = 0;
@@ -1834,12 +1855,18 @@ int execCallback(char *cmd, void *var) {
         if ((strcmp(cmd,"READ") == 0) ||
             (strcmp(cmd,"READNEXT") == 0) ||   
             (strcmp(cmd,"READPREV") == 0) || 
-            (strcmp(cmd,"WRITE") == 0)) {
+            (strcmp(cmd,"WRITE") == 0) || 
+            (strcmp(cmd,"REWRITE") == 0) || 
+            (strcmp(cmd,"DELETE") == 0)) {
             sprintf(cmdbuf,"%s%s",cmd,"\n");
             write(childfd,cmdbuf,strlen(cmdbuf));
             cmdbuf[0] = 0x00;
             (*cmdState) = -26;
             (*memParamsState) = 0;
+            memParams[2] = &currentNames->memParamInts[2];
+            memParams[3] = &currentNames->memParamInts[3];
+            memParams[4] = &currentNames->memParamInts[4];
+            memParams[7] = &currentNames->memParamInts[7];
             *((int*)memParams[0]) = -1;
             memParams[1] = NULL;
             *((int*)memParams[2]) = 0;
@@ -2510,6 +2537,7 @@ int execCallback(char *cmd, void *var) {
                             resp2 = 120;                                
                         }
                     }
+
                     if ((rec != NULL) && (*((int*)memParams[7]) >= 0)) {
                         if ((len == 0) || ((*((int*)memParams[7]) < len))) {
                             len = *((int*)memParams[7]);
@@ -2658,7 +2686,7 @@ int execCallback(char *cmd, void *var) {
             }
             if ((*respFieldsState) == 2) {
               setNumericValue(resp,(cob_field*)respFields[0]);
-              setNumericValue(resp,(cob_field*)respFields[1]);
+              setNumericValue(resp2,(cob_field*)respFields[1]);
             }
             (*cmdState) = 0;
             (*respFieldsState) = 0;
@@ -3180,7 +3208,7 @@ int execCallback(char *cmd, void *var) {
                 if (strcmp(cmd,"KEYLENGTH") == 0) {
                     (*memParamsState) = 1;
                 }
-                if (strcmp(cmd,"FILE") == 0) {
+                if ((strcmp(cmd,"FILE") == 0) || (strcmp(cmd,"DATASET") == 0)) {
                     (*memParamsState) = 2;
                 }
                 if (strcmp(cmd,"RIDFLD") == 0) {
@@ -3228,7 +3256,7 @@ int execCallback(char *cmd, void *var) {
             if ((*cmdState) == -25) {
                 (*memParamsState) = 10;
 
-                if (strcmp(cmd,"FILE") == 0) {
+                if ((strcmp(cmd,"FILE") == 0) || (strcmp(cmd,"DATASET") == 0)) {
                     (*memParamsState) = 1;
                 }
                 if (strcmp(cmd,"REQID") == 0) {
@@ -3268,7 +3296,7 @@ int execCallback(char *cmd, void *var) {
                 if (strcmp(cmd,"KEYLENGTH") == 0) {
                     (*memParamsState) = 1;
                 }
-                if (strcmp(cmd,"FILE") == 0) {
+                if ((strcmp(cmd,"FILE") == 0) || (strcmp(cmd,"DATASET") == 0)) {
                     (*memParamsState) = 2;
                 }
                 if (strcmp(cmd,"RIDFLD") == 0) {
@@ -4402,6 +4430,7 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
 
     isamTx = beginTransaction();
     pthread_setspecific(isamTxKey, isamTx);
+    initOpenDatasets(currentNames.openDatasets);
     PGconn *conn = getDBConnection();
     pthread_setspecific(connKey, (void*)conn);
     initMain();
@@ -4442,7 +4471,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     int memParamsState = 0;
     void *memParams[10];
     int memParam = 0;
-    char twa[32768];
+     char twa[32768];
     char tua[256];
     void** allocMem = (void**)malloc(MEM_POOL_SIZE*sizeof(void*));
     int allocMemPtr = 0;
@@ -4542,6 +4571,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     sigemptyset( &a.sa_mask );
     sigaction( SIGSEGV, &a, NULL );
 
+    initOpenDatasets(currentNames.openDatasets);
     initMain();
     execLoadModule(name,0,parCount);
     releaseLocks(TASK,taskLocks);

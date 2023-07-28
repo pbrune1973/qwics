@@ -35,7 +35,7 @@ int startIsamDB(char *dir) {
  				db_strerror(ret));
  		return ret;
  	}
-	ret = envp->open(envp, dir, DB_CREATE | DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_INIT_MPOOL | DB_INIT_CDB, 0);
+	ret = envp->open(envp, dir, DB_CREATE | DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_INIT_MPOOL, 0);
 	if (ret != 0) {
  		fprintf(stderr, "Error opening environment: %s\n",
  				db_strerror(ret));
