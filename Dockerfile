@@ -6,6 +6,7 @@ RUN apt-get -y install autotools-dev
 RUN apt-get -y install autoconf
 RUN apt-get -y install sudo
 RUN apt-get -y install libdb-dev
+RUN apt-get -y install db-util
 RUN apt-get -y install libgmp3-dev
 RUN apt-get -y install libncurses5-dev libncursesw5-dev
 RUN apt-get -y install libpq5

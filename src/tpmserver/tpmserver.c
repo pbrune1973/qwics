@@ -3,7 +3,7 @@
 /*                                                                                         */
 /*   Author: Philipp Brune               Date: 05.09.2020                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018-2020 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
+/*   Copyright (C) 2018-2023 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */

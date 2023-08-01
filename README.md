@@ -49,19 +49,25 @@ cob_display (const int to_stderr,
 // BEGIN OF EXEC HANDLER
         va_start (args, varcnt);
         f = va_arg (args, cob_field * );
-        if (strstr((char*)f->data,
-        			    "TPMI:")) {
-           char *cmd 
-                = (char*)(f->data+5);
+        // Ensure string termination with zero for compare
+        char dspBuf[100];
+	int l = f->size;
+	if (l > 99) {
+		l = 99;
+	}
+	memcpy(dspBuf,(char*)f->data,l);
+	dspBuf[l] = 0x00;
+        if (strstr(dspBuf,"TPMI:")) {
+    	    char *cmd = &dspBuf[5];
             if (varcnt > 1) {
                 f = va_arg (args, 
                       cob_field * );
             }
-           (*performEXEC)(cmd,(void*)f);
-           va_end (args);
-           return;
-         }
-         va_end (args);
+            (*performEXEC)(cmd,(void*)f);
+            va_end (args);
+            return;
+        }
+        va_end (args);
 // END OF EXEC HANDLER
 ```
 

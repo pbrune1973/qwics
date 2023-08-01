@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.07.2023                                  */
+/*   Author: Philipp Brune               Date: 01.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -91,6 +91,7 @@ cob_field *sqlcode = NULL;
 
 #define MAX_OPENDATASETS 10
 #define MAX_OPENCURSORS 10
+#define MAX_ABENDHANDLERS 50
 
 struct openCursorType {
     int id;
@@ -106,12 +107,20 @@ struct openDatasetType {
     struct openCursorType rewriteCur;
 };
 
+struct abendHandlerType {
+    int (*abendHandler)();
+    char abendProgname[9];
+};
+
 struct currentNamesType {
     char currentMap[9];
     char currentMapSet[9];
     char fileName[46];
     struct openDatasetType openDatasets[MAX_OPENDATASETS];
     int memParamInts[10];
+    int abendHandlerMode;
+    int abendHandlerCnt;
+    struct abendHandlerType abendHandlers[MAX_ABENDHANDLERS];
 };
 
 // Making COBOl thread safe
@@ -1048,6 +1057,12 @@ void abend(int resp, int resp2) {
       // RESP param set, continue
       return;      
     }
+
+    int *runState = (int*)pthread_getspecific(runStateKey);
+    if ((*runState) != 3) {
+        // Check for active ABEND handlers
+    }  
+
     char buf[56];
     int childfd = *((int*)pthread_getspecific(childfdKey));
     sprintf(buf,"%s","ABEND\n");
@@ -1057,7 +1072,6 @@ void abend(int resp, int resp2) {
     sprintf(buf,"%s%s%s","='",abcode,"'\n\n");
     write(childfd,buf,strlen(buf));
 
-    int *runState = (int*)pthread_getspecific(runStateKey);
     if ((*runState) == 3) {   // SEGV ABEND
         sprintf(response,"\n%s\n","STOP");
         write(childfd,&response,strlen(response));
@@ -1205,10 +1219,12 @@ void globalCallCleanup() {
 // Execute COBOL loadmod in transaction
 int execLoadModule(char *name, int mode, int parCount) {
     int (*loadmod)();
+    int (*abndhndl)();
     char fname[255];
     char response[1024];
     int childfd = *((int*)pthread_getspecific(childfdKey));
     char *commArea = (char*)pthread_getspecific(commAreaKey);
+    struct currentNamesType *currentNames = ( struct currentNamesType*)pthread_getspecific(currentNamesKey);
     int res = 0;
 
     #ifdef __APPLE__
@@ -1246,6 +1262,16 @@ int execLoadModule(char *name, int mode, int parCount) {
 #ifndef _USE_ONLY_PROCESSES_
             startModule(name);
 #endif
+            if (currentNames->abendHandlerCnt < MAX_ABENDHANDLERS) {
+                *(void**)(&abndhndl) = dlsym(sdl_library,"ABNDHNDL");
+                if ((error = dlerror()) != NULL) {
+                    abndhndl = NULL;
+                }
+                currentNames->abendHandlers[currentNames->abendHandlerCnt].abendHandler = abndhndl;
+                currentNames->abendHandlers[currentNames->abendHandlerCnt].abendProgname[0] = 0x00;
+                currentNames->abendHandlerCnt++;
+            }
+
             if (mode == 0) {
               if (setjmp(taskState) == 0) {
                 if (parCount > 0) {
@@ -1272,6 +1298,12 @@ int execLoadModule(char *name, int mode, int parCount) {
               cob_get_global_ptr()->cob_current_module = &thisModule;
               cob_get_global_ptr()->cob_call_params = 1;
               (*loadmod)(commArea);
+            }
+
+            if (currentNames->abendHandlerCnt > 0) {
+                currentNames->abendHandlers[currentNames->abendHandlerCnt].abendHandler = NULL;
+                currentNames->abendHandlers[currentNames->abendHandlerCnt].abendProgname[0] = 0x00;
+                currentNames->abendHandlerCnt--;
             }
 #ifndef _USE_ONLY_PROCESSES_
             endModule(name);
@@ -1893,6 +1925,19 @@ int execCallback(char *cmd, void *var) {
             memParams[6] = NULL;
             *((int*)memParams[7]) = -1;
             memParams[8] = NULL;
+            (*respFieldsState) = 0;
+            respFields[0] = NULL;
+            respFields[1] = NULL;
+            return 1;
+        }
+        if (strcmp(cmd,"HANDLE") == 0) {
+            sprintf(cmdbuf,"%s%s",cmd,"\n");
+            write(childfd,cmdbuf,strlen(cmdbuf));
+            cmdbuf[0] = 0x00;
+            (*cmdState) = -27;
+            (*memParamsState) = 0;
+            *((int*)memParams[0]) = -1;
+            memParams[1] = NULL;
             (*respFieldsState) = 0;
             respFields[0] = NULL;
             respFields[1] = NULL;
@@ -2547,7 +2592,6 @@ int execCallback(char *cmd, void *var) {
                     }
                     int reqId = *((int*)memParams[1]);
                     struct openCursorType *cur = NULL;
-
                     if (rec != NULL) {
                         switch (*((int*)memParams[4])) {
                             case 1: // READ
@@ -2676,6 +2720,14 @@ int execCallback(char *cmd, void *var) {
                   abend(resp,resp2);
                 }
             }
+            if (((*cmdState) == -27) && ((*memParamsState) >= 1)) {
+                if (*((int*)memParams[0]) > 0) {
+
+                }
+                if (resp > 0) {
+                  abend(resp,resp2);
+                }
+            }
 
             // SET EIBRESP and EIBRESP2
             cob_put_u64_compx(resp,&eibbuf[76],4);
@@ -2729,7 +2781,7 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"DEBKEY") || strstr(cmd,"DEBREC") || strstr(cmd,"FILE") || strstr(cmd,"EQUAL") || 
             strstr(cmd,"GENERIC") || strstr(cmd,"RBA") || strstr(cmd,"RRN") || strstr(cmd,"XRBA") || 
             strstr(cmd,"REQID") || strstr(cmd,"TOKEN") || strstr(cmd,"UNCOMMITTED") || strstr(cmd,"REPEATABLE") || 
-            strstr(cmd,"CONSISTENT") || strstr(cmd,"MASSINSERT")) {
+            strstr(cmd,"CONSISTENT") || strstr(cmd,"MASSINSERT")|| strstr(cmd,"LABEL")) {
             sprintf(end,"%s%s",cmd,"\n");
 
             if ((strcmp(cmd,"NOHANDLE") == 0) && ((*respFieldsState) == 0)) {
@@ -3355,6 +3407,42 @@ int execCallback(char *cmd, void *var) {
                     *((int*)memParams[3]) = *((int*)memParams[3]) | 2048;
                 }
             }
+            if (((*cmdState) == -27) && ((*memParamsState) == 2)) {
+                int l = strlen(cmd);
+                int i = 0, j = 0;
+                for (i = 0; i < l && j < 8; i++) {
+                    if ((cmd[i] != '\'') && (cmd[i] != ' ')) {
+                        currentNames->abendHandlers[currentNames->abendHandlerCnt].abendProgname[j] = cmd[i];
+                        j++;
+                    }         
+                }
+                currentNames->abendHandlers[currentNames->abendHandlerCnt].abendProgname[j] = 0x00;
+                (*memParamsState) = 10;
+            }
+            if ((*cmdState) == -27) {
+                (*memParamsState) = 10;
+
+                if (strcmp(cmd,"ABEND") == 0) {
+                    *((int*)memParams[0]) = 1;
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"CANCEL") == 0) {
+                    *((int*)memParams[0]) = 1;
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"PROGRAM") == 0) {
+                    if (*((int*)memParams[0]) > 0) {
+                        *((int*)memParams[0]) = 2;
+                    }
+                    (*memParamsState) = 2;
+                }
+                if (strcmp(cmd,"LABEL") == 0) {
+                    if (*((int*)memParams[0]) > 0) {
+                        *((int*)memParams[0]) = 3;
+                    }
+                    (*memParamsState) = 3;
+                }
+            }
 
             if (cmdbuf[0] == '\'') {
               // String constant
@@ -3595,7 +3683,8 @@ int execCallback(char *cmd, void *var) {
                     !(((*cmdState) == -26) && ((*memParamsState) == 5)) &&
                     !(((*cmdState) == -26) && ((*memParamsState) == 6)) &&
                     !(((*cmdState) == -26) && ((*memParamsState) == 7)) &&
-                    !(((*cmdState) == -26) && ((*memParamsState) == 8))) {
+                    !(((*cmdState) == -26) && ((*memParamsState) == 8)) &&
+                    !(((*cmdState) == -27) && ((*memParamsState) == 2))) {
                     sprintf(end,"%s%s",cmd,"=");
                     end = &cmdbuf[strlen(cmdbuf)];
                     FILE *f = fmemopen(end, CMDBUF_SIZE-strlen(cmdbuf), "w");
@@ -4081,6 +4170,10 @@ int execCallback(char *cmd, void *var) {
                     memParams[8] = (void*)cobvar;
                     (*memParamsState) = 10;
                 }
+                if (((*cmdState) == -27) && ((*memParamsState) == 2)) {
+                    memParams[1] = (void*)cobvar;
+                    (*memParamsState) = 10;
+                }
             }
             cmdbuf[0] = 0x00;
         }
@@ -4352,6 +4445,8 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     currentNames.currentMap[0] = 0x00;
     currentNames.currentMapSet[0] = 0x00;
     currentNames.fileName[0] = 0x00;
+    currentNames.abendHandlerMode = 0;
+    currentNames.abendHandlerCnt = 0;
     pthread_setspecific(childfdKey, fd);
     pthread_setspecific(cmdbufKey, &cmdbuf);
     pthread_setspecific(cmdStateKey, &cmdState);
@@ -4494,6 +4589,8 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     currentNames.currentMap[0] = 0x00;
     currentNames.currentMapSet[0] = 0x00;
     currentNames.fileName[0] = 0x00;
+    currentNames.abendHandlerMode = 0;
+    currentNames.abendHandlerCnt = 0;
     pthread_setspecific(childfdKey, fd);
     pthread_setspecific(cmdbufKey, &cmdbuf);
     pthread_setspecific(cmdStateKey, &cmdState);

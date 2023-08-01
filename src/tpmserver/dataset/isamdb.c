@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Dataset-based ISAM DB (VSAM replacement)                                 */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 27.07.2023                                  */
+/*   Author: Philipp Brune               Date: 01.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -103,13 +103,9 @@ int get(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, u
 
 	memset(&key, 0, sizeof(DBT));
  	memset(&data, 0, sizeof(DBT));
-	if ((rid != NULL) && (mode == MODE_SET)) {
+	if ((rid != NULL) && ((mode == MODE_SET) || (curptr == NULL))) {
 	 	key.data = rid;
  		key.size = idlen;
-	}
-	if (rec != NULL) {
- 		data.data = rec;
- 		data.size = lrecl;
 	}
 
     if (curptr == NULL) {
@@ -125,8 +121,16 @@ int get(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, u
 		ret = cur->get(cur, &key, &data, flags);
 	}
  	if (ret != 0) {
- 		envp->err(envp, ret, "Database put failed.");
- 	}
+ 		envp->err(envp, ret, "Database get failed.");
+ 	} else {
+		if (rec != NULL) {
+			int l = data.size;
+			if (lrecl < l) {
+				l = lrecl;
+			}
+			memcpy(rec,data.data,l);
+		}
+	}
 	return ret;
 }
 
