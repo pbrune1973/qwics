@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch JCL params library                                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 14.08.2020                                  */
+/*   Author: Philipp Brune               Date: 02.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2020by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de                */
 /*                                                                                         */
@@ -34,7 +34,7 @@ char *getJob() {
 
 
 char *getStep() {
-    return job;
+    return step;
 }
 
 

@@ -2,6 +2,7 @@
     <featureManager>
         <feature>localConnector-1.0</feature>
         <feature>webProfile-8.0</feature>
+        <feature>jms-2.0</feature>
         <feature>mdb-3.2</feature>
         <feature>bells-1.0</feature>
     </featureManager>
@@ -28,7 +29,7 @@
 
     <dataSource id="jdbc/QwicsDS" jdbcDriverRef="PostgresEmbedded" jndiName="jdbc/QwicsDS"
                 type="javax.sql.XADataSource">
-        <properties databaseName="qwics" password="qwics" portNumber="5432" serverName="localhost" user="qwics"/>
+        <properties databaseName="postgres" password="postgres" portNumber="5432" serverName="qwics-postgres" user="postgres"/>
     </dataSource>
 
     <jdbcDriver id="QwicsJDBCDriver" javax.sql.XADataSource="org.qwics.jdbc.QwicsXADataSource"
@@ -39,7 +40,7 @@
 
     <dataSource id="jdbc/QwicsCobolDS" jdbcDriverRef="QwicsJDBCDriver" jndiName="jdbc/QwicsCobolDS"
                 type="javax.sql.XADataSource">
-        <properties URL="jdbc:qwics:localhost:8000"/>
+        <properties URL="jdbc:qwics:/home/qwics/comm/sock:0"/>
     </dataSource>
 
     <!-- JMS MQ configuration -->
@@ -63,7 +64,6 @@
     <httpEndpoint host="*" httpPort="9080" httpsPort="9443" id="defaultHttpEndpoint"></httpEndpoint>
 
     <applicationManager autoExpand="true"></applicationManager>
-    <application context-root="lks" location="lks.war"></application>
     <applicationMonitor updateTrigger="mbean"></applicationMonitor>
 
     <webApplication id="QwicsWebApp" location="QwicsWebApp.war" name="QwicsWebApp">

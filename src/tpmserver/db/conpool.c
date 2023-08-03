@@ -49,7 +49,6 @@ void setUpPool(int numCon, char *conInfo, int openCons) {
         conInfo = "dbname = postgres";
     }
 
-    // pool = malloc(sizeof(struct conRec)*numCon);
     pool = sharedMalloc(10,sizeof(struct conRec)*numCon);
     if (pool == NULL) {
         printf("%s%d%s\n","ERROR: Could not allocate connection pool with ",numCon," connections!");
@@ -91,7 +90,6 @@ void tearDownPool(int closeCons) {
           PQfinish(pool[i].conn);
       }
     }
-    //free(pool);
     sharedFree(pool,sizeof(struct conRec)*poolSize);
 
     sem_post(poolAccess);
@@ -142,7 +140,7 @@ PGconn *getDBConnection() {
         return NULL;
     }
     PQclear(res);
-
+ 
     res = PQexec(conn, "COMMIT");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
         printf("ERROR: COMMIT command failed: %s", PQerrorMessage(conn));
@@ -180,7 +178,7 @@ int returnDBConnection(PGconn *conn, int commit) {
         printf("ERROR: SELECT curname FROM qwics_decl WHERE curhold=true failed: %s", PQerrorMessage(conn));
     }
     PQclear(res);
-
+ 
     res = PQexec(conn, "DROP TABLE IF EXISTS qwics_decl");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
         printf("ERROR: DROP TABLE failed: %s", PQerrorMessage(conn));

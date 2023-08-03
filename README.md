@@ -7,7 +7,7 @@ Quick Web-Based Interactive COBOL Service (QWICS),
 
 an environment to execute transactional COBOL programs written for traditional mainframe transaction processing monitors (TPM) without these as part of any Java EE-compliant application server.
 
-Copyright (C) 2018,2019 by Philipp Brune  Email: Philipp.Brune@qwics.org   
+Copyright (C) 2018-2023 by Philipp Brune  Email: Philipp.Brune@qwics.org   
 
 QWICS is free software, licensed either under the terms of the GNU General Public License or the GNU Lesser General Public License (see respective source files for details), both as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. 
 You should have received a copy of both licenses along with this project. If not, see <http://www.gnu.org/licenses/>.  
@@ -18,11 +18,42 @@ DISCLAIMER:
 
 It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the license for more details.  
 
-
-PRE-REQUISITES:
+USING QWICS WITH DOCKER (RECOMMENDED)
 -----
 
-This software has been written and tested under Linux (for S390/z Systems mainframes and x86)!
+The recommended way of deploying and using QWICS is now by containers using Docker or another container runtime capable of running OCI containers.
+
+QWICS needs three separate containers, started in order as follows:
+
+* Before running the containers, first create a new bridge network in Docker, labeled qwics-network. 
+
+* The first container running the PostgreSQL database, just use the standard image run with the following command (You may customize the database settings to your needs, of course. Please note that you need to adjust the settings in the other conatiners as well):
+```c
+docker run --name=qwics-postgres --network=qwics-network -e POSTGRES_PASSWORD=postgres -d postgres
+```
+
+* The second container running the actual native QWICS server components and GnuCOBOL. There is a Dockerfile provided in the toplevel QWICS project dir. Go there and and run:
+```c
+docker build -t qwics:latest .
+```
+and launch it by 
+```c
+docker run --name qwics-cobol -it -v <YOUR-COPYBOOK-DIR>:/home/qwics/copybooks -v <YOUR-COBOL-SRC-DIR>:/home/qwics/cobsrc -v <YOUR-LOAD-MODULE-DIR>:/home/qwics/loadmod -v <YOUR-VSAM-DATASET-DIR>:/home/qwics/dataset -v <YOUR-BMS-MAP-DIR>:/home/qwics/maps --network=qwics-network -v <YOUR-SOCKET-FILE-DIR>:/home/qwics/comm  qwics:latest
+```
+
+* The third container running the Jakarta EE application server using the QWICS JDBC Driver and the QWICS Java Web App. To build the Java parts, first change to the workspace dir, and build the the two Java projects there using Maven and your favorite IDE. Afterwards, run the QwicsWebvApp using the Liberty Maven plugin to correctly set up the Maven target directory. Then stop Liberty and build the Java Docker container from the Dockerfile in the workspace dir using:
+```c
+docker build -t qwics-jee:latest .
+```
+and launch it by the command
+```c
+docker run --name qwics-jee -it --network=qwics-network -v <YOUR-SOCKET-FILE-DIR>:/home/qwics/comm -p 9080:9080 qwics-jee:latest
+```
+
+PRE-REQUISITES FOR BUILDING FROM SOURCE:
+-----
+
+This software has been written and tested under Linux (for S390/z Systems mainframes, ARM and x86)!
 
 1. Download and extract a copy of the [GnuCOBOL](https://www.gnu.org/software/gnucobol/) sources in its newest release. Modify the following lines the in the file termio.c in the subdirectory libcob/ (preferably, search for the beginning of the function `cob_display(...)` in the file termio.c in the libcob source directory and modify and extend it accordingly):
 
@@ -97,7 +128,7 @@ cob_resolve_cobol (const char *name, const int fold_case, const int errind)
 
 3. Download and install a copy of PostgreSQL database including its C client lib
 
-INSTALLATION:
+MANUAL INSTALLATION FROM SOURCE:
 -----
 
 Build the preprocessors and the QWICS COBOL execution runtime:
@@ -118,9 +149,9 @@ cd ../cobol
 make
 ```
 
-3. The Java sources of the QWICS JDBC driver and the demo Java EE Web App are provided as Eclipse IDE projects in the subdirectory workspace. Please import the projects in your own workspace (using menu items "Import... --> Existing projects into workspace"). Please see http://www.eclipse.org for further information on Eclipse.
+3. The Java sources of the QWICS JDBC driver and the demo Java EE Web App are provided as Maven projects in the subdirectory workspace. Please import the projects in your IDE with Maven support or use Maven from the command line.
 
-4. Download a Java EE-compliant application server and (e.g. JBoss WildFly, see http://wildfly.org) and deploy the JDBC driver with a XA datasource and the Web application there.
+The QwicsWebApp Maven project is configured to use OpenLiberty app server, it will build and run out-of-the-box. 
 
 
 USING QWICS

@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Main Tcp Connection Handler                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.09.2020                                  */
+/*   Author: Philipp Brune               Date: 03.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018-2023 by Philipp Brune  Email: Philipp.Brune@qwics.org              */
 /*                                                                                         */
@@ -104,8 +104,7 @@ void *handle_client(void *fd) {
 }
 
 
-static void sig_handler(int signo)
-{
+static void sig_handler(int signo) {
     printf("Stopping QWICS tpmserver...\n");
     if (signo == SIGINT) {
         clearExec(1);
@@ -285,9 +284,9 @@ int main(int argc, char **argv) {
       int pid = fork();
       if (pid == 0) {
         // Child process
-        initExec(0);
+        initExec(1);
         handle_client((void*)&childfd);
-        clearExec(0);
+        clearExec(1);
         shmdt(shmPtr);
         return 0;
       } else {

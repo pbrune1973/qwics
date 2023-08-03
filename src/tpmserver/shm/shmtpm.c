@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL shared memory handling                                             */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.08.2019                                  */
+/*   Author: Philipp Brune               Date: 03.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -90,6 +90,7 @@ int findBlock(int size, unsigned char id) {
   for (i = 0; i*BLOCKSIZE < size; i++) {
       blocks[i+beginBest] = id;
   }
+
   cm(pthread_mutex_unlock(&sharedMallocMutex));
   return beginBest*BLOCKSIZE;
 }
@@ -115,7 +116,7 @@ void *sharedMalloc(unsigned char id, int size) {
 
 
 int sharedFree(void *ptr, int size) {
-  int p = (int)ptr - BLOCKNUM;
+  int p = (int)(ptr - BLOCKNUM - shmPtr);
   return freeBlock(p,size);
 }
 

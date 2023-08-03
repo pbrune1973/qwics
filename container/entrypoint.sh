@@ -5,5 +5,5 @@ export QWICS_DATASET_DIR=/home/qwics/dataset
 export QWICS_LOADMODDIR=/home/qwics/loadmod
 export QWICS_JSDIR=/home/qwics/copybooks
 
-/home/qwics/bin/tpmserver 8000
+/home/qwics/bin/tpmserver /home/qwics/comm/sock
 

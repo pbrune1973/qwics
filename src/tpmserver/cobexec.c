@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 02.08.2023                                  */
+/*   Author: Philipp Brune               Date: 04.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -188,6 +188,7 @@ void *getOpenDataset(struct openDatasetType *ds, char *dsName, struct openDatase
             return ds[i].dsHandle;
         }
     }
+    *ods = NULL;
     return NULL;
 }
 
@@ -683,6 +684,10 @@ int processCmd(char *cmd, cob_field **outputVars) {
     if ((pos=strstr(cmd,"EXEC SQL")) != NULL) {
         char *sql = (char*)pos+9;
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
+        if (conn == NULL) {
+            setSQLCA(-1,"00000");
+            return 1;
+        }
         setSQLCA(0,"00000");
         if (outputVars[0] == NULL) {
             int r = execSQL(conn, sql);
@@ -905,7 +910,12 @@ void _execSql(char *sql, void *fd, int sendRes, int sync) {
            pthread_setspecific(connKey, (void*)conn);
         } else {
            PGconn *conn = (PGconn*)pthread_getspecific(connKey);
-           beginDBConnection(conn);            
+           if (conn == NULL) {
+               conn = getDBConnection();
+               pthread_setspecific(connKey, (void*)conn);
+           } else {
+               beginDBConnection(conn);            
+           }
         }
         void* tx = pthread_getspecific(isamTxKey);
         if (tx != NULL) {
@@ -918,10 +928,13 @@ void _execSql(char *sql, void *fd, int sendRes, int sync) {
     if (strstr(sql,"COMMIT")) {
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
         int r = 0;
-        if (!sync) {
-           r = returnDBConnection(conn, 1);
-        } else {
-           r = syncDBConnection(conn, 1);
+        if (conn != NULL) {
+            if (!sync) {
+                r = returnDBConnection(conn, 1);
+                pthread_setspecific(connKey, NULL);
+            } else {
+                r = syncDBConnection(conn, 1);
+            }
         }
         void* tx = pthread_getspecific(isamTxKey);
         if (tx != NULL) {
@@ -940,15 +953,19 @@ void _execSql(char *sql, void *fd, int sendRes, int sync) {
                 write(*((int*)fd),&response,strlen(response));
             }
         }
+
         return;
     }
     if (strstr(sql,"ROLLBACK")) {
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
         int r = 0;
-        if (!sync) {
-           r = returnDBConnection(conn, 0);
-        } else {
-           r = syncDBConnection(conn, 0);
+        if (conn != NULL) {
+            if (!sync) {
+                r = returnDBConnection(conn, 0);
+                pthread_setspecific(connKey, NULL);
+            } else {
+                r = syncDBConnection(conn, 0);
+            }
         }
         void* tx = pthread_getspecific(isamTxKey);
         if (tx != NULL) {
@@ -972,6 +989,11 @@ void _execSql(char *sql, void *fd, int sendRes, int sync) {
     if ((strstr(sql,"SELECT") || strstr(sql,"FETCH") || strstr(sql,"select") || strstr(sql,"fetch")) &&
         (strstr(sql,"DECLARE") == NULL) && (strstr(sql,"declare") == NULL)) {
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
+        if (conn == NULL) {
+            sprintf(response,"%s\n","ERROR");
+            write(*((int*)fd),&response,strlen(response));
+            return;
+        }
         PGresult *res = execSQLQuery(conn, sql);
         if (res != NULL) {
             int i,j;
@@ -1001,7 +1023,10 @@ void _execSql(char *sql, void *fd, int sendRes, int sync) {
         return;
     }    
     PGconn *conn = (PGconn*)pthread_getspecific(connKey);
-    char *r = execSQLCmd(conn, sql);
+    char *r = NULL;
+    if (conn != NULL) {
+        r = execSQLCmd(conn, sql);
+    }
     if (r == NULL) {
         sprintf(response,"%s\n","ERROR");
         write(*((int*)fd),&response,strlen(response));
@@ -2526,7 +2551,7 @@ int execCallback(char *cmd, void *var) {
                                 resp2 = 120;
                             } else {
                                 if (rid != NULL) {
-                                    if (get(ds,isamTx,curptr,rid,keylen,NULL,0,MODE_SET)) {
+                                    if (get(ds,isamTx,curptr,rid,keylen,NULL,0,MODE_SET) != 0) {
                                         resp = 13;
                                         resp2 = 80;
                                     } else {
@@ -2583,6 +2608,7 @@ int execCallback(char *cmd, void *var) {
                         resp2 = 1;
                     }
                 }
+
                 if (ds != NULL) {
                     unsigned char *rid = NULL; 
                     int keylen = 0;
@@ -2620,7 +2646,8 @@ int execCallback(char *cmd, void *var) {
                             resp2 = 11;
                         }
                     }
-                    int reqId = *((int*)memParams[1]);
+
+                    int reqId = *((int*)memParams[2]);
                     struct openCursorType *cur = NULL;
                     if (rec != NULL) {
                         switch (*((int*)memParams[4])) {
@@ -4479,6 +4506,7 @@ void initExec(int initCons) {
     pthread_mutex_init(&sharedMemMutex,&attr);
 
     setUpPool(10, GETENV_STRING(connectStr,"QWICS_DB_CONNECTSTR","dbname=qwics"), initCons);
+    pthread_setspecific(connKey, NULL);
 
     GETENV_STRING(cobDateFormat,"QWICS_COBDATEFORMAT","YYYY-MM-dd.hh:mm:ss.uuuu");
     startIsamDB(GETENV_STRING(datasetDir,"QWICS_DATASET_DIR","../dataset"));
@@ -4625,6 +4653,10 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     sigemptyset( &a.sa_mask );
     sigaction( SIGSEGV, &a, NULL );
 
+    isamTx = pthread_getspecific(isamTxKey);
+    if (isamTx != NULL) {
+        endTransaction(isamTx,1);
+    }
     isamTx = beginTransaction();
     pthread_setspecific(isamTxKey, isamTx);
     initOpenDatasets(currentNames.openDatasets);
@@ -4639,8 +4671,10 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     free(linkArea);
     clearChnBufList();
     returnDBConnection(conn,1);
+    pthread_setspecific(connKey, NULL);
     closeOpenDatasets(currentNames.openDatasets);
     endTransaction(isamTx,1);
+    pthread_setspecific(isamTxKey, NULL);
     // Flush output buffers
     fflush(stdout);
     fflush(stderr);
