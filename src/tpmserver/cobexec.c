@@ -2845,7 +2845,7 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"RESP") || strstr(cmd,"RESP2") || strstr(cmd,"RESOURCE") || strstr(cmd,"UOW") ||
             strstr(cmd,"TASK") || strstr(cmd,"NOSUSPEND") || strstr(cmd,"INITIMG") ||
             strstr(cmd,"USERDATAKEY") || strstr(cmd,"CICSDATAKEY") || strstr(cmd,"MAXLIFETIME") ||
-            strstr(cmd,"ROLLBACK") || strstr(cmd,"ITEM") || strstr(cmd,"QUEUE") || strstr(cmd,"SYSID") ||
+            strstr(cmd,"ROLLBACK") || strstr(cmd,"ITEM") || strstr(cmd,"QUEUE") || 
             strstr(cmd,"TS") || strstr(cmd,"TD") || strstr(cmd,"REWRITE") || strstr(cmd,"NEXT") ||
             strstr(cmd,"QNAME") || strstr(cmd,"MAIN") || strstr(cmd,"AUXILIARY") || strstr(cmd,"ABSTIME") ||
             strstr(cmd,"YYMMDD") || strstr(cmd,"YEAR") || strstr(cmd,"TIME") || strstr(cmd,"DDMMYY") ||
@@ -2867,7 +2867,7 @@ int execCallback(char *cmd, void *var) {
             strstr(cmd,"GENERIC") || strstr(cmd,"RBA") || strstr(cmd,"RRN") || strstr(cmd,"XRBA") || 
             strstr(cmd,"REQID") || strstr(cmd,"TOKEN") || strstr(cmd,"UNCOMMITTED") || strstr(cmd,"REPEATABLE") || 
             strstr(cmd,"CONSISTENT") || strstr(cmd,"MASSINSERT")|| strstr(cmd,"LABEL") || strstr(cmd,"RESET") || 
-            strstr(cmd,"TEXT")) {
+            strstr(cmd,"TEXT") || strstr(cmd,"APPLID")) {
             sprintf(end,"%s%s",cmd,"\n");
 
             if ((strcmp(cmd,"NOHANDLE") == 0) && ((*respFieldsState) == 0)) {
@@ -3288,6 +3288,12 @@ int execCallback(char *cmd, void *var) {
                     (*memParamsState) = 1;
                 }
                 if (strcmp(cmd,"TIMESEP") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"APPLID") == 0) {
+                    (*memParamsState) = 1;
+                }
+                if (strcmp(cmd,"SYSID") == 0) {
                     (*memParamsState) = 1;
                 }
             }

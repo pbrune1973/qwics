@@ -38,11 +38,11 @@
                 libraryRef="QwicsJDBCJar"/>
     <library filesetRef="QwicsFileset" id="QwicsJDBCJar"/>
     <fileset dir="${server.config.dir}/drivers" id="QwicsFileset"
-             includes="QwicsJDBCDriver.jar,junixsocket-common-2.0.4.jar,junixsocket-native-common-2.0.4.jar"/>
+             includes="QwicsJDBCDriver.jar,junixsocket-common-2.7.0.jar,junixsocket-native-common-2.7.0.jar"/>
 
     <library filesetRef="JUnixSocketFileset" id="JUnixSocketLib"/>
     <fileset dir="${server.config.dir}/drivers" id="JUnixSocketFileset"
-                includes="junixsocket-common-2.0.4.jar,junixsocket-native-common-2.0.4.jar"/>
+                includes="junixsocket-common-2.7.0.jar,junixsocket-native-common-2.7.0.jar"/>
 
     <dataSource id="jdbc/QwicsCobolDS" jdbcDriverRef="QwicsJDBCDriver" jndiName="jdbc/QwicsCobolDS"
                 type="javax.sql.XADataSource">
