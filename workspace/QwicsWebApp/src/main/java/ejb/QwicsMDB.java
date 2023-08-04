@@ -43,13 +43,13 @@ import org.qwics.jdbc.msg.QueueWrapper;
  * Message-Driven Bean implementation class for: QwicsMDB
  */
 @MessageDriven(activationConfig = {
-		@ActivationConfigProperty(propertyName = "destinationLookup", propertyValue = "java:/jms/queue/MyQueue"),
+		@ActivationConfigProperty(propertyName = "destinationLookup", propertyValue = "jms/MyQueue"),
 		@ActivationConfigProperty(propertyName = "destinationType", propertyValue = "javax.jms.Queue") }, messageListenerInterface = MessageListener.class)
 public class QwicsMDB implements MessageListener, QueueManager {
 	@Resource(mappedName = "java:/JmsXA")
 	private ConnectionFactory cf;
 
-	@Resource(mappedName="java:jboss/datasources/QwicsDS")
+	@Resource(lookup="jdbc/QwicsCobolDS")
 	DataSource datasource;
 
 	private Connection con;

@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server Java EE Web Application                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 23.08.2020                                  */
+/*   Author: Philipp Brune               Date: 04.08.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018-2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de          */
+/*   Copyright (C) 2018-2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de          */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -53,7 +53,7 @@ public class QwicsEJB {
 //	@PersistenceContext( unitName = "QWICS" )
 //	private EntityManager em;
 
-	@Resource(mappedName = "java:jboss/datasources/QwicsDS")
+	@Resource(lookup = "jdbc/QwicsCobolDS")
 	DataSource datasource;
 
 	private int state = 0;
@@ -164,7 +164,6 @@ public class QwicsEJB {
 	}
 
 	@OnMessage
-	@TransactionAttribute(TransactionAttributeType.REQUIRED)
 	public void onMessage(Session session, String msg) {
 		try {
 			if ((state == 0) && msg.startsWith("DEFINE")) {
@@ -221,7 +220,6 @@ public class QwicsEJB {
 	}
 
 	@OnClose
-	@TransactionAttribute(TransactionAttributeType.REQUIRED)
 	public void onClose(Session session) {
 		try {
 			utx.commit();

@@ -123,6 +123,7 @@ public class QwicsConnection implements Connection {
 
 	public void open() throws Exception {
 		try {
+			System.out.println("open connection: "+host+" "+port);
 			if (port != 0) {
 				socket = new Socket(host, port);
 			} else {

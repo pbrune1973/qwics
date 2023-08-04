@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server Java EE Web Application                                                  */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 23.08.2020                                  */
+/*   Author: Philipp Brune               Date: 04.08.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2019,2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de          */
+/*   Copyright (C) 2019-2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de          */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -52,7 +52,7 @@ public class QwicsWS {
 	@Resource
 	private UserTransaction utx;
 
-	@Resource(mappedName = "java:jboss/datasources/QwicsDS")
+	@Resource(lookup = "jdbc/QwicsCobolDS")
 	DataSource datasource;
 
 	private Connection con;
@@ -178,7 +178,6 @@ public class QwicsWS {
 	@POST
 	@Path("define/{transId}/{program}")
 	@Produces(MediaType.APPLICATION_JSON)
-	@TransactionAttribute(TransactionAttributeType.REQUIRED)
 	public boolean defineTransId(@PathParam("transId") String transId, @PathParam("program") String program) {
 		if ((transId.length() == 4) && (program.length() <= 8)) {
 			transactionProgNames.put(transId.toUpperCase(), program.toUpperCase());
@@ -190,7 +189,6 @@ public class QwicsWS {
 	@GET
 	@Path("call/{transId}")
 	@Produces(MediaType.APPLICATION_JSON)
-	@TransactionAttribute(TransactionAttributeType.REQUIRES_NEW)
 	public boolean callTransId(@PathParam("transId") String transId) {
 		String program = transactionProgNames.get(transId);
 		if (program == null) {
@@ -227,7 +225,6 @@ public class QwicsWS {
 	@GET
 	@Path("start/{transId}/{starterId}")
 	@Produces(MediaType.APPLICATION_JSON)
-	@TransactionAttribute(TransactionAttributeType.REQUIRES_NEW)
 	public boolean startTransId(@PathParam("transId") String transId,
 							@PathParam("starterId") String starterId) {
 		String program = transactionProgNames.get(transId);
@@ -265,7 +262,6 @@ public class QwicsWS {
 	@POST
 	@Path("logqueue/{qName}")
 	@Produces(MediaType.APPLICATION_JSON)
-	@TransactionAttribute(TransactionAttributeType.REQUIRED)
 	public boolean defineLogQueue(@PathParam("qName") String qName) {
 		logQueues.add(qName.toUpperCase());
 		return true;

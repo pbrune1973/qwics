@@ -3,6 +3,8 @@
         <feature>localConnector-1.0</feature>
         <feature>webProfile-8.0</feature>
         <feature>jms-2.0</feature>
+        <feature>wasJmsServer-1.0</feature>
+        <feature>wasJmsClient-2.0</feature>
         <feature>mdb-3.2</feature>
         <feature>bells-1.0</feature>
     </featureManager>
@@ -36,7 +38,11 @@
                 libraryRef="QwicsJDBCJar"/>
     <library filesetRef="QwicsFileset" id="QwicsJDBCJar"/>
     <fileset dir="${server.config.dir}/drivers" id="QwicsFileset"
-             includes="QwicsJDBCDriver.jar"/>
+             includes="QwicsJDBCDriver.jar,junixsocket-common-2.0.4.jar,junixsocket-native-common-2.0.4.jar"/>
+
+    <library filesetRef="JUnixSocketFileset" id="JUnixSocketLib"/>
+    <fileset dir="${server.config.dir}/drivers" id="JUnixSocketFileset"
+                includes="junixsocket-common-2.0.4.jar,junixsocket-native-common-2.0.4.jar"/>
 
     <dataSource id="jdbc/QwicsCobolDS" jdbcDriverRef="QwicsJDBCDriver" jndiName="jdbc/QwicsCobolDS"
                 type="javax.sql.XADataSource">
@@ -57,7 +63,7 @@
     </jmsQueue>
 
     <jmsActivationSpec id="QwicsWebApp/QwicsMDB">
-        <properties.wasJms destinationRef="QwicsMDB"/>
+        <properties.wasJms destinationRef="MyQueue"/>
     </jmsActivationSpec>
 
     <keyStore id="defaultKeyStore" password="Krmpf66"></keyStore>
@@ -67,6 +73,6 @@
     <applicationMonitor updateTrigger="mbean"></applicationMonitor>
 
     <webApplication id="QwicsWebApp" location="QwicsWebApp.war" name="QwicsWebApp">
-        <classloader commonLibraryRef="hibernate"/>
+        <classloader commonLibraryRef="hibernate,QwicsJDBCJar,PostgresLib,JUnixSocketLib"/>
     </webApplication>
 </server>
