@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.08.2023                                  */
+/*   Author: Philipp Brune               Date: 11.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -2031,8 +2031,6 @@ int execCallback(char *cmd, void *var) {
                 resp = atoi(buf);
                 readLine((char*)&buf,childfd);
                 resp2 = atoi(buf);
-                write(childfd,"\n",1);
-                write(childfd,"\n",1);
                 if (resp > 0) {
                   abend(resp,resp2);
                 }

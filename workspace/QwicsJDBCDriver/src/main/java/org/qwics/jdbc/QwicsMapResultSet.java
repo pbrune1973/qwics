@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018-2020 Philipp Brune    Email: Philipp.Brune@qwics.org
+Copyright (c) 2018-2023 Philipp Brune    Email: Philipp.Brune@qwics.org
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -282,6 +282,7 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 			while ((pos = json.indexOf("\"name\":",pos)) >= 0) {
 				pos = pos + 7;
 				String fname = json.substring(pos+1,json.indexOf("\",",pos+1));
+
 				if (!"".equals(fname)) {
 					try {
 						pos = json.indexOf("\"length\":", pos) + 9;
@@ -291,8 +292,18 @@ public class QwicsMapResultSet implements ResultSet, ResultSetMetaData {
 						pos = json.indexOf("\"cpypos\":", pos) + 9;
 						v = json.substring(pos, json.indexOf(",", pos));
 						int fpos = Integer.parseInt(v);
-System.out.println(name+" "+fpos+" "+flen);
-						putMapValue(fname, new String(Arrays.copyOfRange(buf,fpos,fpos+flen)));
+						char data[] = Arrays.copyOfRange(buf,fpos,fpos+flen);
+						// Convert ZEROS correctly
+						for (int i = 0; i < data.length; i++) {
+							if (((int)data[i]) == 0) {
+								data[i] = '0';
+							}
+							if (((int)data[i]) < 32) {
+								data[i] = ' ';
+							}
+						}
+System.out.println(fname+" "+fpos+" "+flen+" "+new String(data));
+						putMapValue(fname, new String(data));
 					} catch (Exception e) {
 						putMapValue(fname, "");
 					}
@@ -350,11 +361,11 @@ System.out.println(name+" "+fpos+" "+flen);
 		}
 
 		int resp = 0, resp2 = 0;
+		if ((len >= 0) && (len < size)) {
+			resp = 22;
+		}
 		if (len < 0) {
 			len = 0;
-		}
-		if (len < size) {
-			resp = 22;
 		}
 
 		String json = "";
