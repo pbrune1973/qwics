@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL environment config variables                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.08.2019                                  */
+/*   Author: Philipp Brune               Date: 20.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -22,6 +22,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 int getEnvNumber(char *varname, int def) {
   char *p = getenv(varname);
@@ -42,3 +46,7 @@ char *getEnvString(char *varname, char *def) {
   printf("%s%s%s%s\n","Using ",varname," = ",p);
   return p;
 }
+
+#ifdef __cplusplus
+} 
+#endif

@@ -20,6 +20,7 @@
 
 #include <iostream>
 #include <unistd.h>
+#include <cstring>
 #include "DataSet.h"
 #include "ebcdic.h"
 

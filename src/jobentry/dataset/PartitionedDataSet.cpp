@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 19.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -243,7 +243,7 @@ DataSet *PartitionedDataSet::addMember(char *name, struct PdsDirEntry *e) {
   }  
 
   blockNr = entry.lastBlockNr+1;
-  trackNr = (blockNr / 150) && 0x0000FFFF;
+  trackNr = (blockNr / 150) & 0x0000FFFF;
 
   e->ttr[0] = (unsigned char)((trackNr >> 8) & 0xFF);  
   e->ttr[1] = (unsigned char)(trackNr & 0xFF);  

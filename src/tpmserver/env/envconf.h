@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL environment config variables                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.08.2019                                  */
+/*   Author: Philipp Brune               Date: 20.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -24,7 +24,16 @@
 #define GETENV_NUMBER(v,ev,d) ((v < 0) ? (v=getEnvNumber(ev,d)) : v)
 #define GETENV_STRING(v,ev,d) ((v == NULL) ? (v=getEnvString(ev,d)) : v)
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 int getEnvNumber(char *varname, int def);
 char *getEnvString(char *varname, char *def);
+
+#ifdef __cplusplus
+} 
+#endif
 
 #endif

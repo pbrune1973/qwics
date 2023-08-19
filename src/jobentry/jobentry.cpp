@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 19.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -32,7 +32,9 @@
 
 #include "spool/SpoolingSystem.h"
 #include "dataset/TOC.h"
+extern "C" {
 #include "../tpmserver/env/envconf.h"
+}
 
 using namespace std;
 
@@ -64,41 +66,53 @@ void *runJobListener(char *udsfile) {
     /*
      * bind: associate the parent socket with a port
     */
-    if (bind(parentfd, (struct sockaddr *) &serversockaddr,sizeof(serversockaddr)) < 0) {
+    if (bind(parentfd, (struct sockaddr *) &serversockaddr, sizeof(serversockaddr)) < 0) {
       printf("%s\n","ERROR on binding");
       exit(1);
     }
+    clientlen = sizeof(serversockaddr);
 
-    int sa,sb,i,n = sizeof(sadr),stop = 0;  
+    /*
+      * listen: make this socket ready to accept connection requests
+     */
+    if (listen(parentfd, 5) < 0) {
+      printf("%s\n","ERROR on listen");
+      exit(1);
+    }
+    int stop = 0;
 
-    sa = socket(AF_INET,SOCK_STREAM,0);
-
-    if (bind(sa,(struct sockaddr*)&sadr,n) >= 0) {
-       listen(sa,10);
-
-       do {
-        sb = accept(parentfd, (struct sockaddr *) &serversockaddr, (socklen_t*)&clientlen);
-
-        if (sb >= 0) {
-           CardReader *reader = new CardReader(sb,sb);
-           runCardReader((void*)reader);
-        } else {
-           cout << " ERROR: Unable to accept connection!" << endl;              
+    do {
+      childfd = accept(parentfd, (struct sockaddr *) &serversockaddr, (socklen_t*)&clientlen);
+      if (childfd == -1) {
+        if (errno == EINTR) {
+          break;
         }
-       } while (!stop);              
-    } else
-       cout << " ERROR: Unable to bind socket!" << endl;
+      }
 
-    close(sa);
+      if (childfd >= 0) {
+          CardReader *reader = new CardReader(childfd,childfd);
+          runCardReader((void*)reader);
+          close(childfd);
+      } else {
+          cout << " ERROR: Unable to accept connection!" << endl;
+      }
+    } while (!stop);
+
+    return NULL;
 }
 
 
-int main(int argc, char *argv[]) {
-  if (argc > 5) {
-    TOC::addToc("TEST01");
-    SpoolingSystem::create(argv[1],argv[2],argv[3]);
-    runJobListener("");
-  } else {
-    cout << "Missing parameters\n";
-  }
+int main(int argc, char **argv) {
+    char *datasetDir = NULL;
+    char *spoolDir = NULL;
+    char *workingDir = NULL;
+    char *configFile = NULL;
+    char *sockFile = NULL;
+    
+    TOC::addToc(GETENV_STRING(datasetDir,"QWICS_DATASET_DIR","../dataset"));
+    SpoolingSystem::create(GETENV_STRING(configFile,"QWICS_BATCH_CONFIG","../config.txt"),
+                           GETENV_STRING(spoolDir,"QWICS_BATCH_SPOOLDIR","../spool"),
+                           GETENV_STRING(workingDir,"QWICS_BATCH_WORKDIR","/tmp"));
+    runJobListener(GETENV_STRING(sockFile,"QWICS_READER_SOCKETFILE","../comm/sock.reader"));
+    return 0;
 }

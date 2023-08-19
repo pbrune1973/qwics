@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 19.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -78,8 +78,8 @@ TOC::TOC(char *volume) {
   FILE *toc;
   unsigned char memberName[9];
   
-  sprintf(this->volume,"../volumes/%s",volume);
-  sprintf(path,"../volumes/%s/VTOC",volume);
+  sprintf(this->volume,"%s",volume);
+  sprintf(path,"%s/VTOC",volume);
 
   if (access(path,F_OK) < 0) {
     convertDsn((unsigned char*)volume,newEntry.dsn,memberName);
@@ -274,11 +274,11 @@ cout << "dsnSeg " << dsnSeg << endl;
   
   switch (spaceType) {
     case SPACETYPE_BLK : break;
-    case SPACETYPE_TRK : size = size*150;
-                         extend = extend*150; 
+    case SPACETYPE_TRK : size = size*56664;
+                         extend = extend*56664; 
                          break;
-    case SPACETYPE_CYL : size = size*150*15;
-                         extend = extend*150*15; 
+    case SPACETYPE_CYL : size = size*56664*15;
+                         extend = extend*56664*15; 
                          break;
     case SPACETYPE_MB :  size = size*1024*1024/blockSize+blockSize;
                          extend= extend*1024*1024/blockSize+blockSize;
@@ -414,129 +414,3 @@ cout << "dsnSeg " << dsnSeg << endl;
   return 0;
 }
 
-/*
-int main(int argc, char *argv[]) {
-  char buf[41];
-  TOC *toc = TOC::addToc("TEST01");
-  int i,n;
-
-  toc->remove((unsigned char*)"SYS1.LINKLIB");
-
-  DataSet *d = toc->allocate((unsigned char*)"SYS1.LINKLIB(PROG1)",'F',40,2400,SPACETYPE_BLK,100,100,10,DISP_NEW,OPEN_RDWR);
-  if (d == NULL) {
-    cout << "Error" << endl;
-    return -1;
-  }
-
-  for (i = 0; i < 40; i++) buf[i] = 'X'; 
-  buf[i] = 0x00;
-  for (i = 0; i < 100; i++) d->put((unsigned char*)buf);
-  d->point(78);
-  d->get((unsigned char*)buf);
-  printf("%s\n",buf);
-
-  delete d;
-
-  for (n = 99; n > 1; n--) {
-    char dsname[50];
-    sprintf(dsname,"%s%d%s","SYS1.LINKLIB(PROG",n,")");
-    d = toc->allocate((unsigned char*)dsname,'F',40,2400,SPACETYPE_BLK,100,100,10,DISP_OLD,OPEN_RDWR);
-    if (d == NULL) {
-      cout << "Error" << endl;
-      return -1;
-    }
-
-    for (i = 0; i < 40; i++) buf[i] = 'Y'; 
-    buf[i] = 0x00;
-    for (i = 0; i < 100; i++) d->put((unsigned char*)buf);
-
-    delete d;
-  }
-  
-  d = toc->allocate((unsigned char*)"SYS1.LINKLIB(PROG2)",'F',40,2400,SPACETYPE_BLK,100,100,10,DISP_SHR,OPEN_RDONLY);
-  if (d == NULL) {
-    cout << "Error" << endl;
-    return -1;
-  }
-
-  d->point(78);
-  d->get((unsigned char*)buf);
-  printf("%s\n",buf);
-
-  delete d;
-
-  d = toc->allocate((unsigned char*)"SYS1.LINKLIB(PROG1)",'F',40,2400,SPACETYPE_BLK,100,100,10,DISP_SHR,OPEN_RDONLY);
-  if (d == NULL) {
-    cout << "Error" << endl;
-    return -1;
-  }
-
-  d->point(78);
-  d->get((unsigned char*)buf);
-  printf("%s\n",buf);
-
-  delete d;
-
-  d = toc->allocate((unsigned char*)"SYS1.LINKLIB(PROG70)",'F',40,2400,SPACETYPE_BLK,100,100,10,DISP_SHR,OPEN_RDONLY);
-  if (d == NULL) {
-    cout << "Error" << endl;
-    return -1;
-  }
-
-  d->point(78);
-  d->get((unsigned char*)buf);
-  printf("%s\n",buf);
-
-  delete d;
-
-  toc->remove((unsigned char*)"SYS1.TEXT");
-
-  DataSet *d = toc->allocate((unsigned char*)"SYS1.TEXT",'V',0,200,SPACETYPE_BLK,100,100,0,DISP_NEW,OPEN_RDWR);
-cout << "DataSet allocated " << endl;
-  if (d == NULL) {
-    cout << "Error" << endl;
-    return -1;
-  }
-
-  struct RequestParameters r;
-
-  for (n = 0; n < 100; n++) {
-    int len;
-    
-    if (n % 3 == 0) len = 10;    
-    if (n % 3 == 1) len = 20;    
-    if (n % 3 == 2) len = 40;    
-    for (i = 0; i < len; i++) buf[i] = 'X'; 
-    buf[i] = 0x00;
-    r.mode = RPMODE_DRP | RPMODE_LAB | RPMODE_LEN;
-    r.areaLen = len;
-    r.area = (unsigned char*)buf;    
-    printf("%d %s\n",n,buf);
-    d->put(&r);
-  }
-  
-  delete d; 
-
-  d = toc->allocate((unsigned char*)"SYS1.TEXT",'V',0,200,SPACETYPE_BLK,100,100,0,DISP_OLD,OPEN_RDONLY);
-  if (d == NULL) {
-    cout << "Error" << endl;
-    return -1;
-  }
-
-  r.mode = RPMODE_DRP | RPMODE_LAB | RPMODE_LEN;
-  r.area = (unsigned char*)buf;    
-  r.areaLen = 40;
-
-  n = 0;
-  while (d->get(&r) >= 0) {
-    buf[r.areaLen] = 0x00;
-    printf("%d %s\n",n,buf);
-    r.mode = RPMODE_DRP | RPMODE_LAB | RPMODE_LEN;
-    r.area = (unsigned char*)buf;    
-    r.areaLen = 40;
-    n++;
-  }
-  
-  delete d; 
-}
-*/
