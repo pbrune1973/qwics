@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 06.11.2020                                  */
+/*   Author: Philipp Brune               Date: 20.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <dlfcn.h>
+#include <errno.h>
 
 #include <libcob.h>
 #include "../tpmserver/config.h"
@@ -45,10 +47,13 @@ int _cmdState = 0;
 char *end = NULL;
 cob_field* outputVars[100];
 
+cob_module thisModule;
+
 char *cobDateFormat = "YYYY-MM-dd-hh.mm.ss.uuuuu";
 //char *dbDateFormat = "dd-MM-YYYY hh:mm:ss.uuu";
 char *dbDateFormat = "YYYY-MM-dd hh:mm:ss.uuu";
 char result[30];
+char *loadmodDir = NULL;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
@@ -440,6 +445,41 @@ int processCmd(char *cmd) {
 }
 
 
+int execLoadModule(char *name) {
+    int ret = 0;
+    int (*loadmod)();
+    char fname[255];
+
+    #ifdef __APPLE__
+    sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".dylib");
+    #else
+    sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".so");
+    #endif
+
+    char *error = "";
+    void* sdl_library = dlopen(fname, RTLD_LAZY);
+    if ((error = dlerror()) != NULL || sdl_library == NULL)  {
+        printf("%s%s%s%s\n","ERROR: ",error," for load module ",fname);
+        return -1;
+    } else {
+        dlerror();
+        *(void**)(&loadmod) = dlsym(sdl_library,name);
+        if ((error = dlerror()) != NULL)  {
+            printf("%s%s\n","ERROR: ",error);
+            dlclose(sdl_library);
+            return -1;
+        }
+
+        cob_get_global_ptr()->cob_current_module = &thisModule;
+        cob_get_global_ptr()->cob_call_params = 0;
+        ret = (*loadmod)();
+        dlclose(sdl_library);
+    }
+
+    return ret;
+}
+
+
 int execCallback(char *cmd, void *var) {
     char *cmdbuf = _cmdbuf;
     int *cmdState = &_cmdState;
@@ -569,8 +609,6 @@ int execCallback(char *cmd, void *var) {
 }
 
 
-static int (*loadmod)();
-
 int main(int argc, char *argv[]) {
     int ret = 0;
 
@@ -598,16 +636,12 @@ int main(int argc, char *argv[]) {
     _cmdbuf[0] = 0x00;
 
     cob_init(0, NULL);
-
-    loadmod = cob_resolve(argv[1]);     
-    if (loadmod == NULL) {
-        fprintf(stderr, "%s\n", cob_resolve_error());
-        exit(1);
-    }
      
     // Opening DB connection
     conn = getDBConnection(GETENV_STRING(connectStr,"QWICS_DB_CONNECTSTR","dbname=qwics"));
-    ret = loadmod();
+
+    // Run the loadmod
+    ret = execLoadModule(argv[1]);
 
     PGresult *res = PQexec(conn, "COMMIT");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {

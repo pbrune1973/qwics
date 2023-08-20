@@ -4,7 +4,7 @@ OBJS = spool/JCLParser.o spool/SpoolingSystem.o spool/JobClass.o spool/OutputCla
 	   card/JOB.o card/EXEC.o card/DD.o card/PROC.o card/SET.o card/OUTPUT.o \
 	   dataset/LockManager.o dataset/DataSet.o dataset/TOC.o dataset/Member.o dataset/ebcdic.o \
 	   dataset/PartitionedDataSet.o dataset/Concatenation.o dataset/Catalog.o dataset/DataSetDef.o \
-	   jobentry.o ../tpmserver/env/envconf.o
+	   env/envconf.o jobentry.o 
 
 
 DEFINES = 

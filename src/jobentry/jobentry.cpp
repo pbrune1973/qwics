@@ -32,9 +32,7 @@
 
 #include "spool/SpoolingSystem.h"
 #include "dataset/TOC.h"
-extern "C" {
-#include "../tpmserver/env/envconf.h"
-}
+#include "env/envconf.h"
 
 using namespace std;
 

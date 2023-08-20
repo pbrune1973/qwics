@@ -1,9 +1,9 @@
 /*******************************************************************************************/
-/*   QWICS Server COBOL environment config variables                                               */
+/*   QWICS Server COBOL embedded SQL executor                                              */
 /*                                                                                         */
 /*   Author: Philipp Brune               Date: 20.08.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -19,26 +19,10 @@
 /*******************************************************************************************/
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <libcob.h>
 
 
-int getEnvNumber(char *varname, int def) {
-  char *p = getenv(varname);
-  int v = def;
-  if (p != NULL) {
-    v = atoi(p);
-  }
-  printf("%s%s%s%d\n","Using ",varname," = ",v);
-  return v;
-}
-
-
-char *getEnvString(char *varname, char *def) {
-  char *p = getenv(varname);
-  if (p == NULL) {
-    p = def;
-  }
-  printf("%s%s%s%s\n","Using ",varname," = ",p);
-  return p;
+int datasetfh(unsigned char *opcode, FCD3 *fcd) {
+    printf("datsetfh called %x %x\n",opcode[0],opcode[1]);
+    return EXTFH(opcode,fcd);
 }

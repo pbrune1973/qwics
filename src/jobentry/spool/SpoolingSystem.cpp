@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 21.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -80,7 +80,7 @@ SpoolingSystem::SpoolingSystem(char *configFile, char *spoolDir, char *workingDi
 
   if (strcmp(name,"OUTPUT") == 0) {
     cf >> name;
-    while ((strcmp(name,"") != 0) && (strcmp(name,"OUTPUT") != 0)) {
+    while ((strcmp(name,"") != 0) && (strcmp(name,"END-OUTPUT") != 0)) {
       cf >> maxNumOfInitiators;
       cf >> memQueued;
       cf >> switchLimit;

@@ -1,4 +1,5 @@
 #!/bin/bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/qwics/bin
 
 export QWICS_DB_CONNECTSTR="host=qwics-postgres user=postgres password=postgres dbname=postgres"
 export QWICS_DATASET_DIR=/home/qwics/dataset

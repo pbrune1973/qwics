@@ -37,7 +37,7 @@ COPY --chown=qwics:qwics --chmod=755 ./container/entrypoint.sh /home/qwics
 RUN runuser -l qwics -c 'cd /home/qwics && make clean; make tpmserver'
 RUN runuser -l qwics -c 'cd /home/qwics/src/preps/maps && make clean; make mapprep'
 RUN runuser -l qwics -c 'cd /home/qwics/src/preps/cobol && make clean; make cobprep'
-RUN runuser -l qwics -c 'cd /home/qwics/src/batchrun && make clean; make batchrun; make jclpars'
+RUN runuser -l qwics -c 'cd /home/qwics/src/batchrun && make clean; make jclpars; make batchrun'
 RUN runuser -l qwics -c 'cd /home/qwics/src/jobentry && make clean; make jobentry'
 RUN runuser -l qwics -c 'mkdir /home/qwics/comm'
 RUN runuser -l qwics -c 'mkdir /home/qwics/spool'
