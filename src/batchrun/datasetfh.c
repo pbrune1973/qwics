@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 20.08.2023                                  */
+/*   Author: Philipp Brune               Date: 22.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -19,10 +19,94 @@
 /*******************************************************************************************/
 
 #include <stdio.h>
+#include <string.h>
 #include <libcob.h>
+#ifdef _IN_JOBENTRY_
+#include "../jobentry/card/DD.h"    
+
+JobCard *myEXEC = NULL;
+#endif
+
+
+int open(char *ddName, int in, int out, FCD3 *fcd) {
+    return 0;
+}
+
+
+int close(char *ddName) {
+    return 0;
+}
 
 
 int datasetfh(unsigned char *opcode, FCD3 *fcd) {
-    printf("datsetfh called %x %x\n",opcode[0],opcode[1]);
+    if ((fcd->fileOrg == ORG_LINE_SEQ || fcd->fileOrg == ORG_SEQ ||
+         fcd->fileOrg == ORG_RELATIVE) && 
+        (fcd->accessFlags == ACCESS_SEQ || fcd->accessFlags == ACCESS_RANDOM)) {
+        // Retrieve DDNAME
+        char ddname[9];
+        int l = (int)fcd->fnameLen[1];
+        if (l > 8) {
+            l = 8;
+        }
+        memcpy(ddname,fcd->fnamePtr,l);
+        ddname[l] = 0x00;
+
+        // Handle operation
+        switch (LDCOMPX2(opcode)) {
+            case OP_OPEN_INPUT :
+                if (fcd->openMode != OPEN_NOT_OPEN) {
+                    return -1;
+                }
+                if (open(ddname,1,0,fcd) < 0) {
+                    return -1;
+                }
+                fcd->openMode = OPEN_INPUT;
+                break;
+
+            case OP_OPEN_OUTPUT :
+                if (fcd->openMode != OPEN_NOT_OPEN) {
+                    return -1;
+                }
+                if (open(ddname,0,1,fcd) < 0) {
+                    return -1;
+                }
+                fcd->openMode = OPEN_OUTPUT;
+                break;
+
+            case OP_OPEN_IO :
+                if (fcd->openMode != OPEN_NOT_OPEN) {
+                    return -1;
+                }
+                if (open(ddname,1,1,fcd) < 0) {
+                    return -1;
+                }
+                fcd->openMode = OPEN_IO;
+                break;
+
+            case OP_CLOSE :
+                if (fcd->openMode == OPEN_NOT_OPEN) {
+                    return -1;
+                }
+                if (close(ddname) < 0) {
+                    return -1;
+                }
+                fcd->openMode = OPEN_NOT_OPEN;
+                break;
+        }
+        printf("RecLen %d\n",LDCOMPX4(fcd->curRecLen));
+        return 0;
+    }
+    if (fcd->fileOrg == ORG_INDEXED) {
+        // Retrieve DDNAME
+        char ddname[9];
+        int l = (int)fcd->fnameLen[1];
+        if (l > 8) {
+            l = 8;
+        }
+        memcpy(ddname,fcd->fnamePtr,l);
+        ddname[l] = 0x00;
+
+        // Resolve DSNAME of VSAM file        
+    } 
     return EXTFH(opcode,fcd);
 }

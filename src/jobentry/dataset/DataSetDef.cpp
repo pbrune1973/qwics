@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 22.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -297,11 +297,11 @@ DataSetDef::DataSetDef(char *fileName, Parameters *ddParams) {
 
   switch (spaceType) {
     case SPACETYPE_BLK : break;
-    case SPACETYPE_TRK : size = size*150;
-                         extend = extend*150; 
+    case SPACETYPE_TRK : size = size*56664;
+                         extend = extend*56664; 
                          break;
-    case SPACETYPE_CYL : size = size*150*15;
-                         extend = extend*150*15; 
+    case SPACETYPE_CYL : size = size*56664*15;
+                         extend = extend*56664*15; 
                          break;
     case SPACETYPE_MB :  size = size*1024*1024/blockSize+blockSize;
                          extend = extend*1024*1024/blockSize+blockSize;
