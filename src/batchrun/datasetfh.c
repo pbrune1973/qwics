@@ -24,7 +24,7 @@
 #ifdef _IN_JOBENTRY_
 #include "../jobentry/card/DD.h"    
 
-JobCard *myEXEC = NULL;
+extern JobCard *thisEXEC;
 #endif
 
 
@@ -37,7 +37,9 @@ int close(char *ddName) {
     return 0;
 }
 
-
+#ifdef _IN_JOBENTRY_
+extern "C" 
+#endif
 int datasetfh(unsigned char *opcode, FCD3 *fcd) {
     if ((fcd->fileOrg == ORG_LINE_SEQ || fcd->fileOrg == ORG_SEQ ||
          fcd->fileOrg == ORG_RELATIVE) && 
