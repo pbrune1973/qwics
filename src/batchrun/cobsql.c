@@ -609,18 +609,8 @@ int execCallback(char *cmd, void *var) {
 }
 
 
-int main(int argc, char *argv[]) {
+int batchrun(int argc, char *argv[]) {
     int ret = 0;
-
-    if (argc < 2) {
-        fprintf(stderr," Usage: batchrun <loadmod> [<jobname> <step> <pgm>]\n");
-        return 1;
-    } else {
-        if ((argc > 2) && !(argc == 5)) {
-            fprintf(stderr," Usage: batchrun <loadmod> [<jobname> <step> <pgm>]\n");
-            return 1;
-        }
-    }
 
     if (argc == 5) {
         job = argv[2];

@@ -1,3 +1,6 @@
+OPENCOBOL = /home/qwics/gnucobol-3.1.2
+POSTGRES = /usr
+
 OBJS = spool/JCLParser.o spool/SpoolingSystem.o spool/JobClass.o spool/OutputClass.o \
        spool/JobClassQueue.o spool/OutputClassQueue.o spool/Initiator.o spool/OutputWriter.o \
        spool/CardReader.o spool/semaphore.o card/RuntimeContext.o card/Parameters.o card/JobCard.o \
@@ -11,8 +14,9 @@ DEFINES =
 
 CC     = gcc
 CPP    = g++
-CFLAGS = -Wno-deprecated
-LIBS   = -lpthread
+TPMSRC = ../tpmserver
+CFLAGS = -I$(OPENCOBOL) -I$(POSTGRES)/include/postgresql -L/usr/local/lib -L$(POSTGRES)/lib -L/home/qwics/bin -fPIC -pie -Wl,--export-dynamic
+LIBS   = -lpthread -lcob -lpq -ljclpars
 
 .cpp.o:
 	$(CPP) $(DEFINES) $(CFLAGS) -c $<
@@ -21,7 +25,7 @@ LIBS   = -lpthread
 	$(CPP) $(DEFINES) $(CFLAGS) -c $<
 
 jobentry: $(OBJS) 
-	$(CPP) $(LIBS) *.o -o ../../bin/jobentry
+	$(CPP) $(CFLAGS) *.o ../batchrun/cobsql.o ../batchrun/db.o ../batchrun/datasetfh.o $(TPMSRC)/env/envconf.o -o ../../bin/jobentry $(LIBS) 
 
 clean:
 	rm -f *.o

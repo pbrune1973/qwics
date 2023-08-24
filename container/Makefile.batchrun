@@ -6,7 +6,7 @@ CPP = g++
 CFLAGS = -I$(OPENCOBOL) -I$(POSTGRES)/include/postgresql -L/usr/local/lib -L$(POSTGRES)/lib -L/home/qwics/bin -fPIC -pie -Wl,--export-dynamic
 TPMSRC = ../tpmserver
 SRC = .
-OBJS = $(SRC)/cobsql.o $(SRC)/db.o $(SRC)/datasetfh.o $(TPMSRC)/env/envconf.o
+OBJS = $(SRC)/batchrun.o $(SRC)/cobsql.o $(SRC)/db.o $(SRC)/datasetfh.o $(TPMSRC)/env/envconf.o
 LIBS = -lcob -lpq -ljclpars
 
 %.o : %.c
@@ -16,7 +16,6 @@ LIBS = -lcob -lpq -ljclpars
 batchrun: $(OBJS)
 	$(CC) $(CFLAGS) -o ../../bin/batchrun $(OBJS) $(LIBS)
 	$(CPP) $(CFLAGS) -D_IN_JOBENTRY_ -c datasetfh.c -o datasetfh.o
-	$(CC) -shared $(CFLAGS) -o ../../bin/libbatchrun.so $(OBJS) $(LIBS)
 
 jclpars:
 	$(CC) -fPIC -c libjclpars.c

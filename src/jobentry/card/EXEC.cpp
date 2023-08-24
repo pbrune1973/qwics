@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 25.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -32,12 +32,17 @@
 #include "EXEC.h"
 #include "DD.h"
 #include "../dataset/Concatenation.h"
+extern "C" {
+#include "../../batchrun/cobsql.h"
+}
 
 using namespace std;
 
 
 DataSetDef *EXEC::procLib = NULL;
 DataSetDef *EXEC::linkLib = NULL;
+
+extern JobCard *thisEXEC;
 
 
 EXEC::EXEC(char *name) : JobCard(name) {
@@ -156,6 +161,7 @@ int EXEC::execPGM(char *pgm, Parameters *params, char *_stdin, char *_stdout, ch
   } else
   if (childPID == 0) {
     // Child
+    thisEXEC = this;
 cout << "I/O: " << _stdin << " " << _stdout << " " << _stderr << endl;
 
     memLimit = context->memLimit;

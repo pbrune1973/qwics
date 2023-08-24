@@ -1,9 +1,9 @@
 /*******************************************************************************************/
-/*   QWICS Batch Job Entry System                                                          */
+/*   QWICS Server COBOL embedded SQL executor                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 24.08.2023                                  */
+/*   Author: Philipp Brune               Date: 20.08.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -18,58 +18,23 @@
 /*   along with this project. If not, see <http://www.gnu.org/licenses/>.                  */
 /*******************************************************************************************/
 
-#ifndef _DataSetDef_h
-#define _DataSetDef_h
 
-#include "DataSet.h"
-#include "TOC.h"
-#include "../card/Parameters.h"
-#include "Catalog.h"
-
-#define DISP_CATLG   0
-#define DISP_DELETE  1
-#define DISP_PASS    2
-
-#define DEFTYPE_NONE   0   
-#define DEFTYPE_DUMMY  1
-#define DEFTYPE_TERM   2  
-#define DEFTYPE_DSN    3   
-#define DEFTYPE_FILE   4
+#include <stdio.h>
+#include "cobsql.h"
 
 
-class DataSetDef {
- private: 
-  int defType;
-  Catalog *c;
-  TOC *toc;
-  struct TocEntry entry;
-  char dsn[55];
-  char volume[7];
-  char format; 
-  int recSize;
-  int blockSize; 
-  int spaceType; 
-  int size;
-  int extend; 
-  int dirSize; 
-  int disp;
-  int cleanupDisp;
-  int errorDisp;
-  int modeMask;
-  DataSetDef *next;
-  DataSet *dataSet;
-  
-  int isNumber(char *str);
-  
- public:
-  DataSetDef(Parameters *ddParams);
-  DataSetDef(char *fileName, Parameters *ddParams);
-  ~DataSetDef();
+int main(int argc, char *argv[]) {
+    int ret = 0;
 
-  void setNext(DataSetDef *next);
-  DataSet *open(int mode);
-  DataSet *getDataSet();
-  int cleanup(int conditionCode);
-};
+    if (argc < 2) {
+        fprintf(stderr," Usage: batchrun <loadmod> [<jobname> <step> <pgm>]\n");
+        return 1;
+    } else {
+        if ((argc > 2) && !(argc == 5)) {
+            fprintf(stderr," Usage: batchrun <loadmod> [<jobname> <step> <pgm>]\n");
+            return 1;
+        }
+    }
 
-#endif
+    return batchrun(argc,argv);
+}

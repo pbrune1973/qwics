@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 22.08.2023                                  */
+/*   Author: Philipp Brune               Date: 24.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -28,6 +28,7 @@ DataSetDef::DataSetDef(Parameters *ddParams) {
   Parameters *pval;
   
   next = NULL;
+  dataSet = NULL;
   c = Catalog::masterCatalog;
   defType = DEFTYPE_NONE;
   
@@ -386,7 +387,13 @@ DataSet *DataSetDef::open(int mode) {
     }    
   }
   
+  this->dataSet = dataSet;
   return dataSet;
+}
+
+
+DataSet *DataSetDef::getDataSet() {
+  return this->dataSet;
 }
 
 
