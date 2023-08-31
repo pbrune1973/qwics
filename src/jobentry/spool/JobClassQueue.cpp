@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 31.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -147,10 +147,9 @@ int JobClassQueue::saveJob(JobInfo job) {
 
  if ((jf = fopen(getJobFileName(job.jobId),"w")) != NULL) {
    fwrite(&job,sizeof(JobInfo),1,jf);
-   fseek(jf,(long)sizeof(JobInfo),SEEK_SET);
+   // fseek(jf,(long)sizeof(JobInfo),SEEK_SET);
    job.job->print(jf);
    fclose(jf);
-   if (ferror(jf) != 0) return -1;
  } else {
    return -1;
  }
@@ -196,7 +195,7 @@ JobInfo JobClassQueue::get(char status) {
      if ((qf = fopen(this->queueFile[this->writeFile],"wb")) != NULL) {
        flags[0] = ' ';
        flags[1] = 'W';
-       fseek(qf,0L,SEEK_SET);
+       // fseek(qf,0L,SEEK_SET);
        fwrite(flags,2,1,qf);  
        fclose(qf);
      }
@@ -397,7 +396,7 @@ JobInfo JobClassQueue::get(char status, char *jobName, char *jobId, int keep) {
 
    pthread_mutex_unlock(&queueMutex);
    return(job);
-//   semaphore_down(&entriesThere);
+   semaphore_down(&entriesThere);
  } while (1);
 }
 
@@ -412,11 +411,10 @@ int JobClassQueue::put(JobInfo job) {
 
  wf = fopen(queueFile[writeFile],"a");
  if (wf == NULL) return -1; 
- fseek(wf,0L,SEEK_END);
+ //fseek(wf,0L,SEEK_END);
  fwrite(&job,23,1,wf);
- fclose(wf);
 
- if (ferror(wf) != 0) {
+ if (fclose(wf) != 0) {
    unlink(getJobFileName(job.jobId));
    return -1;
  }

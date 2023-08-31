@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 30.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -39,6 +39,10 @@ CardReader::CardReader(int inFd, int outFd) {
 CardReader::~CardReader() {
   if (inFile != NULL) fclose(inFile);
   if (outFile != NULL) fclose(outFile);
+  close(inFd);
+  if (inFd != outFd) {
+      close(outFd);
+  }
 }
 
 
@@ -62,24 +66,16 @@ void CardReader::run() {
   char *cmd, jobId[9], line[81], *jobNamePtr = NULL, *jobIdPtr = NULL;
 
   jclParser = new JCLParser(inFile);  
+  job = jclParser->parse();
 
-  do {
-    job = jclParser->parse();
-
-    if (job != NULL) {
-      if (SpoolingSystem::spoolingSystem->submit(job,jobId) < 0) {
-        delete job;
-        writeLine("ERROR DURING JOB SUBMISSION\n");
-      } else {
-        sprintf(line,"JOB %s SUBMITTED\n",jobId);
-        writeLine(line);
-      }
+  if (job != NULL) {
+    if (SpoolingSystem::spoolingSystem->submit(job,jobId) < 0) {
+      delete job;
+      writeLine("ERROR DURING JOB SUBMISSION\n");
+    } else {
+      sprintf(line,"JOB %s SUBMITTED\n",jobId);
+      writeLine(line);
     }
-  } while (!stop);
-
-  close(inFd);
-  if (inFd != outFd) {
-      close(outFd);
   }
 
   delete jclParser;  

@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 30.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -406,7 +406,7 @@ int DD::executeSpecial(Parameters *params, JobCard *SubCards) {
       sysoutFileInfo.fileName = RuntimeContext::createSysoutFile(sysoutFileName);
     }
     sysoutFileInfo.params = submits[i].params;
-    r = SpoolingSystem::spoolingSystem->submit(sysoutFileInfo,submits[i].msgClass);
+    r = SpoolingSystem::spoolingSystem->submitToClass(sysoutFileInfo,submits[i].msgClass);
 
     if (r < 0) {
       context->writeLog(0,"INVALID OUTPUT QUEUE SPECIFIED");

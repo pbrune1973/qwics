@@ -27,7 +27,7 @@
 
 class JobClass {
  protected:
-  char name[9];
+  char name[10];
   JobClassQueue *queue;
   Initiator **initiators;
   unsigned int numOfInitiators;

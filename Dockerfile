@@ -11,6 +11,7 @@ RUN apt-get -y install libgmp3-dev
 RUN apt-get -y install libncurses5-dev libncursesw5-dev
 RUN apt-get -y install libpq5
 RUN apt-get -y install libpq-dev
+RUN apt-get -y install socat
 RUN adduser --disabled-password qwics
 RUN usermod -aG sudo qwics
 

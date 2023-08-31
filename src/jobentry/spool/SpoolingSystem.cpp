@@ -292,7 +292,7 @@ int SpoolingSystem::submit(JobCard *job, char *jobId) {
 }
 
 
-int SpoolingSystem::submit(JobInfo job, char *className) {
+int SpoolingSystem::submitToClass(JobInfo job, char *className) {
   if (className == NULL) return -1;
 
   pthread_mutex_lock(&classMutex);

@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 30.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -63,7 +63,7 @@ class SpoolingSystem {
   JobClass *getJobClassEx(char *name);
   unsigned long getNewId();
   int submit(JobCard *job, char *jobId);
-  int submit(JobInfo job, char *className);
+  int submitToClass(JobInfo job, char *className);
 };
 
 #endif

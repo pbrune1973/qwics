@@ -13,8 +13,7 @@ LIBS = -lcob -lpq -ljclpars
 
 
 batchrun: $(OBJS)
-        $(CC) $(CFLAGS) -o batchrun $(OBJS) $(LIBS)
-        mv batchrun ../../bin
+        $(CC) $(CFLAGS) -o ../../bin/batchrun $(OBJS) $(LIBS)
 
 jclpars:
         $(CC) -fPIC -c libjclpars.c

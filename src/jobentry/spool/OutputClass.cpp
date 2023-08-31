@@ -30,8 +30,9 @@ OutputClass::OutputClass(char *name,
   int i,l = strlen(name);
 
   if (l > 8) l = 8;
-  for (i = 0; i < l; i++) this->name[i] = name[i];  
-  this->name[l] = 0x00;
+  this->name[0] = '_';
+  for (i = 0; i < l; i++) this->name[i+1] = name[i];  
+  this->name[l+1] = 0x00;
 
   this->numOfInitiators = numOfWriters;
   this->maxNumOfInitiators = maxNumOfWriters;

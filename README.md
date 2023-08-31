@@ -27,7 +27,7 @@ QWICS needs three separate containers, started in order as follows:
 
 * Before running the containers, first create a new bridge network in Docker, labeled qwics-network. 
 
-* The first container running the PostgreSQL database, just use the standard image run with the following command (You may customize the database settings to your needs, of course. Please note that you need to adjust the settings in the other conatiners as well):
+* The first container running the PostgreSQL database, just use the standard image run with the following command (You may customize the database settings to your needs, of course. Please note that you need to adjust the settings in the other containers as well):
 ```c
 docker run --name=qwics-postgres --network=qwics-network -e POSTGRES_PASSWORD=postgres -d postgres
 ```
@@ -38,7 +38,7 @@ docker build -t qwics:latest .
 ```
 and launch it by 
 ```c
-docker run --name qwics-cobol -it -v <YOUR-COPYBOOK-DIR>:/home/qwics/copybooks -v <YOUR-COBOL-SRC-DIR>:/home/qwics/cobsrc -v <YOUR-LOAD-MODULE-DIR>:/home/qwics/loadmod -v <YOUR-VSAM-DATASET-DIR>:/home/qwics/dataset -v <YOUR-BMS-MAP-DIR>:/home/qwics/maps --network=qwics-network -v <YOUR-SOCKET-FILE-DIR>:/home/qwics/comm  qwics:latest
+docker run --name qwics-cobol -it -v <YOUR-COPYBOOK-DIR>:/home/qwics/copybooks -v <YOUR-COBOL-SRC-DIR>:/home/qwics/cobsrc -v <YOUR-LOAD-MODULE-DIR>:/home/qwics/loadmod -v <YOUR-VSAM-DATASET-DIR>:/home/qwics/dataset -v <YOUR-BMS-MAP-DIR>:/home/qwics/maps --network=qwics-network -v <YOUR-SOCKET-FILE-DIR>:/home/qwics/comm  -d qwics:latest
 ```
 
 * The third container running the Jakarta EE application server using the QWICS JDBC Driver and the QWICS Java Web App. To build the Java parts, first change to the workspace dir, and build the the two Java projects there using Maven and your favorite IDE. Afterwards, run the QwicsWebvApp using the Liberty Maven plugin to correctly set up the Maven target directory. Then stop Liberty and build the Java Docker container from the Dockerfile in the workspace dir using:
@@ -47,7 +47,7 @@ docker build -t qwics-jee:latest .
 ```
 and launch it by the command
 ```c
-docker run --name qwics-jee -it --network=qwics-network -v <YOUR-SOCKET-FILE-DIR>:/home/qwics/comm -p 9080:9080 qwics-jee:latest
+docker run --name qwics-jee -it --network=qwics-network -v <YOUR-SOCKET-FILE-DIR>:/home/qwics/comm -p 9080:9080 -d qwics-jee:latest
 ```
 
 PRE-REQUISITES FOR BUILDING FROM SOURCE:

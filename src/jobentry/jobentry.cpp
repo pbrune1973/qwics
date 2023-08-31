@@ -81,6 +81,7 @@ void *runJobListener(char *udsfile) {
 
     do {
       childfd = accept(parentfd, (struct sockaddr *) &serversockaddr, (socklen_t*)&clientlen);
+
       if (childfd == -1) {
         if (errno == EINTR) {
           break;
@@ -90,7 +91,6 @@ void *runJobListener(char *udsfile) {
       if (childfd >= 0) {
           CardReader *reader = new CardReader(childfd,childfd);
           runCardReader((void*)reader);
-          close(childfd);
       } else {
           cout << " ERROR: Unable to accept connection!" << endl;
       }

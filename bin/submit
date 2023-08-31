@@ -1,0 +1,3 @@
+#!/bin/bash
+
+{ cat "$1" | socat - UNIX-CONNECT:/home/qwics/comm/reader.sock; } <<<EOF

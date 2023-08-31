@@ -25,11 +25,11 @@
 #include "../card/JobCard.h"
 #include "../dataset/DataSet.h"
 
-#define EOL_EXCPT 0x0001;
-#define MC_EXCPT  0x0002;
-#define IJC_EXCPT 0x0004;
-#define EOF_EXCPT 0x0008;
-#define CMD_EXCPT 0x0010;
+#define EOL_EXCPT 0x00000001;
+#define MC_EXCPT  0x00000002;
+#define IJC_EXCPT 0x00000004;
+#define EOF_EXCPT 0x00000008;
+#define CMD_EXCPT 0x00000010;
 
 
 class JCLParser {

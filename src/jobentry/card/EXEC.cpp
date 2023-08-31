@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 25.08.2023                                  */
+/*   Author: Philipp Brune               Date: 30.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -162,7 +162,6 @@ int EXEC::execPGM(char *pgm, Parameters *params, char *_stdin, char *_stdout, ch
   if (childPID == 0) {
     // Child
     thisEXEC = this;
-cout << "I/O: " << _stdin << " " << _stdout << " " << _stderr << endl;
 
     memLimit = context->memLimit;
     if ((region = params->getValue("REGION",0)) != NULL) {
@@ -230,19 +229,13 @@ cout << "Limits: " << cpuLimit << " " << memLimit << endl;
 
     if (_stdin != NULL) {
       if ((stdin = freopen(_stdin,"r",stdin)) == NULL) return(errno);
-    } else {
-      if ((stdin = freopen("/dev/null","r",stdin)) == NULL) return(errno);
-    }
+    } 
     if (_stdout != NULL) {
       if ((stdout = freopen(_stdout,"a",stdout)) == NULL) return(errno);
-    } else {
-      if ((stdout = freopen("/dev/null","a",stdout)) == NULL) return(errno);
-    }
+    } 
     if (_stderr != NULL) {
       if ((stderr = freopen(_stderr,"a",stderr)) == NULL) return(errno);
-    } else {
-      if ((stderr = freopen("/dev/null","a",stderr)) == NULL) return(errno);
-    }
+    } 
 
     if (chdir(context->workingDir) < 0) {
       context->writeLog(0,"ERROR SETTING WORKING DIRECTORY");
@@ -254,14 +247,14 @@ cout << "Limits: " << cpuLimit << " " << memLimit << endl;
       return errno;
     }
 
-    char **argv = new char*[2];
-    argv[0] = pgm;
-    argv[1] = NULL;
+    char *argv[5];
+    argv[0] = "batchrun";
+    argv[1] = pgm;
+    argv[2] = context->jobId;
+    argv[3] = this->name; // STEP
+    argv[4] = pgm;
 
-    char **envp = new char*[1];
-    envp[0] = NULL;
-  
-    int rc = execve(pgm,argv,envp);
+    int rc = batchrun(5,argv);
     exit(rc);
   } else {
     // Parent
@@ -273,9 +266,10 @@ cout << "Limits: " << cpuLimit << " " << memLimit << endl;
 
     long cpuUsed = usage.ru_stime.tv_sec; // seconds
     long memUsed = usage.ru_idrss; // kBytes 
+
 cout << "Child ended " << rc << " " << (int)WEXITSTATUS(status) << " " << cpuUsed << "s " 
      << memUsed << "kByte " << endl;
-
+‚
     context->cpuUsed = context->cpuUsed + cpuUsed;
     return((int)WEXITSTATUS(status));
   }   

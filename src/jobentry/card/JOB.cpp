@@ -43,13 +43,13 @@ int JOB::execute() {
   char *jobDir = new char[strlen(context->workingDir)+
                           strlen(context->jobId)+2];
   sprintf(jobDir,"%s/%s",context->workingDir,context->jobId);
-
+printf("Creating JOB subdir %s\n",jobDir);
   context->writeLog(sourceLineNumber,sourceLines[0]);
   for (int i = 1; i < sourceLineCount; i++) {
     context->writeLog(0,sourceLines[i]);
   }
 
-  if (mkdir(jobDir,ALLPERMS) < 0) {
+  if (mkdir(jobDir,S_IRWXU | S_IXGRP | S_IRGRP | S_IXOTH | S_IROTH) < 0) {
     context->writeLog(0,"ERROR CREATING JOB SUBDIRECTORY");
     return errno;
   }

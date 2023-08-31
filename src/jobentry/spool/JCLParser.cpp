@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 31.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -165,19 +165,22 @@ void JCLParser::getNextLine() {
 
   if (jclDataSet == NULL) {
     if (feof(jclFile)) throw EOF_EXCPT;
-  
+
     do {
       lineRecIndex = ftell(jclFile);
       c = fgetc(jclFile);
     } while ((c == 10) || (c == 13));  
     i = 0;
 
-    while ((c != 10) && (c != 13) && (c != EOF)) {
+    while ((c != 10) && (c != 13) && (c != (char)EOF)) {
       if (i < 80) {
         lineBuf[i] = c;
         i++;
       }
       c = fgetc(jclFile);
+    }
+    if (c == (char)EOF) {
+      throw EOF_EXCPT;
     }
   } else {  
     r = jclDataSet->get((unsigned char*)lineBuf);
@@ -194,6 +197,7 @@ void JCLParser::getNextLine() {
 
   for (int j = i; j < 80; j++) lineBuf[j] = ' '; 
   lineBuf[80] = 0x00;
+ printf("%s\n",lineBuf); 
   linePos = 2;
   lineNumber++;
 }
@@ -205,7 +209,6 @@ void JCLParser::getNextValidLine() {
   
   do {
     getNextLine();
-
     if (lineBuf[0] == '*') {
       throw CMD_EXCPT;
     }
@@ -222,9 +225,7 @@ void JCLParser::getNextValidLine() {
     head3[3] = 0x00;
     strncpy(head2,lineBuf,2);
     head2[2] = 0x00;
-  } while ((strcmp(head3,"//*") == 0) || (strcmp(head3,"/*") == 0) || (strcmp(head2,"//") != 0));
-  
-//cout << lineBuf << "\n";  
+  } while ((strcmp(head3,"//*") == 0) || (strcmp(head2,"/*") == 0) || (strcmp(head2,"//") != 0));  
 }
 
   
@@ -286,7 +287,7 @@ char *JCLParser::getNextToken() {
            (tokenBuf[0] != ')') /* && (tokenBuf[0] != '*') */);
 
   tokenBuf[tokenPos] = 0x00;
-//  cout << tokenBuf << "\n";
+//cout << "token " << tokenBuf << "\n";
   return tokenBuf;
 }
 
@@ -321,8 +322,11 @@ Parameters *JCLParser::parseParameters() {
         }
       }
     } while (strcmp(token,",") == 0);
-  } catch (int e) {
+  } catch (const int &e) {
 //    if (e == CMD_EXCPT) throw CMD_EXCPT;
+    if (e == 8) {
+      throw CMD_EXCPT;
+    }
   }
   
   return params;
@@ -341,7 +345,7 @@ void JCLParser::parseCard() {
   
     token = getNextToken();
   }
-    
+
   if (strcmp(token,"JOB") == 0) {
     currentJob = new JOB(name);
     currentCard = currentJob;
@@ -436,20 +440,23 @@ JobCard *JCLParser::parse() {
     do {    
       parseCard();
       getNextValidLine();
-    } while (strcmp(lineBuf,"//                                                                              ") != 0);  
-  } catch (int ex) {
-    if (currentJob != NULL) {
-      delete currentJob; 
-    } else
-    if (currentBlock != NULL) {
-      delete currentBlock; 
-    }    
+    } while (strcmp(lineBuf,"//                                                                              ") != 0 &&
+             strcmp(lineBuf,"//*                                                                             ") != 0);  
+  } catch (const int &ex) {
+    if (ex != 8) {
+      if (currentJob != NULL) {
+        delete currentJob; 
+      } else
+      if (currentBlock != NULL) {
+        delete currentBlock; 
+      }    
 /*
-    if (excpt != CMD_EXCPT) {
-      cout << "Fehler : " << excpt << "\n";
-    }
+      if (excpt != CMD_EXCPT) {
+        cout << "Fehler : " << excpt << "\n";
+      }
 */
-    return NULL;
+      return NULL;
+    }
   }
  
   if (currentJob != NULL) {

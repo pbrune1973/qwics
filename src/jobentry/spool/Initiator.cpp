@@ -18,6 +18,8 @@
 /*   along with this project. If not, see <http://www.gnu.org/licenses/>.                  */
 /*******************************************************************************************/
 
+#include <iostream>
+#include <unistd.h>
 #include "Initiator.h"
 #include "SpoolingSystem.h"
 
@@ -56,6 +58,7 @@ void Initiator::run() {
       context->jobId = job.jobId;
       context->memLimit = memLimit;
       context->cpuLimit = cpuLimit;
+      context->userId = getuid();
       sprintf(logFileInfo.jobName,"%s",job.jobName);
       logFileInfo.fileName = context->openLog(context->getNextMsgId(logFileInfo.jobId));
       logFileInfo.status = 'W';
@@ -68,12 +71,13 @@ void Initiator::run() {
         context->writeLog(0,"EXECUTION ABORTED");
       }
       context->closeLog();
-
       logFileInfo.params = job.job->getParameters()->getCopy();
       if ((msgClass = job.job->getParameters()->getValue("MSGCLASS",0)) != NULL) {
-        SpoolingSystem::spoolingSystem->submit(logFileInfo,msgClass);
+        char mc[10];
+        sprintf(mc,"%s%s","_",msgClass);
+        SpoolingSystem::spoolingSystem->submitToClass(logFileInfo,mc);
       } else {
-        SpoolingSystem::spoolingSystem->submit(logFileInfo,"SYSOUT");
+        SpoolingSystem::spoolingSystem->submitToClass(logFileInfo,"_SYSOUT");
       }
 
       delete job.job;
