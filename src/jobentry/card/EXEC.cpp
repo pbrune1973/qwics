@@ -220,7 +220,7 @@ cout << "Limits: " << cpuLimit << " " << memLimit << endl;
 
     limits.rlim_cur = memLimit;
     limits.rlim_max = memLimit;
-    setrlimit(RLIMIT_DATA,&limits);
+    //setrlimit(RLIMIT_DATA,&limits);
     limits.rlim_cur = cpuLimit;
     limits.rlim_max = cpuLimit;
     setrlimit(RLIMIT_CPU,&limits);
@@ -269,7 +269,7 @@ cout << "Limits: " << cpuLimit << " " << memLimit << endl;
 
 cout << "Child ended " << rc << " " << (int)WEXITSTATUS(status) << " " << cpuUsed << "s " 
      << memUsed << "kByte " << endl;
-‚
+
     context->cpuUsed = context->cpuUsed + cpuUsed;
     return((int)WEXITSTATUS(status));
   }   

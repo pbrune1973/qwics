@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 19.08.2023                                  */
+/*   Author: Philipp Brune               Date: 31.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -32,6 +32,7 @@
 
 #include "spool/SpoolingSystem.h"
 #include "dataset/TOC.h"
+#include "dataset/Catalog.h"
 #include "env/envconf.h"
 
 using namespace std;
@@ -106,8 +107,10 @@ int main(int argc, char **argv) {
     char *workingDir = NULL;
     char *configFile = NULL;
     char *sockFile = NULL;
-    
-    TOC::addToc(GETENV_STRING(datasetDir,"QWICS_DATASET_DIR","../dataset"));
+    char *volume = GETENV_STRING(datasetDir,"QWICS_DATASET_DIR","../dataset");
+    TOC::addToc(volume);
+    Catalog::create(volume);
+    Catalog::defaultVolume = volume;
     SpoolingSystem::create(GETENV_STRING(configFile,"QWICS_BATCH_CONFIG","../config.txt"),
                            GETENV_STRING(spoolDir,"QWICS_BATCH_SPOOLDIR","../spool"),
                            GETENV_STRING(workingDir,"QWICS_BATCH_WORKDIR","/tmp"));

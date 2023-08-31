@@ -44,7 +44,7 @@ class DataSetDef {
   TOC *toc;
   struct TocEntry entry;
   char dsn[55];
-  char volume[7];
+  char volume[100];
   char format; 
   int recSize;
   int blockSize; 

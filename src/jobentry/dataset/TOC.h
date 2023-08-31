@@ -41,7 +41,7 @@ class TOC;
 
 
 struct TOCVolume {
-  char volume[7];
+  char volume[100];
   TOC *toc;
   struct TOCVolume *next;
 };

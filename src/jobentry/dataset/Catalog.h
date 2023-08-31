@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 31.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -27,7 +27,7 @@
 
 struct CatalogEntry {
   char dsName[45];
-  char volume[7];
+  char volume[100];
   int isDeleted;
 };
 
@@ -41,6 +41,7 @@ class Catalog {
 
  public:
   static Catalog *masterCatalog;
+  static char* defaultVolume;
 
   static void create(char *volume); 
   int catalog(char *dsName, char *volume);

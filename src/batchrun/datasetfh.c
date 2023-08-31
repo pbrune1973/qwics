@@ -34,8 +34,10 @@ JobCard *thisEXEC;
 
 
 int open(char *ddName, int in, int out, FCD3 *fcd) {
+    printf("open %s\n",ddName);
     #ifdef _IN_JOBENTRY_
     DD* dd = (DD*)thisEXEC->getSubCard(ddName);
+    printf("open %x\n",dd);
     if (dd != NULL) {
         int mode = 0;
         if (out == 0) {
@@ -48,6 +50,7 @@ int open(char *ddName, int in, int out, FCD3 *fcd) {
             return -1;
         }
         STCOMPX4(ds->getRecSize(),fcd->curRecLen);
+    printf("open %d\n",fcd->curRecLen);
     }
     #endif
     return 0;
@@ -55,6 +58,7 @@ int open(char *ddName, int in, int out, FCD3 *fcd) {
 
 
 int close(char *ddName) {
+    printf("close %s\n",ddName);
     #ifdef _IN_JOBENTRY_
     DD* dd = (DD*)thisEXEC->getSubCard(ddName);
     if (dd != NULL) {
@@ -90,6 +94,7 @@ int put(char *ddName, unsigned char *data) {
 extern "C" 
 #endif
 int datasetfh(unsigned char *opcode, FCD3 *fcd) {
+    printf("datsetfh called %x\n",LDCOMPX2(opcode));
     if ((fcd->fileOrg == ORG_LINE_SEQ || fcd->fileOrg == ORG_SEQ ||
          fcd->fileOrg == ORG_RELATIVE) && 
         (fcd->accessFlags == ACCESS_SEQ || fcd->accessFlags == ACCESS_RANDOM)) {

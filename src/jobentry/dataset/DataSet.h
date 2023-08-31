@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 31.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -100,6 +100,7 @@ class DataSet {
   int accessMode;
   int translationMode;
   int writeImmediate;
+  int isTOCCreation; 
 
  public:
   DataSet(struct TocEntry &entry, int accessMode);
@@ -111,6 +112,9 @@ class DataSet {
   void unlock();
   void setTranslationMode(int translationMode);
   void setWriteImmediate(int writeImmediate);
+  void setTOCCreation(int isTOCCreation);
+  void setTocPos(int tocPos);
+
   struct TocEntry& getEntry();
   int getRecSize();
   int getFormat();

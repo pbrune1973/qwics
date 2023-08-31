@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 19.08.2023                                  */
+/*   Author: Philipp Brune               Date: 31.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -55,7 +55,7 @@ TOC *TOC::addToc(char *volume) {
   struct TOCVolume *tv;
 
   if (strcmp(volume,workVolume) == 0) volume = workVolume;  
-  sprintf(path,"../volumes/%s",volume);
+  sprintf(path,"%s",volume);
   if (access(path,F_OK) < 0) {
     return NULL;
   }  
@@ -80,7 +80,7 @@ TOC::TOC(char *volume) {
   
   sprintf(this->volume,"%s",volume);
   sprintf(path,"%s/VTOC",volume);
-
+cout << "Path " << path << " " << access(path,F_OK) << endl;
   if (access(path,F_OK) < 0) {
     convertDsn((unsigned char*)volume,newEntry.dsn,memberName);
     sprintf(newEntry.path,"%s",path); 
@@ -109,13 +109,17 @@ TOC::TOC(char *volume) {
 
     tocData = new DataSet(path,newEntry,ACCESS_WRITE | ACCESS_LOCK | ACCESS_EXCL);
     tocData->setWriteImmediate(1);
+    tocData->setTOCCreation(1);
+    tocData->setTocPos(1);
     convertDsn((unsigned char*)"$ROOT",newEntry.dsn,memberName);
     sprintf(newEntry.path,"%s","$ROOT");
     tocData->point(1);
     tocData->put((unsigned char*)&newEntry);
-} else {
+    tocData->setTOCCreation(0);
+  } else {
     tocData = new DataSet(path,newEntry,ACCESS_WRITE | ACCESS_LOCK | ACCESS_EXCL);
     tocData->setWriteImmediate(1);
+    tocData->setTocPos(1);
   }
 
   prevTocPos = 0;

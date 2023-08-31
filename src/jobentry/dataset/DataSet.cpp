@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 31.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -47,6 +47,7 @@ DataSet::DataSet(struct TocEntry &entry, int accessMode) {
   this->accessMode = accessMode;
   this->translationMode = XMODE_RAW;
   this->writeImmediate = 0;
+  this->isTOCCreation = 0;
   this->currentRec = -1;
   this->currentPos = -1;
   this->currentBlock = -1;
@@ -116,6 +117,7 @@ DataSet::DataSet(DataSet *toc, unsigned long tocPos, int accessMode) {
   this->accessMode = accessMode;
   this->translationMode = XMODE_RAW;
   this->writeImmediate = 0;
+  this->isTOCCreation = 0;
   this->currentRec = -1;
   this->currentPos = -1;
   this->currentBlock = -1;
@@ -195,6 +197,7 @@ DataSet::DataSet(char *path, struct TocEntry &entry, int accessMode) {
   this->accessMode = accessMode;
   this->translationMode = XMODE_RAW;
   this->writeImmediate = 0;
+  this->isTOCCreation = 0;
   this->currentRec = -1;
   this->currentPos = -1;
   this->currentBlock = -1;
@@ -332,6 +335,13 @@ void DataSet::setWriteImmediate(int writeImmediate) {
   this->writeImmediate = writeImmediate;
 }
 
+void DataSet::setTOCCreation(int isTOCCreation) {
+  this->isTOCCreation = isTOCCreation;
+}
+
+void DataSet::setTocPos(int tocPos) {
+  this->tocPos = tocPos;
+}
 
 struct TocEntry& DataSet::getEntry() {
   return entry;
@@ -429,8 +439,10 @@ int DataSet::write(unsigned long blockNr, unsigned char *block) {
     }
   }
 
-  if (toc != NULL) {
-    toc->lock();
+  if ((toc != NULL) && !isTOCCreation) {
+    if (this != toc) {
+      toc->lock();
+    }
     currentEntry = entry;
     toc->point(tocPos);
     toc->get((unsigned char*)&currentEntry);
@@ -460,11 +472,13 @@ int DataSet::write(unsigned long blockNr, unsigned char *block) {
     }
     
     if (tocUpdate) {
-      if (toc->point(tocPos) < 0) { toc->unlock(); return -1; }
-      if (toc->put((unsigned char*)&entry) < 0) { toc->unlock(); return -1; }
+      if (toc->point(tocPos) < 0) { if (this != toc) { toc->unlock(); } return -1; }
+      if (toc->put((unsigned char*)&entry) < 0) { if (this != toc) { toc->unlock(); }  return -1; }
     }
     
-    toc->unlock();
+    if (this != toc) { 
+      toc->unlock();
+    } 
   }
 
   if (entry.format == 'V') {

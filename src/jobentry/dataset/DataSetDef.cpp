@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 24.08.2023                                  */
+/*   Author: Philipp Brune               Date: 31.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -33,7 +33,7 @@ DataSetDef::DataSetDef(Parameters *ddParams) {
   defType = DEFTYPE_NONE;
   
   val = ddParams->getValue(0);
-  if ((val != NULL) && strcmp(val,"DUMMY")) {
+  if ((val != NULL) && (strcmp(val,"DUMMY") == 0)) {
     defType = DEFTYPE_DUMMY;
   } else {
     val = ddParams->getValue("TERM",0); 
@@ -63,6 +63,8 @@ DataSetDef::DataSetDef(Parameters *ddParams) {
         sprintf(volume,"%s",val);
       }
     }
+    // Ignore VOL=SER
+    sprintf(volume,"%s",Catalog::defaultVolume); 
 
     // Evaluate DCB parameters
     pval = ddParams->getPValue("DCB",0);
@@ -361,7 +363,7 @@ DataSet *DataSetDef::open(int mode) {
   DataSetDef *def;
   
   mode = mode & modeMask;
-
+printf("open datasetdef %d %x %s\n",defType,toc,dsn);
   switch (defType) {
     case DEFTYPE_DSN : if (toc != NULL) {
                          dataSet = toc->allocate((unsigned char*)dsn,format,
@@ -387,6 +389,7 @@ DataSet *DataSetDef::open(int mode) {
     }    
   }
   
+  dataSet->setWriteImmediate(1);
   this->dataSet = dataSet;
   return dataSet;
 }
