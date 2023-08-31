@@ -362,7 +362,6 @@ DataSet *DataSetDef::open(int mode) {
   DataSet *dataSet = NULL;
   DataSetDef *def;
   
-  mode = mode & modeMask;
 printf("open datasetdef %d %x %s\n",defType,toc,dsn);
   switch (defType) {
     case DEFTYPE_DSN : if (toc != NULL) {

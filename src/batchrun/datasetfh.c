@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 25.08.2023                                  */
+/*   Author: Philipp Brune               Date: 31.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -41,9 +41,9 @@ int open(char *ddName, int in, int out, FCD3 *fcd) {
     if (dd != NULL) {
         int mode = 0;
         if (out == 0) {
-            mode = ACCESS_READ;
+            mode = OPEN_RDONLY;
         } else {
-            mode = ACCESS_WRITE |  ACCESS_LOCK;            
+            mode = OPEN_RDWR;            
         }
         DataSet *ds = dd->getDataSetDef()->open(mode);
         if (ds == NULL) {
