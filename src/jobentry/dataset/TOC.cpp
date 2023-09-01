@@ -107,12 +107,12 @@ cout << "Path " << path << " " << access(path,F_OK) << endl;
     newEntry.nextEntries[3] = 0;
     newEntry.nextEntries[4] = 0;
 
+    convertDsn((unsigned char*)"$ROOT",newEntry.dsn,memberName);
+    sprintf(newEntry.path,"%s","$ROOT");
     tocData = new DataSet(path,newEntry,ACCESS_WRITE | ACCESS_LOCK | ACCESS_EXCL);
     tocData->setWriteImmediate(1);
     tocData->setTOCCreation(1);
     tocData->setTocPos(1);
-    convertDsn((unsigned char*)"$ROOT",newEntry.dsn,memberName);
-    sprintf(newEntry.path,"%s","$ROOT");
     tocData->point(1);
     tocData->put((unsigned char*)&newEntry);
     tocData->setTOCCreation(0);
@@ -178,6 +178,7 @@ int TOC::findDsn(unsigned char *dsn, int dsnSeg) {
 
     nameA = (char*)&(dsn[dsnSeg*9]);
     nameB = (char*)&(entry.dsn[dsnSeg*9]);
+cout << "findDsn " << nameA << " " << nameB << " " << tocPos << endl;
 
     if (strcmp(nameA,nameB) == 0) {
       if (dsnSeg < 4) {
@@ -278,16 +279,17 @@ cout << "dsnSeg " << dsnSeg << endl;
   
   switch (spaceType) {
     case SPACETYPE_BLK : break;
-    case SPACETYPE_TRK : size = size*56664;
-                         extend = extend*56664; 
+    case SPACETYPE_TRK : size = size*56664/blockSize+blockSize;
+                         extend = extend*56664/blockSize+blockSize; 
                          break;
-    case SPACETYPE_CYL : size = size*56664*15;
-                         extend = extend*56664*15; 
+    case SPACETYPE_CYL : size = size*56664*15/blockSize+blockSize;
+                         extend = extend*56664*15/blockSize+blockSize; 
                          break;
     case SPACETYPE_MB :  size = size*1024*1024/blockSize+blockSize;
                          extend= extend*1024*1024/blockSize+blockSize;
                          break;
   }
+printf("Sizes %d %d\n",size,extend);
 
   newPos = newEntryPos();
   convertDsn(dsn,newEntry.dsn,memberName);

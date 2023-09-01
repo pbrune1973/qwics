@@ -417,13 +417,14 @@ int DataSet::write(unsigned long blockNr, unsigned char *block) {
       cnt = cnt + entry.extends[i].sizeInBlocks;
       if (blockNr < cnt) break;
     }   
-
+cout << "extend " << i << " " << entry.maxExtends << " " << entry.numOfExtends << endl;
     if (i < entry.maxExtends) {
       i++;
 
       if (i > entry.numOfExtends) {
         fseek(dataFile,entry.extends[entry.numOfExtends].startPos,SEEK_SET);
         for (j = entry.numOfExtends; j < i ; j++) {
+cout << "extend " << j << " " << entry.extends[j].sizeInBlocks << " " << entry.blockSize << endl;
           for (n = 0; n < entry.extends[j].sizeInBlocks; n++) {
             fwrite(emptyBlock,entry.blockSize,1,dataFile);
           }
@@ -471,10 +472,13 @@ int DataSet::write(unsigned long blockNr, unsigned char *block) {
       }
     }
     
+  cout << "tocUpdate " << tocUpdate << " " << entry.numOfBlocks << " " << entry.numOfExtends << " " << tocPos << endl; 
     if (tocUpdate) {
       if (toc->point(tocPos) < 0) { if (this != toc) { toc->unlock(); } return -1; }
+  cout << "Huhu" << endl;
       if (toc->put((unsigned char*)&entry) < 0) { if (this != toc) { toc->unlock(); }  return -1; }
-    }
+    } 
+  cout << "tocUpdate 2 " << tocUpdate << " " << entry.numOfBlocks << " " << entry.numOfExtends << " " << tocPos << endl; 
     
     if (this != toc) { 
       toc->unlock();

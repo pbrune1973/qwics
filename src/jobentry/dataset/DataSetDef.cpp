@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.08.2023                                  */
+/*   Author: Philipp Brune               Date: 01.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -18,6 +18,7 @@
 /*   along with this project. If not, see <http://www.gnu.org/licenses/>.                  */
 /*******************************************************************************************/
 
+#include <iostream>
 #include "stdlib.h"
 #include "DataSetDef.h"
 #include "Concatenation.h"
@@ -300,17 +301,18 @@ DataSetDef::DataSetDef(char *fileName, Parameters *ddParams) {
 
   switch (spaceType) {
     case SPACETYPE_BLK : break;
-    case SPACETYPE_TRK : size = size*56664;
-                         extend = extend*56664; 
+    case SPACETYPE_TRK : size = size*56664/blockSize+blockSize;
+                         extend = extend*56664/blockSize+blockSize; 
                          break;
-    case SPACETYPE_CYL : size = size*56664*15;
-                         extend = extend*56664*15; 
+    case SPACETYPE_CYL : size = size*56664*15/blockSize+blockSize;
+                         extend = extend*56664*15/blockSize+blockSize; 
                          break;
     case SPACETYPE_MB :  size = size*1024*1024/blockSize+blockSize;
                          extend = extend*1024*1024/blockSize+blockSize;
                          break;
   }
-  
+
+printf("Sizes %d %d\n",size,extend);
   sprintf(entry.path,"%s",fileName);  
   entry.format = format;
   entry.dirSize = dirSize;
