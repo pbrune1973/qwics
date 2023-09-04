@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.08.2023                                  */
+/*   Author: Philipp Brune               Date: 04.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -78,20 +78,31 @@ struct RequestParameters {
 };
 
 
-class DataSet {
- protected: 
-  LockManager *lockManager;
-  pthread_mutex_t dataSetMutex;
-  char type;
+struct DataSetState {
   struct TocEntry entry;
-  DataSet *toc;
   unsigned long tocPos;
-  FILE *dataFile;
   long currentRec;
   long currentPos;
   long currentBlock;
   long varBlockSize;
   long eodPos;
+};
+
+
+class DataSet {
+ protected: 
+  LockManager *lockManager;
+  pthread_mutex_t dataSetMutex;
+  char type;
+  struct TocEntry *entry;
+  DataSet *toc;
+  unsigned long *tocPos;
+  FILE *dataFile;
+  long *currentRec;
+  long *currentPos;
+  long *currentBlock;
+  long *varBlockSize;
+  long *eodPos;
   unsigned char *eod;
   unsigned char *block;
   unsigned char *emptyBlock;
@@ -103,6 +114,7 @@ class DataSet {
   int isTOCCreation; 
 
  public:
+  DataSet();
   DataSet(struct TocEntry &entry, int accessMode);
   DataSet(DataSet *toc, unsigned long tocPos, int accessMode);
   DataSet(char *path, struct TocEntry &entry, int accessMode);

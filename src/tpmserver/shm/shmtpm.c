@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL shared memory handling                                             */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 03.08.2023                                  */
+/*   Author: Philipp Brune               Date: 04.09.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
+/*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */

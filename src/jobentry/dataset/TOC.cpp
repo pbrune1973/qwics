@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.08.2023                                  */
+/*   Author: Philipp Brune               Date: 04.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include "TOC.h"
 #include "PartitionedDataSet.h"
+#include "TOCDataSet.h"
 
 using namespace std;
 
@@ -109,7 +110,7 @@ cout << "Path " << path << " " << access(path,F_OK) << endl;
 
     convertDsn((unsigned char*)"$ROOT",newEntry.dsn,memberName);
     sprintf(newEntry.path,"%s","$ROOT");
-    tocData = new DataSet(path,newEntry,ACCESS_WRITE | ACCESS_LOCK | ACCESS_EXCL);
+    tocData = new TOCDataSet(path,newEntry,ACCESS_WRITE | ACCESS_LOCK | ACCESS_EXCL);
     tocData->setWriteImmediate(1);
     tocData->setTOCCreation(1);
     tocData->setTocPos(1);
@@ -117,7 +118,7 @@ cout << "Path " << path << " " << access(path,F_OK) << endl;
     tocData->put((unsigned char*)&newEntry);
     tocData->setTOCCreation(0);
   } else {
-    tocData = new DataSet(path,newEntry,ACCESS_WRITE | ACCESS_LOCK | ACCESS_EXCL);
+    tocData = new TOCDataSet(path,newEntry,ACCESS_WRITE | ACCESS_LOCK | ACCESS_EXCL);
     tocData->setWriteImmediate(1);
     tocData->setTocPos(1);
   }

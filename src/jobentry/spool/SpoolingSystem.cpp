@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 21.08.2023                                  */
+/*   Author: Philipp Brune               Date: 30.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -100,7 +100,6 @@ SpoolingSystem::SpoolingSystem(char *configFile, char *spoolDir, char *workingDi
     fseek(cntf,0L,SEEK_SET);
     fread((void*)&jobIdCounter,sizeof(unsigned long),1,cntf);
     fclose(cntf);
-    if (ferror(cntf)) jobIdCounter = 0;
   }
 
   pthread_mutex_init(&classMutex,NULL);

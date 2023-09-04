@@ -42,8 +42,8 @@ PartitionedDataSet::PartitionedDataSet(DataSet *toc, unsigned long tocPos,
 
   this->type = 'P';
 
-  if (entry.lastBlockNr <= 0) {
-    dirBlocks = (entry.dirSize+1)*256/entry.blockSize + 1; 
+  if (entry->lastBlockNr <= 0) {
+    dirBlocks = (entry->dirSize+1)*256/entry->blockSize + 1; 
     this->point((long)0);
     for (i = 0; i < dirBlocks; i++) {
       this->write(i,emptyBlock);
@@ -55,11 +55,11 @@ PartitionedDataSet::PartitionedDataSet(DataSet *toc, unsigned long tocPos,
 
   this->setTranslationMode(XMODE_ASCII);  
 
-  dirTocEntry = entry;
+  dirTocEntry = *entry;
   dirTocEntry.recSize = 256;
   dirTocEntry.blockSize = 256;
   dirTocEntry.format = 'F';
-  dirTocEntry.eodPos = entry.dirSize*256;
+  dirTocEntry.eodPos = entry->dirSize*256;
   dirTocEntry.dirSize = 0;
   dir = new DataSet(dirTocEntry,ACCESS_WRITE);  
   dir->setWriteImmediate(1);
@@ -144,7 +144,7 @@ int PartitionedDataSet::updateEntries() {
     dirRec[0] = (unsigned char)(((pos+2) >> 8) & 0xFF);            
     dirRec[1] = (unsigned char)((pos+2) & 0xFF);
 
-    if (dirRecNr >= entry.dirSize) return -1;
+    if (dirRecNr >= entry->dirSize) return -1;
     if (dir->put(dirRec) < 0) return -1;
     dirRecNr++;
     
@@ -218,7 +218,7 @@ DataSet *PartitionedDataSet::findMember(char *name, struct PdsDirEntry *e) {
   if (findEntry(e->name) == 0) {
     *e = *((struct PdsDirEntry*)&dirBuffer[dirBufferPos]);
     blockNr = ((int)e->ttr[0]*256+(int)e->ttr[1])*150+(int)e->ttr[2];
-    return new Member(blockNr,toc,tocPos,accessMode,this,0);    
+    return new Member(blockNr,toc,*tocPos,accessMode,this,0);    
   } 
 
   return NULL;
@@ -242,7 +242,7 @@ DataSet *PartitionedDataSet::addMember(char *name, struct PdsDirEntry *e) {
     e->name[i] = a2e[(unsigned char)' '];
   }  
 
-  blockNr = entry.lastBlockNr+1;
+  blockNr = entry->lastBlockNr+1;
   trackNr = (blockNr / 150) & 0x0000FFFF;
 
   e->ttr[0] = (unsigned char)((trackNr >> 8) & 0xFF);  
@@ -251,7 +251,7 @@ DataSet *PartitionedDataSet::addMember(char *name, struct PdsDirEntry *e) {
   e->c = e->c & 0x7F;
   
   if (stow(e) < 0) return NULL;
-  return new Member(blockNr,toc,tocPos,accessMode,this,1);      
+  return new Member(blockNr,toc,*tocPos,accessMode,this,1);      
 }
 
 

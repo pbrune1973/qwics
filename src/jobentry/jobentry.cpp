@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.08.2023                                  */
+/*   Author: Philipp Brune               Date: 04.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -26,21 +26,55 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <signal.h>
+#include <errno.h>
 
 #include "spool/SpoolingSystem.h"
 #include "dataset/TOC.h"
 #include "dataset/Catalog.h"
 #include "env/envconf.h"
+extern "C" {
+#include "../tpmserver/shm/shmtpm.h"
+
+#define SHM_ID_JOBENTRY 4712
+
+
+void cm(int res) {
+    if (res != 0) {
+      fprintf(stderr,"%s%d\n","Mutex operation failed: ",res);
+    }
+}
+}
+
+// Global shared memory area for all workers, as desclared in shmtpm.h
+int shmId;
+key_t shmKey;
+void *shmPtr;
+
 
 using namespace std;
+
+
+static void sig_handler(int signo) {
+    printf("Stopping QWICS jobentry server...\n");
+    if (signo == SIGINT) {
+        shmdt(shmPtr);
+        shmctl(shmId,IPC_RMID,NULL);
+    }
+    exit(0);
+}
 
 
 void *runCardReader(void *reader) {
   ((CardReader*)reader)->run();
   delete ((CardReader*)reader);
+  shmdt(shmPtr);
+  shmctl(shmId,IPC_RMID,NULL);
   return NULL;
 }
 
@@ -108,6 +142,30 @@ int main(int argc, char **argv) {
     char *configFile = NULL;
     char *sockFile = NULL;
     char *volume = GETENV_STRING(datasetDir,"QWICS_DATASET_DIR","../dataset");
+
+    // Init shared memory area
+    if ((shmKey = ftok("/home/qwics/bin/jobentry", SHM_ID_JOBENTRY)) == -1) {
+      fprintf(stderr, "Failed to make a key with file %s.\n", "/home/qwics/bin/jobentry");
+      return -1;
+    }
+    // printf("shm key=%x\n",shmKey);
+    if ((shmId = shmget(shmKey, SHM_SIZE, 0777 | IPC_CREAT | IPC_EXCL)) == -1) {
+      fprintf(stderr, "Failed to get shared memory segment. errno=%d %d %d %d\n",errno,ENOMEM,EACCES,EEXIST);
+      return -1;
+    }
+    else if ((shmPtr = shmat(shmId, NULL, 0)) == (void *) -1) {
+      fprintf(stderr, "Failed to attach shared memory segment.\n");
+      return -1;
+    }
+
+    // Set signal handler for SIGINT (proper shutdown of server)
+    struct sigaction a;
+    a.sa_handler = sig_handler;
+    a.sa_flags = 0;
+    sigemptyset( &a.sa_mask );
+    sigaction( SIGINT, &a, NULL );
+
+    initSharedMalloc(1);
     TOC::addToc(volume);
     Catalog::create(volume);
     Catalog::defaultVolume = volume;

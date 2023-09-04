@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 04.08.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -32,15 +32,15 @@ Member::Member(long startBlockNr, DataSet *toc, unsigned long tocPos,
   this->pds = pds;
 
   if (isNew) {
-    if (this->entry.format != 'V') {
-      eodPos = 0;
-      this->entry.eodPos = 0;
+    if (this->entry->format != 'V') {
+      (*eodPos) = 0;
+      this->entry->eodPos = 0;
     } else {
-      eodPos = 4;
-      this->entry.eodPos = 4;
+      (*eodPos) = 4;
+      this->entry->eodPos = 4;
     }
   } else {
-    eodPos = -1;
+    (*eodPos) = -1;
   }
 cout << "Member " << startBlockNr << " " << tocPos << endl;  
 }
@@ -72,29 +72,29 @@ int Member::write(unsigned long blockNr, unsigned char *block) {
 
 
 int Member::point(long recNr) {
-  if (recNr != currentRec) {
+  if (recNr != (*currentRec)) {
     unsigned long blockNr = recNr / recsInBlock;
 
-    if (blockNr != currentBlock) {
+    if (blockNr != (*currentBlock)) {
       if (!writeImmediate) {
         if (flush() < 0) {
-cout << "point error 1 " << currentBlock << endl;
+cout << "point error 1 " << (*currentBlock) << endl;
           return -1;
         }
       }
       
-      if (blockNr+startBlockNr < entry.numOfBlocks) {
+      if (blockNr+startBlockNr < entry->numOfBlocks) {
         if (read(blockNr,block) < 0) {
-cout << "point error 2 " << entry.numOfBlocks << endl;
+cout << "point error 2 " << entry->numOfBlocks << endl;
           return -1;
         }
       }
       
-      currentBlock = blockNr;
+      (*currentBlock) = blockNr;
     }    
 
-    recOffset = (recNr % recsInBlock) * entry.recSize;
-    currentRec = recNr; 
+    recOffset = (recNr % recsInBlock) * entry->recSize;
+    (*currentRec) = recNr; 
   }
 
   return 0;
@@ -107,23 +107,23 @@ int Member::point(struct RequestParameters *rpl) {
   
   if (rpl->mode & RPMODE_DRR) {  
     if (rpl->mode & RPMODE_LRE) {
-      recNr = currentRec + rpl->arg;
+      recNr = (*currentRec) + rpl->arg;
       if (recNr < 0) recNr = 0;  
     } else   
     if (rpl->mode & RPMODE_LAB) {
       recNr = rpl->arg;
     } else   
     if (rpl->mode & RPMODE_LRD) {
-      if (eodPos >= 0) 
-        recNr = eodPos/entry.recSize-1;
+      if  ((*eodPos) >= 0) 
+        recNr = *eodPos/entry->recSize-1;
       else
-        recNr = currentRec;
+        recNr = (*currentRec);
     } else   
     if (rpl->mode & RPMODE_EOD) {
-      if (eodPos >= 0) 
-        recNr = eodPos/entry.recSize;
+      if  ((*eodPos) >= 0) 
+        recNr = *eodPos/entry->recSize;
       else
-        recNr = currentRec;
+        recNr = (*currentRec);
     } else   
     if (rpl->mode & RPMODE_NUL) {
       recNr = 0;
@@ -133,50 +133,50 @@ int Member::point(struct RequestParameters *rpl) {
   } else
   if (rpl->mode & RPMODE_DRP) {  
     if (rpl->mode & RPMODE_LRE) {
-      pos = currentPos + rpl->arg;
+      pos = (*currentPos) + rpl->arg;
       if (pos < 0) pos = 0;  
     } else   
     if (rpl->mode & RPMODE_LAB) {
       pos = rpl->arg;
     } else   
     if (rpl->mode & RPMODE_EOD) {
-      if (eodPos >= 0) 
-        pos = eodPos;
+      if ((*eodPos) >= 0) 
+        pos = (*eodPos);
       else
-        pos = currentPos;
+        pos = (*currentPos);
     } else   
     if (rpl->mode & RPMODE_NUL) {
-      if (entry.format != 'V') 
+      if (entry->format != 'V') 
         pos = 0;
       else
         pos = 4;
     } 
  
-    if (pos != currentPos) {
-      unsigned long blockNr = pos / entry.blockSize;
+    if (pos != (*currentPos)) {
+      unsigned long blockNr = pos / entry->blockSize;
 
-      if (blockNr != currentBlock) {
+      if (blockNr != (*currentBlock)) {
         if (!writeImmediate) {
           if (flush() < 0) {
-cout << "point error 1 " << currentBlock << endl;
+cout << "point error 1 " << (*currentBlock) << endl;
             return -1;
           }
         }
 
-        if (entry.format == 'V') varBlockSize = 4;
+        if (entry->format == 'V') (*varBlockSize) = 4;
       
-        if (blockNr+startBlockNr < entry.numOfBlocks) {
+        if (blockNr+startBlockNr < entry->numOfBlocks) {
           if (read(blockNr,block) < 0) {
-cout << "point error 2 " << entry.numOfBlocks << endl;
+cout << "point error 2 " << entry->numOfBlocks << endl;
             return -1;
           }
         }
       
-        currentBlock = blockNr;
+        (*currentBlock) = blockNr;
       }    
 
-      recOffset = pos % entry.blockSize;
-      currentPos = pos; 
+      recOffset = pos % entry->blockSize;
+      (*currentPos) = pos; 
     }
   }
 

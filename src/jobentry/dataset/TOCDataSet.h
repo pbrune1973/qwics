@@ -18,30 +18,20 @@
 /*   along with this project. If not, see <http://www.gnu.org/licenses/>.                  */
 /*******************************************************************************************/
 
-#ifndef _Member_h
-#define _Member_h
+#ifndef _TOCDataSet_h
+#define _TOCDataSet_h
 
+#include <stdio.h>
+#include <pthread.h>
 #include "DataSet.h"
-#include "PartitionedDataSet.h"
 
+class TOCDataSet : public DataSet {
+ private:
+  struct DataSetState *stateDataPtr;
 
-class Member : public DataSet {
- private: 
-  long startBlockNr;
-  int autoDeletePDS;
-  PartitionedDataSet *pds;
-  
  public:
-  Member(long startBlockNr, DataSet *toc, unsigned long tocPos, 
-         int accessMode, PartitionedDataSet *pds, int isNew);
-  ~Member();
-
-  long getStartBlockNr();
-  void setAutoDeletePDS(int autoDeletePDS);
-  virtual int read(unsigned long blockNr, unsigned char *block);
-  virtual int write(unsigned long blockNr, unsigned char *block);
-  virtual int point(long recNr);
-  virtual int point(struct RequestParameters *rpl);
+  TOCDataSet(char *path, struct TocEntry &entry, int accessMode);
+  ~TOCDataSet();
 };
 
 #endif

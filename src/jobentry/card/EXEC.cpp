@@ -28,13 +28,17 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 #include "EXEC.h"
 #include "DD.h"
 #include "../dataset/Concatenation.h"
 extern "C" {
 #include "../../batchrun/cobsql.h"
+#include "../../tpmserver/shm/shmtpm.h"
 }
+
 
 using namespace std;
 
@@ -161,6 +165,7 @@ int EXEC::execPGM(char *pgm, Parameters *params, char *_stdin, char *_stdout, ch
   } else
   if (childPID == 0) {
     // Child
+    initSharedMalloc(0);
     thisEXEC = this;
 
     memLimit = context->memLimit;
@@ -225,26 +230,40 @@ cout << "Limits: " << cpuLimit << " " << memLimit << endl;
     limits.rlim_max = cpuLimit;
     setrlimit(RLIMIT_CPU,&limits);
 
-    if (setuid(context->userId) < 0) return(errno);
+    if (setuid(context->userId) < 0) {
+      shmdt(shmPtr);
+      exit(errno);
+    }
 
     if (_stdin != NULL) {
-      if ((stdin = freopen(_stdin,"r",stdin)) == NULL) return(errno);
+      if ((stdin = freopen(_stdin,"r",stdin)) == NULL) {
+        shmdt(shmPtr);
+        exit(errno);
+      }
     } 
     if (_stdout != NULL) {
-      if ((stdout = freopen(_stdout,"a",stdout)) == NULL) return(errno);
+      if ((stdout = freopen(_stdout,"a",stdout)) == NULL) {
+        shmdt(shmPtr);
+        exit(errno);
+      }
     } 
     if (_stderr != NULL) {
-      if ((stderr = freopen(_stderr,"a",stderr)) == NULL) return(errno);
+      if ((stderr = freopen(_stderr,"a",stderr)) == NULL) {
+        shmdt(shmPtr);
+        exit(errno);
+      }
     } 
 
     if (chdir(context->workingDir) < 0) {
       context->writeLog(0,"ERROR SETTING WORKING DIRECTORY");
-      return errno;
+      shmdt(shmPtr);
+      exit(errno);
     }
 
     if (chdir(context->jobId) < 0) {
       context->writeLog(0,"ERROR SETTING JOB SUBDIRECTORY");
-      return errno;
+      shmdt(shmPtr);
+      exit(errno);
     }
 
     char *argv[5];
@@ -255,6 +274,7 @@ cout << "Limits: " << cpuLimit << " " << memLimit << endl;
     argv[4] = pgm;
 
     int rc = batchrun(5,argv);
+    shmdt(shmPtr);
     exit(rc);
   } else {
     // Parent

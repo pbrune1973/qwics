@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 04.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -19,7 +19,13 @@
 /*******************************************************************************************/
 
 #include <string.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include "LockManager.h"
+extern "C" {
+#include "../../tpmserver/shm/shmtpm.h"
+}
+
 
 LockManager *LockManager::lockManager = NULL;
 
@@ -28,7 +34,10 @@ LockManager::LockManager() {
   firstLock.next = NULL;
   firstLock.resourceName[0] = 0x00;
   lastLock = &firstLock;
-  pthread_mutex_init(&lockManagerMutex,NULL);
+  pthread_mutexattr_t attr;
+  pthread_mutexattr_init(&attr);
+  pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+  pthread_mutex_init(&lockManagerMutex,&attr);
 }
 
 
@@ -67,7 +76,7 @@ void LockManager::getLock(char *resourceName, int type) {
 
   lock = findLock(resourceName);
   if (lock == NULL) {
-    lock = new struct Lock;
+    lock = (Lock*)sharedMalloc(10,sizeof(struct Lock));
     sprintf(lock->resourceName,"%s",resourceName);
     lock->type = type;
     lock->usage = 1;
@@ -128,7 +137,7 @@ void LockManager::releaseLock(char *resourceName) {
 
       semaphore_destroy(&lock->isExclusive);     
       semaphore_destroy(&lock->typeChange);     
-      delete lock;
+      sharedFree(lock,sizeof(struct Lock));
  
       pthread_mutex_unlock(&lockManagerMutex);
       return;
