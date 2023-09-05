@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.08.2023                                  */
+/*   Author: Philipp Brune               Date: 05.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -18,8 +18,12 @@
 /*   along with this project. If not, see <http://www.gnu.org/licenses/>.                  */
 /*******************************************************************************************/
 
+#include <iostream>
+#include <unistd.h>
 #include <string.h>
 #include "Catalog.h"
+
+using namespace std;
 
 
 Catalog *Catalog::masterCatalog = NULL;
@@ -29,7 +33,6 @@ char *Catalog::defaultVolume = NULL;
 void Catalog::create(char *volume) {
   if (masterCatalog == NULL) {
     TOC *toc;
-  
     toc = TOC::getToc(volume);
     if (toc == NULL) {
       toc = TOC::addToc(volume);

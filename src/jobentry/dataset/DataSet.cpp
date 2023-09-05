@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.09.2023                                  */
+/*   Author: Philipp Brune               Date: 05.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -26,8 +26,6 @@
 
 using namespace std;
 
-struct DataSetState stateData;
-
 
 DataSet::DataSet() {
   // Dummy constructor for full flexibility in subclasses
@@ -38,13 +36,14 @@ DataSet::DataSet(struct TocEntry &entry, int accessMode) {
   int n,i;
   struct RequestParameters r;
 
-  this->entry = &stateData.entry;
-  this->tocPos = &stateData.tocPos;
-  this->currentRec = &stateData.currentRec;
-  this->currentPos = &stateData.currentPos;
-  this->currentBlock = &stateData.currentBlock;
-  this->varBlockSize = &stateData.varBlockSize;
-  this->eodPos = &stateData.eodPos;
+  this->entry = &(stateData.entry);
+  this->tocPos = &(stateData.tocPos);
+  this->currentRec = &(stateData.currentRec);
+  this->currentPos = &(stateData.currentPos);
+  this->currentBlock = &(stateData.currentBlock);
+  this->varBlockSize = &(stateData.varBlockSize);
+  this->eodPos = &(stateData.eodPos);
+  this->recOffset = &(stateData.recOffset);
 
   lockManager = LockManager::getLockManager();
   pthread_mutex_init(&dataSetMutex,NULL);
@@ -58,7 +57,7 @@ DataSet::DataSet(struct TocEntry &entry, int accessMode) {
     (*this->entry).recSize = (*this->entry).blockSize;
   }
   this->recsInBlock = entry.blockSize / entry.recSize;
-  this->recOffset = 0;
+  (*this->recOffset) = 0;
   this->accessMode = accessMode;
   this->translationMode = XMODE_RAW;
   this->writeImmediate = 0;
@@ -70,7 +69,7 @@ DataSet::DataSet(struct TocEntry &entry, int accessMode) {
   this->block = new unsigned char[(*this->entry).blockSize];  
   this->emptyBlock = new unsigned char[(*this->entry).blockSize];
   for (n = 0; n < (*this->entry).blockSize; n++) this->emptyBlock[n] = 0x00;
-  
+
   if (accessMode & ACCESS_WRITE) { 
     if (accessMode & ACCESS_LOCK) {
       if (accessMode & ACCESS_EXCL) 
@@ -119,13 +118,14 @@ DataSet::DataSet(DataSet *toc, unsigned long tocPos, int accessMode) {
   int n,i;
   struct RequestParameters r;
 
-  this->entry = &stateData.entry;
-  this->tocPos = &stateData.tocPos;
-  this->currentRec = &stateData.currentRec;
-  this->currentPos = &stateData.currentPos;
-  this->currentBlock = &stateData.currentBlock;
-  this->varBlockSize = &stateData.varBlockSize;
-  this->eodPos = &stateData.eodPos;
+  this->entry = &(stateData.entry);
+  this->tocPos = &(stateData.tocPos);
+  this->currentRec = &(stateData.currentRec);
+  this->currentPos = &(stateData.currentPos);
+  this->currentBlock = &(stateData.currentBlock);
+  this->varBlockSize = &(stateData.varBlockSize);
+  this->eodPos = &(stateData.eodPos);
+  this->recOffset = &(stateData.recOffset);
 
   lockManager = LockManager::getLockManager();
   pthread_mutex_init(&dataSetMutex,NULL);
@@ -134,9 +134,9 @@ DataSet::DataSet(DataSet *toc, unsigned long tocPos, int accessMode) {
   (*this->tocPos) = tocPos;
   this->toc->lock();
   this->toc->point(tocPos);
-  this->toc->get((unsigned char*)&entry);
+  this->toc->get((unsigned char*)entry);
   this->toc->unlock();
-  this->recOffset = 0;
+  (*this->recOffset) = 0;
   this->accessMode = accessMode;
   this->translationMode = XMODE_RAW;
   this->writeImmediate = 0;
@@ -148,7 +148,7 @@ DataSet::DataSet(DataSet *toc, unsigned long tocPos, int accessMode) {
   this->block = new unsigned char[(*entry).blockSize];  
   this->emptyBlock = new unsigned char[(*this->entry).blockSize];
   for (n = 0; n < (*this->entry).blockSize; n++) this->emptyBlock[n] = 0x00;
-  
+ 
   if (accessMode & ACCESS_WRITE) { 
     if (accessMode & ACCESS_LOCK) {
       if (accessMode & ACCESS_EXCL) 
@@ -211,20 +211,21 @@ DataSet::DataSet(char *path, struct TocEntry &entry, int accessMode) {
   int n,i;
   struct RequestParameters r;
   
-  this->entry = &stateData.entry;
-  this->tocPos = &stateData.tocPos;
-  this->currentRec = &stateData.currentRec;
-  this->currentPos = &stateData.currentPos;
-  this->currentBlock = &stateData.currentBlock;
-  this->varBlockSize = &stateData.varBlockSize;
-  this->eodPos = &stateData.eodPos;
+  this->entry = &(stateData.entry);
+  this->tocPos = &(stateData.tocPos);
+  this->currentRec = &(stateData.currentRec);
+  this->currentPos = &(stateData.currentPos);
+  this->currentBlock = &(stateData.currentBlock);
+  this->varBlockSize = &(stateData.varBlockSize);
+  this->eodPos = &(stateData.eodPos);
+  this->recOffset = &(stateData.recOffset);
 
   lockManager = LockManager::getLockManager();
   pthread_mutex_init(&dataSetMutex,NULL);
   type = 'N';
   this->toc = this;
   (*this->tocPos) = 0;
-  this->recOffset = 0;
+  (*this->recOffset) = 0;
   this->accessMode = accessMode;
   this->translationMode = XMODE_RAW;
   this->writeImmediate = 0;
@@ -507,7 +508,7 @@ cout << "extend " << j << " " << entry->extends[j].sizeInBlocks << " " << entry-
     if (tocUpdate) {
       if (toc->point(*tocPos) < 0) { if (this != toc) { toc->unlock(); } return -1; }
   cout << "Huhu" << endl;
-      if (toc->put((unsigned char*)&entry) < 0) { if (this != toc) { toc->unlock(); }  return -1; }
+      if (toc->put((unsigned char*)entry) < 0) { if (this != toc) { toc->unlock(); }  return -1; }
     } 
   cout << "tocUpdate 2 " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << tocPos << endl; 
     
@@ -537,11 +538,13 @@ cout << "extend " << j << " " << entry->extends[j].sizeInBlocks << " " << entry-
 
 
 int DataSet::point(long recNr) {
+cout << "point " << recNr << " " << endl;
   if (recNr < 0) {
-    recNr = *currentRec + recNr;
+    recNr = (*currentRec) + recNr;
     if (recNr < 0) recNr = 0;  
   }
-  
+
+cout << "point2 " << recNr << " " << endl;  
   if (recNr != *currentRec) {
     unsigned long blockNr = recNr / recsInBlock;
 
@@ -563,7 +566,7 @@ cout << "point error 2 " << entry->numOfBlocks << endl;
       (*currentBlock) = blockNr;
     }    
 
-    recOffset = (recNr % recsInBlock) * entry->recSize;
+    (*recOffset) = (recNr % recsInBlock) * entry->recSize;
     (*currentRec) = recNr; 
   }
 
@@ -645,7 +648,7 @@ cout << "point error 2 " << entry->numOfBlocks << endl;
         (*currentBlock) = blockNr;
       }    
 
-      recOffset = pos % entry->blockSize;
+      (*recOffset) = pos % entry->blockSize;
       (*currentPos) = pos; 
     }
   }
@@ -663,9 +666,9 @@ int DataSet::put(unsigned char *record) {
 
   for (i = 0; i < entry->recSize; i++) {
     if (translationMode == XMODE_RAW) 
-      block[recOffset+i] = record[i];
+      block[(*recOffset)+i] = record[i];
     else
-      block[recOffset+i] = a2e[record[i]];
+      block[(*recOffset)+i] = a2e[record[i]];
   }
 
   if ((*eodPos) >= 0) {
@@ -698,40 +701,40 @@ int DataSet::put(struct RequestParameters *rpl) {
   if (entry->format != 'V') {
     if (rpl->mode & RPMODE_LEN) {
       len = rpl->areaLen;
-      if (recOffset+len > entry->blockSize) len = entry->blockSize-recOffset;
+      if ((*recOffset)+len > entry->blockSize) len = entry->blockSize-(*recOffset);
     } else {
       len = entry->recSize;
     }
 
     for (i = 0; i < len; i++) {
       if (translationMode == XMODE_RAW) 
-        block[recOffset+i] = rpl->area[i];
+        block[(*recOffset)+i] = rpl->area[i];
       else
-        block[recOffset+i] = a2e[rpl->area[i]];
+        block[(*recOffset)+i] = a2e[rpl->area[i]];
     }
   } else {
-    if (strncmp((char*)eod,(char*)&block[recOffset+4],8) == 0) {
+    if (strncmp((char*)eod,(char*)&block[(*recOffset)+4],8) == 0) {
       (*varBlockSize) = (*varBlockSize) - 12;
     }
 
     len = rpl->areaLen+4;
-    if (recOffset+len > entry->blockSize) {
-      r.arg = entry->blockSize - recOffset + 4;
+    if ((*recOffset)+len > entry->blockSize) {
+      r.arg = entry->blockSize - (*recOffset) + 4;
       r.mode = RPMODE_DRP | RPMODE_LRE;
       if (point(&r) < 0) return -1;
       pos = (*currentPos);
     }
 
-    block[recOffset] = (unsigned char)((len >> 8) & 0xFF);
-    block[recOffset+1] = (unsigned char)(len & 0xFF);
-    block[recOffset+2] = 0x00;
-    block[recOffset+3] = 0x00;
+    block[(*recOffset)] = (unsigned char)((len >> 8) & 0xFF);
+    block[(*recOffset)+1] = (unsigned char)(len & 0xFF);
+    block[(*recOffset)+2] = 0x00;
+    block[(*recOffset)+3] = 0x00;
 
     for (i = 0; i < len-4; i++) {
       if (translationMode == XMODE_RAW) 
-        block[recOffset+4+i] = rpl->area[i];
+        block[(*recOffset)+4+i] = rpl->area[i];
       else
-        block[recOffset+4+i] = a2e[rpl->area[i]];
+        block[(*recOffset)+4+i] = a2e[rpl->area[i]];
     }     
     
     (*varBlockSize) = (*varBlockSize)+len;
@@ -791,19 +794,19 @@ int DataSet::get(unsigned char *record) {
   int i;
 
   if ((entry->format != 'F') && (entry->format != 'U')) return -1;  
-  if (((*eodPos) >= 0) && ((*currentRec)*entry->recSize >= (long)eodPos)) {
+  if (((*eodPos) >= 0) && ((*currentRec)*entry->recSize >= (long)(*eodPos))) {
     return -1;
   }
 
-  if (strncmp((char*)eod,(char*)&block[recOffset],8) == 0) {
+  if (strncmp((char*)eod,(char*)&block[*recOffset],8) == 0) {
     return -2;
   }
   
   for (i = 0; i < entry->recSize; i++) {
     if (translationMode == XMODE_RAW) 
-      record[i] = block[recOffset+i];
+      record[i] = block[(*recOffset)+i];
     else
-      record[i] = e2a[block[recOffset+i]];
+      record[i] = e2a[block[(*recOffset)+i]];
   }
 
   if (point((*currentRec)+1) < 0) return -1;
@@ -819,46 +822,46 @@ int DataSet::get(struct RequestParameters *rpl) {
   pos = (*currentPos);
   
   if (entry->format != 'V') {
-    if (strncmp((char*)eod,(char*)&block[recOffset],8) == 0) {
+    if (strncmp((char*)eod,(char*)&block[(*recOffset)],8) == 0) {
       return -2;
     }
 
     if (rpl->mode & RPMODE_LEN) {
       len = rpl->areaLen;
-      if (recOffset+len > entry->blockSize) len = entry->blockSize-recOffset;
+      if ((*recOffset)+len > entry->blockSize) len = entry->blockSize-(*recOffset);
     } else {
       len = entry->recSize;
     }
 
     for (i = 0; i < len; i++) {
       if (translationMode == XMODE_RAW) 
-        rpl->area[i] = block[recOffset+i];
+        rpl->area[i] = block[(*recOffset)+i];
       else
-        rpl->area[i] = e2a[block[recOffset+i]];
+        rpl->area[i] = e2a[block[(*recOffset)+i]];
     }
 
     rpl->areaLen = len;
   } else {
-    if (strncmp((char*)eod,(char*)&block[recOffset+4],8) == 0) {
+    if (strncmp((char*)eod,(char*)&block[(*recOffset)+4],8) == 0) {
       return -2;
     }
 
-    len = (int)block[recOffset];
-    len = (len << 8) | (int)block[recOffset+1];
+    len = (int)block[(*recOffset)];
+    len = (len << 8) | (int)block[(*recOffset)+1];
 
     for (i = 0; i < len-4; i++) {
       if (((rpl->mode & RPMODE_LEN) && (i < rpl->areaLen)) || 
           !(rpl->mode & RPMODE_LEN)) {
         if (translationMode == XMODE_RAW) 
-          rpl->area[i] = block[recOffset+4+i];
+          rpl->area[i] = block[(*recOffset)+4+i];
         else
-          rpl->area[i] = e2a[block[recOffset+4+i]];
+          rpl->area[i] = e2a[block[(*recOffset)+4+i]];
       }
     }     
     
     rpl->areaLen = len-4;
 
-    if (recOffset+len >= (*varBlockSize)) {
+    if ((*recOffset)+len >= (*varBlockSize)) {
       len = len + entry->blockSize - (*varBlockSize) + 4;
     }
   }

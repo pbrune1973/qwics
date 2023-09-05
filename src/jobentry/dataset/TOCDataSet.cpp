@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.09.2023                                  */
+/*   Author: Philipp Brune               Date: 05.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -45,6 +45,7 @@ TOCDataSet::TOCDataSet(char *path, struct TocEntry &entry, int accessMode) :
   this->currentBlock = &stateDataPtr->currentBlock;
   this->varBlockSize = &stateDataPtr->varBlockSize;
   this->eodPos = &stateDataPtr->eodPos;
+  this->recOffset = &stateDataPtr->recOffset;
 
   lockManager = LockManager::getLockManager();
   pthread_mutexattr_t attr;
@@ -54,7 +55,7 @@ TOCDataSet::TOCDataSet(char *path, struct TocEntry &entry, int accessMode) :
   type = 'N';
   this->toc = this;
   (*this->tocPos) = 0;
-  this->recOffset = 0;
+  (*this->recOffset) = 0;
   this->accessMode = accessMode;
   this->translationMode = XMODE_RAW;
   this->writeImmediate = 0;

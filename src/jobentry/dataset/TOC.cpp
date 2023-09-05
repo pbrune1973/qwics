@@ -174,8 +174,11 @@ int TOC::findDsn(unsigned char *dsn, int dsnSeg) {
   char *nameA,*nameB;
   
   do {
+    cout << "findDsn 1" << dsn << " " << dsnSeg << " " << tocData << endl;
     if (tocData->point(tocPos) < 0) return -1;
+    cout << "findDsn 2" << dsn << " " << dsnSeg << endl;
     if (tocData->get((unsigned char*)&entry) < 0) return -1;
+    cout << "findDsn 3" << dsn << " " << dsnSeg << endl;
 
     nameA = (char*)&(dsn[dsnSeg*9]);
     nameB = (char*)&(entry.dsn[dsnSeg*9]);

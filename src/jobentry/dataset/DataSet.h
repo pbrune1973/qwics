@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.09.2023                                  */
+/*   Author: Philipp Brune               Date: 05.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -86,11 +86,13 @@ struct DataSetState {
   long currentBlock;
   long varBlockSize;
   long eodPos;
+  int recOffset;
 };
 
 
 class DataSet {
  protected: 
+  struct DataSetState stateData;
   LockManager *lockManager;
   pthread_mutex_t dataSetMutex;
   char type;
@@ -103,10 +105,10 @@ class DataSet {
   long *currentBlock;
   long *varBlockSize;
   long *eodPos;
+  int *recOffset;
   unsigned char *eod;
   unsigned char *block;
   unsigned char *emptyBlock;
-  int recOffset;
   int recsInBlock;
   int accessMode;
   int translationMode;
