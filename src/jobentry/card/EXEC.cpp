@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 30.08.2023                                  */
+/*   Author: Philipp Brune               Date: 07.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -231,38 +231,32 @@ cout << "Limits: " << cpuLimit << " " << memLimit << endl;
     setrlimit(RLIMIT_CPU,&limits);
 
     if (setuid(context->userId) < 0) {
-      shmdt(shmPtr);
       exit(errno);
     }
 
     if (_stdin != NULL) {
       if ((stdin = freopen(_stdin,"r",stdin)) == NULL) {
-        shmdt(shmPtr);
         exit(errno);
       }
     } 
     if (_stdout != NULL) {
       if ((stdout = freopen(_stdout,"a",stdout)) == NULL) {
-        shmdt(shmPtr);
         exit(errno);
       }
     } 
     if (_stderr != NULL) {
       if ((stderr = freopen(_stderr,"a",stderr)) == NULL) {
-        shmdt(shmPtr);
         exit(errno);
       }
     } 
 
     if (chdir(context->workingDir) < 0) {
       context->writeLog(0,"ERROR SETTING WORKING DIRECTORY");
-      shmdt(shmPtr);
       exit(errno);
     }
 
     if (chdir(context->jobId) < 0) {
       context->writeLog(0,"ERROR SETTING JOB SUBDIRECTORY");
-      shmdt(shmPtr);
       exit(errno);
     }
 
@@ -274,7 +268,6 @@ cout << "Limits: " << cpuLimit << " " << memLimit << endl;
     argv[4] = pgm;
 
     int rc = batchrun(5,argv);
-    shmdt(shmPtr);
     exit(rc);
   } else {
     // Parent

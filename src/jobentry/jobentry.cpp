@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.09.2023                                  */
+/*   Author: Philipp Brune               Date: 07.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -27,7 +27,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/ipc.h>
-#include <sys/shm.h>
+#include <sys/mman.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
@@ -63,8 +63,6 @@ using namespace std;
 static void sig_handler(int signo) {
     printf("Stopping QWICS jobentry server...\n");
     if (signo == SIGINT) {
-        shmdt(shmPtr);
-        shmctl(shmId,IPC_RMID,NULL);
     }
     exit(0);
 }
@@ -73,8 +71,6 @@ static void sig_handler(int signo) {
 void *runCardReader(void *reader) {
   ((CardReader*)reader)->run();
   delete ((CardReader*)reader);
-  shmdt(shmPtr);
-  shmctl(shmId,IPC_RMID,NULL);
   return NULL;
 }
 
@@ -144,16 +140,8 @@ int main(int argc, char **argv) {
     char *volume = GETENV_STRING(datasetDir,"QWICS_DATASET_DIR","../dataset");
 
     // Init shared memory area
-    if ((shmKey = ftok("/home/qwics/bin/jobentry", SHM_ID_JOBENTRY)) == -1) {
-      fprintf(stderr, "Failed to make a key with file %s.\n", "/home/qwics/bin/jobentry");
-      return -1;
-    }
-    // printf("shm key=%x\n",shmKey);
-    if ((shmId = shmget(shmKey, SHM_SIZE, 0777 | IPC_CREAT | IPC_EXCL)) == -1) {
-      fprintf(stderr, "Failed to get shared memory segment. errno=%d %d %d %d\n",errno,ENOMEM,EACCES,EEXIST);
-      return -1;
-    }
-    else if ((shmPtr = shmat(shmId, NULL, 0)) == (void *) -1) {
+    if ((shmPtr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE,
+                    MAP_SHARED | MAP_ANONYMOUS, -1, 0)) == (void *) -1) {
       fprintf(stderr, "Failed to attach shared memory segment.\n");
       return -1;
     }

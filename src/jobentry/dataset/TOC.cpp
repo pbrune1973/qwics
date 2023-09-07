@@ -182,7 +182,7 @@ int TOC::findDsn(unsigned char *dsn, int dsnSeg) {
 
     nameA = (char*)&(dsn[dsnSeg*9]);
     nameB = (char*)&(entry.dsn[dsnSeg*9]);
-cout << "findDsn " << nameA << " " << nameB << " " << tocPos << endl;
+cout << "findDsn " << nameA << " " << nameB << " " << tocPos << " " << dsnSeg << " " << entry.nextEntries[dsnSeg] << endl;
 
     if (strcmp(nameA,nameB) == 0) {
       if (dsnSeg < 4) {
@@ -243,6 +243,9 @@ cout << "dsnSeg " << dsnSeg << endl;
     cout << "selected tocPos " << tocPos << endl;
     if ((disp == DISP_MOD) || (disp == DISP_OLD)) {
       tocData->unlock();
+      if (disp == DISP_MOD) {
+        accessMode = accessMode | ACCESS_MOD;
+      }
       if (entry.dirSize > 0) {
         if (memberName[0] != 0x00) {
           PartitionedDataSet *pds = new PartitionedDataSet(tocData,tocPos,accessMode | ACCESS_LOCK | ACCESS_EXCL);

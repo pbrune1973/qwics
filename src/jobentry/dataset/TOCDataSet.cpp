@@ -38,14 +38,14 @@ TOCDataSet::TOCDataSet(char *path, struct TocEntry &entry, int accessMode) :
   struct RequestParameters r;
   
   stateDataPtr = (struct DataSetState*)sharedMalloc(11,sizeof(struct DataSetState));
-  this->entry = &stateDataPtr->entry;
-  this->tocPos = &stateDataPtr->tocPos;
-  this->currentRec = &stateDataPtr->currentRec;
-  this->currentPos = &stateDataPtr->currentPos;
-  this->currentBlock = &stateDataPtr->currentBlock;
-  this->varBlockSize = &stateDataPtr->varBlockSize;
-  this->eodPos = &stateDataPtr->eodPos;
-  this->recOffset = &stateDataPtr->recOffset;
+  this->entry = &(stateDataPtr->entry);
+  this->tocPos = &(stateDataPtr->tocPos);
+  this->currentRec = &(stateDataPtr->currentRec);
+  this->currentPos = &(stateDataPtr->currentPos);
+  this->currentBlock = &(stateDataPtr->currentBlock);
+  this->varBlockSize = &(stateDataPtr->varBlockSize);
+  this->eodPos = &(stateDataPtr->eodPos);
+  this->recOffset = &(stateDataPtr->recOffset);
 
   lockManager = LockManager::getLockManager();
   pthread_mutexattr_t attr;

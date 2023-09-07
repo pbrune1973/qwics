@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.09.2023                                  */
+/*   Author: Philipp Brune               Date: 07.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -33,6 +33,7 @@
 #define ACCESS_LOCK    2
 #define ACCESS_SHARED  0
 #define ACCESS_EXCL    4
+#define ACCESS_MOD     8
 
 #define RPMODE_LRD  0x00000001
 #define RPMODE_LRE  0x00000002

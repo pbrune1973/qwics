@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.09.2023                                  */
+/*   Author: Philipp Brune               Date: 07.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -33,7 +33,7 @@ DataSet::DataSet() {
 
 
 DataSet::DataSet(struct TocEntry &entry, int accessMode) {
-  int n,i;
+  int n,i,mod = 0;
   struct RequestParameters r;
 
   this->entry = &(stateData.entry);
@@ -87,8 +87,12 @@ DataSet::DataSet(struct TocEntry &entry, int accessMode) {
         (*eodPos) = 4;
         (*this->entry).eodPos = 4;
       }
-    } else 
-      dataFile = fopen(entry.path,"rb+");    
+    } else {
+      dataFile = fopen(entry.path,"rb+");   
+      if (accessMode & ACCESS_MOD) {
+        mod = 1;
+      }
+    }
   } else {
     if (accessMode & ACCESS_LOCK) {
       if (accessMode & ACCESS_EXCL) 
@@ -106,16 +110,23 @@ DataSet::DataSet(struct TocEntry &entry, int accessMode) {
   }
 
   if ((*this->entry).format == 'F') {
-    this->point((long)0);
+    if (mod) {
+      this->point(this->entry->eodPos);
+    } else {
+      this->point((long)0);
+    }
   } else {
     r.mode = RPMODE_DRP | RPMODE_NUL;
+    if (mod) {
+      r.mode = r.mode | RPMODE_EOD;
+    }
     this->point(&r);
   }
 }
 
 
 DataSet::DataSet(DataSet *toc, unsigned long tocPos, int accessMode) {
-  int n,i;
+  int n,i,mod = 0;
   struct RequestParameters r;
 
   this->entry = &(stateData.entry);
@@ -171,8 +182,12 @@ DataSet::DataSet(DataSet *toc, unsigned long tocPos, int accessMode) {
         (*this->entry).blockSize = (*this->entry).blockSize+4;
         (*this->entry).recSize = (*this->entry).blockSize;
       }
-    } else
+    } else {
       dataFile = fopen(entry->path,"rb+");    
+      if (accessMode & ACCESS_MOD) {
+        mod = 1;
+      }
+    }
   } else {
     if (accessMode & ACCESS_LOCK) {
       if (accessMode & ACCESS_EXCL) 
@@ -199,9 +214,16 @@ cout << entry->numOfExtends << endl;
   }
 
   if ((*this->entry).format == 'F') {
-    this->point((long)0);
+    if (mod) {
+      this->point(this->entry->eodPos);
+    } else {
+      this->point((long)0);
+    }
   } else {
     r.mode = RPMODE_DRP | RPMODE_NUL;
+    if (mod) {
+      r.mode = r.mode | RPMODE_EOD;
+    }
     this->point(&r);
   }
 }
@@ -504,13 +526,13 @@ cout << "extend " << j << " " << entry->extends[j].sizeInBlocks << " " << entry-
       }
     }
     
-  cout << "tocUpdate " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << tocPos << endl; 
+  cout << "tocUpdate " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << *tocPos << " " << entry->eodPos << endl; 
     if (tocUpdate) {
       if (toc->point(*tocPos) < 0) { if (this != toc) { toc->unlock(); } return -1; }
   cout << "Huhu" << endl;
       if (toc->put((unsigned char*)entry) < 0) { if (this != toc) { toc->unlock(); }  return -1; }
     } 
-  cout << "tocUpdate 2 " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << tocPos << endl; 
+  cout << "tocUpdate 2 " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << *tocPos << " " << entry->eodPos << endl; 
     
     if (this != toc) { 
       toc->unlock();
@@ -538,13 +560,10 @@ cout << "extend " << j << " " << entry->extends[j].sizeInBlocks << " " << entry-
 
 
 int DataSet::point(long recNr) {
-cout << "point " << recNr << " " << endl;
   if (recNr < 0) {
     recNr = (*currentRec) + recNr;
     if (recNr < 0) recNr = 0;  
   }
-
-cout << "point2 " << recNr << " " << endl;  
   if (recNr != *currentRec) {
     unsigned long blockNr = recNr / recsInBlock;
 
