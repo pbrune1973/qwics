@@ -111,7 +111,8 @@ DataSet::DataSet(struct TocEntry &entry, int accessMode) {
 
   if ((*this->entry).format == 'F') {
     if (mod) {
-      this->point(this->entry->eodPos);
+cout << "eodPos = " << this->entry->eodPos << " " << this->entry->recSize << endl;
+      this->point(this->entry->eodPos/this->entry->recSize);
     } else {
       this->point((long)0);
     }
@@ -215,7 +216,8 @@ cout << entry->numOfExtends << endl;
 
   if ((*this->entry).format == 'F') {
     if (mod) {
-      this->point(this->entry->eodPos);
+      cout << "eodPos = " << this->entry->eodPos << " " << this->entry->recSize << endl;
+      this->point(this->entry->eodPos/this->entry->recSize);
     } else {
       this->point((long)0);
     }
@@ -397,8 +399,8 @@ void DataSet::setTocPos(int tocPos) {
   (*this->tocPos) = tocPos;
 }
 
-struct TocEntry& DataSet::getEntry() {
-  return *entry;
+struct TocEntry* DataSet::getEntry() {
+  return entry;
 }
 
 
@@ -526,13 +528,13 @@ cout << "extend " << j << " " << entry->extends[j].sizeInBlocks << " " << entry-
       }
     }
     
-  cout << "tocUpdate " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << *tocPos << " " << entry->eodPos << endl; 
+  //cout << "tocUpdate " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << *tocPos << " " << entry->eodPos << endl; 
     if (tocUpdate) {
       if (toc->point(*tocPos) < 0) { if (this != toc) { toc->unlock(); } return -1; }
-  cout << "Huhu" << endl;
+  //cout << "Huhu" << endl;
       if (toc->put((unsigned char*)entry) < 0) { if (this != toc) { toc->unlock(); }  return -1; }
     } 
-  cout << "tocUpdate 2 " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << *tocPos << " " << entry->eodPos << endl; 
+  //cout << "tocUpdate 2 " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << *tocPos << " " << entry->eodPos << endl; 
     
     if (this != toc) { 
       toc->unlock();

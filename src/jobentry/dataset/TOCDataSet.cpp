@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.09.2023                                  */
+/*   Author: Philipp Brune               Date: 08.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -150,3 +150,151 @@ TOCDataSet::~TOCDataSet() {
   }
   sharedFree(stateDataPtr,sizeof(struct DataSetState));
 }
+
+
+int TOCDataSet::read(unsigned long blockNr, unsigned char *block) {
+  if (blockNr < entry->numOfBlocks) {
+    fseek(dataFile,blockNr*entry->blockSize,SEEK_SET);
+    fread(block,entry->blockSize,1,dataFile);
+  
+    if ((*this->entry).blockSize == (*this->entry).recSize) {
+      // recNr 1 is in second block
+      if (blockNr == 1) {
+        memcpy(this->entry,block,sizeof(struct TocEntry));
+      }
+    } else {
+      // blockSize > recSize, recNr 1 is in first block
+      if (blockNr == 0) {
+        memcpy(this->entry,&block[(*this->entry).recSize],sizeof(struct TocEntry));
+      }
+    }
+
+    if (ferror(dataFile)) {
+      return -1;
+    } 
+
+    if (entry->format == 'V') {
+      (*varBlockSize) = (long)block[0];
+      (*varBlockSize) = ((*varBlockSize) << 8) | (long)block[1];
+      if ((*varBlockSize) < 4) (*varBlockSize) = 4;
+    }
+  } else {
+    return -1;
+  }
+  
+  return 0;
+}
+
+
+int TOCDataSet::write(unsigned long blockNr, unsigned char *block) {
+  unsigned long cnt;
+  int i,j,n,tocUpdate;
+  struct TocEntry currentEntry;
+  
+  if ((accessMode & ACCESS_WRITE) == 0) return -1;
+  tocUpdate = 0;
+
+  if ((*this->entry).blockSize == (*this->entry).recSize) {
+    // recNr 1 is in second block
+    if (blockNr == 1) {
+      memcpy(block,this->entry,sizeof(struct TocEntry));
+    }
+  } else {
+    // blockSize > recSize, recNr 1 is in first block
+    if (blockNr == 0) {
+      memcpy(&block[(*this->entry).recSize],this->entry,sizeof(struct TocEntry));
+    }
+  }
+
+  if ((long)blockNr > entry->lastBlockNr) {
+    entry->lastBlockNr = blockNr;
+    tocUpdate = 1; 
+  }
+  
+  if (blockNr >= entry->numOfBlocks) {
+    cnt = entry->numOfBlocks;
+    
+    for (i = entry->numOfExtends; i < entry->maxExtends; i++) {
+      cnt = cnt + entry->extends[i].sizeInBlocks;
+      if (blockNr < cnt) break;
+    }   
+cout << "extend " << i << " " << entry->maxExtends << " " << entry->numOfExtends << endl;
+    if (i < entry->maxExtends) {
+      i++;
+
+      if (i > entry->numOfExtends) {
+        fseek(dataFile,entry->extends[entry->numOfExtends].startPos,SEEK_SET);
+        for (j = entry->numOfExtends; j < i ; j++) {
+cout << "extend " << j << " " << entry->extends[j].sizeInBlocks << " " << entry->blockSize << endl;
+          for (n = 0; n < entry->extends[j].sizeInBlocks; n++) {
+            fwrite(emptyBlock,entry->blockSize,1,dataFile);
+          }
+        } 
+      
+        entry->numOfExtends = i;
+        entry->numOfBlocks = cnt;
+        tocUpdate = 1;
+      }
+    } else {
+      cout << "write error 1" << endl;
+      return -1;
+    }
+  }
+
+  if ((toc != NULL) && !isTOCCreation) {
+    currentEntry = *entry;
+    toc->point(*tocPos);
+    toc->get((unsigned char*)&currentEntry);
+  
+    if (currentEntry.lastBlockNr > entry->lastBlockNr) {
+      entry->lastBlockNr = currentEntry.lastBlockNr;
+    }
+
+    if (currentEntry.numOfExtends > entry->numOfExtends) {
+      entry->numOfExtends = currentEntry.numOfExtends;
+    }
+
+    if (currentEntry.numOfBlocks > entry->numOfBlocks) {
+      entry->numOfBlocks = currentEntry.numOfBlocks;
+    }
+
+    if ((*eodPos) >= 0) {
+      if (currentEntry.eodPos > (*eodPos)) {
+        entry->eodPos = currentEntry.eodPos; 
+        (*eodPos) = entry->eodPos;
+      } else {
+        if ((*eodPos) > entry->eodPos) {
+          entry->eodPos = (*eodPos);
+          tocUpdate = 1;
+        }
+      }
+    }
+    
+  //cout << "tocUpdate " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << *tocPos << " " << entry->eodPos << endl; 
+    if (tocUpdate) {
+      if (toc->point(*tocPos) < 0) { return -1; }
+  //cout << "Huhu" << endl;
+      if (toc->put((unsigned char*)entry) < 0) { return -1; }
+    } 
+  //cout << "tocUpdate 2 " << tocUpdate << " " << entry->numOfBlocks << " " << entry->numOfExtends << " " << *tocPos << " " << entry->eodPos << endl;     
+  }
+
+  if (entry->format == 'V') {
+    block[0] = (unsigned char)(((*varBlockSize) >> 8) & 0xFF);
+    block[1] = (unsigned char)((*varBlockSize) & 0xFF);
+    block[2] = 0x00;
+    block[3] = 0x00;
+  }
+
+  fseek(dataFile,blockNr*entry->blockSize,SEEK_SET);
+  fwrite(block,entry->blockSize,1,dataFile);
+  fflush(dataFile);
+  
+  if (ferror(dataFile)) {
+    cout << "write error 2" << endl;
+    return -1;
+  }
+
+  return 0;
+}
+

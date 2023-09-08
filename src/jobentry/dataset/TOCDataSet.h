@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.09.2023                                  */
+/*   Author: Philipp Brune               Date: 08.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -32,6 +32,8 @@ class TOCDataSet : public DataSet {
  public:
   TOCDataSet(char *path, struct TocEntry &entry, int accessMode);
   ~TOCDataSet();
+  virtual int read(unsigned long blockNr, unsigned char *block);
+  virtual int write(unsigned long blockNr, unsigned char *block);
 };
 
 #endif

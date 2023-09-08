@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.09.2023                                  */
+/*   Author: Philipp Brune               Date: 08.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -224,7 +224,7 @@ DataSet *TOC::allocate(unsigned char *dsn, char format, int recSize, int blockSi
   int i,n,accessMode;
   unsigned char memberName[9];
   struct PdsDirEntry userEntry;
-
+cout << "allocate DISP=" << disp << endl;
   userEntry.c = 0x00;   
   if (openMode == OPEN_RDWR) 
     accessMode = ACCESS_WRITE;
@@ -336,14 +336,26 @@ printf("Sizes %d %d\n",size,extend);
   if (tocData->put((unsigned char*)&newEntry) < 0) { tocData->unlock(); return NULL; }
   
   if (dsnSeg >= 0) {
-    entry.nextEntries[dsnSeg] = newPos;
+    entry.nextEntries[dsnSeg] = newPos;    
 cout << "nextEntries for " << tocPos << " "
                 << entry.nextEntries[0] << " "
                 << entry.nextEntries[1] << " "
                 << entry.nextEntries[2] << " "
                 << entry.nextEntries[3] << " "
                 << entry.nextEntries[4] << endl;
+
     if (tocData->point(tocPos) < 0) { tocData->unlock(); return NULL; }
+    if (tocPos < 2) {
+      // Toc entry of toc itself
+      tocData->getEntry()->lastBlockNr = entry.lastBlockNr;  
+      tocData->getEntry()->numOfBlocks = entry.numOfBlocks;
+      tocData->getEntry()->eodPos = entry.eodPos;
+      tocData->getEntry()->numOfExtends = entry.numOfExtends;
+      for (i = 1; i < entry.numOfExtends; i++) {
+        tocData->getEntry()->extends[i] = entry.extends[i];
+      }
+      tocData->getEntry()->nextEntries[dsnSeg] = entry.nextEntries[dsnSeg];
+    }
     if (tocData->put((unsigned char*)&entry) < 0) { tocData->unlock(); return NULL; }
   }
 

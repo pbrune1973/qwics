@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.08.2023                                  */
+/*   Author: Philipp Brune               Date: 08.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -90,6 +90,23 @@ int put(char *ddName, unsigned char *data) {
 }
 
 
+int get(char *ddName, unsigned char *data) {
+    #ifdef _IN_JOBENTRY_
+    DD* dd = (DD*)thisEXEC->getSubCard(ddName);
+    if (dd != NULL) {
+        DataSet *ds = dd->getDataSetDef()->getDataSet();
+        if (ds == NULL) {
+            return -1;
+        }
+        if (ds->get(data) < 0) {
+            return -1;
+        }
+    }
+    #endif
+    return 0;
+}
+
+
 #ifdef _IN_JOBENTRY_
 extern "C" 
 #endif
@@ -137,6 +154,15 @@ int datasetfh(unsigned char *opcode, FCD3 *fcd) {
                     return -1;
                 }
                 fcd->openMode = OPEN_IO;
+                break;
+
+            case OP_READ_SEQ :
+                if (fcd->openMode == OPEN_NOT_OPEN) {
+                    return -1;
+                }
+                if (get(ddname,fcd->recPtr) < 0) {
+                    return -1;
+                }
                 break;
 
             case OP_WRITE :

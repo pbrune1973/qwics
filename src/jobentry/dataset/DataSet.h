@@ -130,7 +130,7 @@ class DataSet {
   void setTOCCreation(int isTOCCreation);
   void setTocPos(int tocPos);
 
-  struct TocEntry& getEntry();
+  struct TocEntry* getEntry();
   int getRecSize();
   int getFormat();
   int isPartitionedDataSet();  

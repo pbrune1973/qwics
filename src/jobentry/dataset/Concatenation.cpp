@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 08.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -22,7 +22,7 @@
 
  
 Concatenation::Concatenation(DataSet *firstDataSet) : 
-               PartitionedDataSet(firstDataSet->getEntry(),ACCESS_READ) {
+               PartitionedDataSet(*firstDataSet->getEntry(),ACCESS_READ) {
   if (firstDataSet->isPartitionedDataSet()) 
     type = 'P';
   else 
