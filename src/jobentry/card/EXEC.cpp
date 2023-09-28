@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 07.09.2023                                  */
+/*   Author: Philipp Brune               Date: 28.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -34,6 +34,7 @@
 #include "EXEC.h"
 #include "DD.h"
 #include "../dataset/Concatenation.h"
+#include "../utils/utils.h"
 extern "C" {
 #include "../../batchrun/cobsql.h"
 #include "../../tpmserver/shm/shmtpm.h"
@@ -156,6 +157,14 @@ int EXEC::execPGM(char *pgm, Parameters *params, char *_stdin, char *_stdout, ch
   char *region,*time;
   unsigned long memLimit;
   unsigned long cpuLimit;
+
+  if (strcmp(pgm,"IDCAMS") == 0) {
+    return idcams(this);
+  }
+
+  if (strcmp(pgm,"SDSF") == 0) {
+    return idcams(this);
+  }
 
   childPID = fork();
 

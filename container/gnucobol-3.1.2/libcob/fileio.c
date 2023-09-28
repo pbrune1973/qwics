@@ -7405,7 +7405,7 @@ cob_get_filename_print (cob_file* file, const int show_resolved_name)
    like bdb_home and cob_file_path are taken care in cob_exit_common()!
 */
 
-void
+
 cob_exit_fileio_msg_only (void)
 {
 	struct file_list	*l;

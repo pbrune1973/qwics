@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 20.08.2023                                  */
+/*   Author: Philipp Brune               Date: 28.09.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -54,6 +54,7 @@ char *cobDateFormat = "YYYY-MM-dd-hh.mm.ss.uuuuu";
 char *dbDateFormat = "YYYY-MM-dd hh:mm:ss.uuu";
 char result[30];
 char *loadmodDir = NULL;
+char *datasetDir = NULL;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
@@ -619,6 +620,7 @@ int batchrun(int argc, char *argv[]) {
     }
 
     GETENV_STRING(cobDateFormat,"QWICS_COBDATEFORMAT","YYYY-MM-dd.hh:mm:ss.uuuu");
+    setenv("DB_HOME",GETENV_STRING(datasetDir,"QWICS_DATASET_DIR","../dataset"),1);
 
     fprintf(stdout,"Starting batchrun of %s\n",argv[1]);
     performEXEC = &execCallback;
