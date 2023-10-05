@@ -26,6 +26,7 @@
 
 Initiator::Initiator(JobClassQueue *queue, int stop, 
                      unsigned long memLimit, unsigned long cpuLimit) {
+cout << "Initiator created " << queue << endl;
   this->queue = queue;
   this->stopFlag = stop;
   this->memLimit = memLimit;
@@ -44,15 +45,17 @@ void Initiator::run() {
   RuntimeContext *context;
   JobInfo logFileInfo;
   char *msgClass = NULL;
-
+cout << "Initiator started " << endl;
   pthread_mutex_lock(&runMutex);
   pthread_mutex_lock(&stopMutex);
+cout << "Initiator started 2 " << queue << endl;
 
   do {
     pthread_mutex_unlock(&stopMutex);
     context = new RuntimeContext();
 
     job = queue->get('W');
+    cout << "Initiator started 3 " << job.job << endl;
     if (job.job != NULL) {
       context->workingDir = SpoolingSystem::spoolingSystem->workingDir;
       context->jobId = job.jobId;

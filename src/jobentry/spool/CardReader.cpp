@@ -63,7 +63,7 @@ void CardReader::run() {
   int stop = 0, r = 0;
   JCLParser *jclParser = NULL;
   JobCard *job;
-  char *cmd, jobId[9], line[81], *jobNamePtr = NULL, *jobIdPtr = NULL;
+  char *cmd, jobId[9], line[81];
 
   jclParser = new JCLParser(inFile);  
   job = jclParser->parse();

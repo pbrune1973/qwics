@@ -18,6 +18,7 @@
 /*   along with this project. If not, see <http://www.gnu.org/licenses/>.                  */
 /*******************************************************************************************/
 
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -89,22 +90,32 @@ int get(char *ddName, unsigned char *data, JobCard *exec) {
 
 
 int idcams(JobCard *exec) {
+    printf("IDCAMS started\n");
+
     if (open("SYSIN",1,0,exec) < 0) {
         printf("MAXCC=12 Could not open SYSIN\n.");
         return 12;
     }
 
-
+cout << "open finished " << endl;
+    char linebuf[256];
+    while (get("SYSIN",(unsigned char*)&linebuf,exec) == 0) {
+        linebuf[80] = 0x00;
+        printf("%s\n",linebuf);
+    }
+cout << "get finished " << endl;
 
     if (close("SYSIN",exec) < 0) {
         printf("MAXCC=12 Could not close SYSIN\n.");
         return 12;
     }
 
+    printf("IDCAMS finished\n");
     return 0;
 }
 
 
 int sdsf(JobCard *exec) {
+    printf("SDSF started\n");
     return 0;
 }

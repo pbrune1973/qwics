@@ -47,9 +47,11 @@ DD::~DD() {
   int i;
 
   if (fileName != NULL) delete fileName;
+  /*
   for (i = 0; i < numOfSubmits; i++) {
     if (submits[i].params != NULL) delete submits[i].params;
   }
+  */
   if (dataSetDef != NULL) delete dataSetDef;
 }
   

@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 05.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -34,7 +34,9 @@ Parameters::Parameters() {
 
 
 Parameters::~Parameters() {
-  delete first;
+  if (first != NULL) {
+    delete first;
+  }
 }
 
 

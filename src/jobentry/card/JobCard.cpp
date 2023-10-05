@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.08.2023                                  */
+/*   Author: Philipp Brune               Date: 05.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -187,7 +187,8 @@ void JobCard::setSourceLineNumber(unsigned sourceLineNumber) {
 
 void JobCard::addSourceLine(char *line) {
   int i,l = strlen(line);
-  
+  if (l > 80) l = 80;
+
   if (sourceLineCount >= 20) return;
   
   sourceLines[sourceLineCount] = new char[l+1];

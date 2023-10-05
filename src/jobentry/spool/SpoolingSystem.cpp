@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 30.08.2023                                  */
+/*   Author: Philipp Brune               Date: 05.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -80,12 +80,13 @@ SpoolingSystem::SpoolingSystem(char *configFile, char *spoolDir, char *workingDi
 
   if (strcmp(name,"OUTPUT") == 0) {
     cf >> name;
+
     while ((strcmp(name,"") != 0) && (strcmp(name,"END-OUTPUT") != 0)) {
       cf >> maxNumOfInitiators;
       cf >> memQueued;
       cf >> switchLimit;
 
-      addOutputClass(name,0,maxNumOfInitiators,
+      addOutputClass(name,1,maxNumOfInitiators,
                      memQueued,switchLimit);
 
       cf >> name;
@@ -252,7 +253,10 @@ int SpoolingSystem::submit(JobCard *job, char *jobId) {
   pthread_mutex_lock(&classMutex);
 
   JobClass *cls = getJobClass(name);
-  if (cls == NULL) return -1;
+  if (cls == NULL) {
+    pthread_mutex_unlock(&classMutex);
+    return -1;
+  }
 
   unsigned long id = jobIdCounter % 100000;
   jobIdCounter++;
@@ -297,7 +301,10 @@ int SpoolingSystem::submitToClass(JobInfo job, char *className) {
   pthread_mutex_lock(&classMutex);
 
   JobClass *cls = getJobClass(className);
-  if (cls == NULL) return -1;
+  if (cls == NULL) {
+    pthread_mutex_unlock(&classMutex);
+    return -1; 
+  }
   int r =  cls->submit(job);  
 
   pthread_mutex_unlock(&classMutex);

@@ -158,6 +158,7 @@ int EXEC::execPGM(char *pgm, Parameters *params, char *_stdin, char *_stdout, ch
   unsigned long memLimit;
   unsigned long cpuLimit;
 
+printf("%s%s%s\n","execPGM *",pgm,"*");
   if (strcmp(pgm,"IDCAMS") == 0) {
     return idcams(this);
   }

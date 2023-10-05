@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 31.08.2023                                  */
+/*   Author: Philipp Brune               Date: 05.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -194,6 +194,11 @@ void JCLParser::getNextLine() {
       throw EOF_EXCPT;
     }
   } 
+
+  lineBuf[i] = 0x00;
+  if (strcmp(lineBuf,"//*XXXX") == 0) {
+    throw EOF_EXCPT;
+  }
 
   for (int j = i; j < 80; j++) lineBuf[j] = ' '; 
   lineBuf[80] = 0x00;
@@ -440,8 +445,7 @@ JobCard *JCLParser::parse() {
     do {    
       parseCard();
       getNextValidLine();
-    } while (strcmp(lineBuf,"//                                                                              ") != 0 &&
-             strcmp(lineBuf,"//*                                                                             ") != 0);  
+    } while (strcmp(lineBuf,"//*XXXX                                                                         ") != 0);  
   } catch (const int &ex) {
     if (ex != 8) {
       if (currentJob != NULL) {
