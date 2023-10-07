@@ -290,6 +290,7 @@ int SpoolingSystem::submit(JobCard *job, char *jobId) {
   newJob.fileName = NULL;
 
   int r =  cls->submit(newJob);  
+  cout << "After class submit " << r << endl;
   pthread_mutex_unlock(&classMutex);
   return r;
 }
@@ -306,7 +307,7 @@ int SpoolingSystem::submitToClass(JobInfo job, char *className) {
     return -1; 
   }
   int r =  cls->submit(job);  
-
+  cout << "After class submit " << r << endl;
   pthread_mutex_unlock(&classMutex);
   return r;
 }

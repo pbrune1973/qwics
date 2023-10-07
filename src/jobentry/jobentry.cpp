@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 07.09.2023                                  */
+/*   Author: Philipp Brune               Date: 06.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -68,9 +68,7 @@ static void sig_handler(int signo) {
 }
 
 
-void *runCardReader(void *reader) {
-  ((CardReader*)reader)->run();
-  delete ((CardReader*)reader);
+void *runCardReader(CardReader *reader) {
   return NULL;
 }
 
@@ -112,7 +110,7 @@ void *runJobListener(char *udsfile) {
 
     do {
       childfd = accept(parentfd, (struct sockaddr *) &serversockaddr, (socklen_t*)&clientlen);
-
+cout << "accept " << childfd << endl;
       if (childfd == -1) {
         if (errno == EINTR) {
           break;
@@ -121,10 +119,12 @@ void *runJobListener(char *udsfile) {
 
       if (childfd >= 0) {
           CardReader *reader = new CardReader(childfd,childfd);
-          runCardReader((void*)reader);
+          reader->run();
+          delete reader;
       } else {
           cout << " ERROR: Unable to accept connection!" << endl;
       }
+  cout << "stop " << stop << endl; 
     } while (!stop);
 
     return NULL;

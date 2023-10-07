@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.10.2023                                  */
+/*   Author: Philipp Brune               Date: 06.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -145,9 +145,6 @@ cout << "SYSIN " << dsn << endl;
   delete sysinDataSet;
   delete sysinDef;
 
-  subParams = params->getPValue("DISP",0);
-  delete subParams;
-  params->add("DISP");
   subParams = new Parameters();
   subParams->add();
   subParams->setValue("OLD");
@@ -155,7 +152,8 @@ cout << "SYSIN " << dsn << endl;
   subParams->setValue("DELETE");
   subParams->add();
   subParams->setValue("DELETE");
-  params->setValue(subParams);  
+  subParams = params->replaceValue("DISP",0,subParams);
+  delete subParams;
 }
 
 
@@ -220,7 +218,7 @@ void JCLParser::getNextValidLine() {
     
     if ((lineBuf[0] != '/') && (currentCard != NULL)) {
       if (strcmp(currentCard->getParameters()->getValue(0),"*") == 0) {
-        createSysinDataSet("//");
+        createSysinDataSet("/*");
       } else {
         throw CMD_EXCPT;
       }
@@ -447,12 +445,15 @@ JobCard *JCLParser::parse() {
       getNextValidLine();
     } while (strcmp(lineBuf,"//*XXXX                                                                         ") != 0);  
   } catch (const int &ex) {
+cout << "Exception " << ex << endl;
     if (ex != 8) {
       if (currentJob != NULL) {
         delete currentJob; 
+        currentJob = NULL;
       } else
       if (currentBlock != NULL) {
         delete currentBlock; 
+        currentBlock = NULL;
       }    
 /*
       if (excpt != CMD_EXCPT) {

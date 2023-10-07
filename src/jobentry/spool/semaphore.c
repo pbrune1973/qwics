@@ -73,8 +73,8 @@ semaphore_up (Semaphore * s)
     (s->v)++;
     value_after_op = s->v;
 
-    tw_pthread_mutex_unlock (&(s->mutex));
     tw_pthread_cond_signal (&(s->cond));
+    tw_pthread_mutex_unlock (&(s->mutex));
 
     return (value_after_op);
 }

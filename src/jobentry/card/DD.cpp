@@ -44,6 +44,7 @@ DD::DD(char *name) : JobCard(name) {
 
 
 DD::~DD() {
+  cout << "destruct DD " << endl;
   int i;
 
   if (fileName != NULL) delete fileName;
@@ -53,6 +54,7 @@ DD::~DD() {
   }
   */
   if (dataSetDef != NULL) delete dataSetDef;
+  cout << "destruct DD end " << endl;
 }
   
 

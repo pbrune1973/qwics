@@ -146,7 +146,8 @@ cout << (*this->entry).numOfExtends << endl;
 
 TOCDataSet::~TOCDataSet() {
   if (block != NULL) {
-    sharedFree(block,(*this->entry).blockSize);    
+    sharedFree(block,(*this->entry).blockSize);   
+    block = NULL; 
   }
   sharedFree(stateDataPtr,sizeof(struct DataSetState));
 }

@@ -365,7 +365,9 @@ DataSet::~DataSet() {
   if (!writeImmediate) flush();
   if (dataFile != NULL) fclose(dataFile);
   if (block != NULL) delete block;
+  block = NULL;
   if (emptyBlock != NULL) delete emptyBlock;  
+  emptyBlock = NULL;
   if (accessMode & ACCESS_LOCK) {
     lockManager->releaseLock(entry->path);    
   }

@@ -46,7 +46,7 @@ JobCard::JobCard(char *name) {
 
 JobCard::~JobCard() {
   delete name;
-  if (params != NULL) delete params;
+  //if (params != NULL) delete params;
   if (runtimeParams != NULL) delete runtimeParams;
   if (nextJobCard != NULL) delete nextJobCard;
   if (firstSubCard != NULL) delete firstSubCard;

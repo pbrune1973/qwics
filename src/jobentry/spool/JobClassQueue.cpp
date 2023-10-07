@@ -424,8 +424,8 @@ cout << "put " << readFile << " " << writeFile << " " << queueFile[writeFile] <<
  wf = fopen(queueFile[writeFile],"a");
 cout << "put " << wf << " " << this << endl;  
  if (wf == NULL) {
-  pthread_mutex_unlock(&queueMutex);
-  return -1;
+    pthread_mutex_unlock(&queueMutex);
+    return -1;
  } 
  //fseek(wf,0L,SEEK_END);
  fwrite(&job,23,1,wf);
@@ -444,6 +444,7 @@ cout << "put fclose " << endl;
    }
  }
 
+cout << "put 2 " << i << " " << memQueued << " " << job.job << endl; 
  if (i >= memQueued) {
    if (job.job != NULL) delete job.job;
    if (job.fileName != NULL) delete job.fileName;
@@ -452,6 +453,8 @@ cout << "put fclose " << endl;
 cout << "put 3" << endl;  
 
  semaphore_up(&entriesThere);
+cout << "put 4" << endl;  
  pthread_mutex_unlock(&queueMutex);
+cout << "put 5" << endl;  
  return 0;
 }

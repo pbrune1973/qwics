@@ -31,18 +31,25 @@ using namespace std;
 CardReader::CardReader(int inFd, int outFd) {
   this->inFd = inFd;
   this->outFd = outFd;
-  inFile = fdopen(inFd,"rb");
-  outFile = fdopen(outFd,"wb");
+  if (inFd == outFd) {
+    inFile = fdopen(inFd,"r+");
+    outFile = inFile;
+  } else {
+    inFile = fdopen(inFd,"r");
+    outFile = fdopen(outFd,"w");
+  }
 }
 
 
 CardReader::~CardReader() {
   if (inFile != NULL) fclose(inFile);
   if (outFile != NULL) fclose(outFile);
+/*
   close(inFd);
   if (inFd != outFd) {
       close(outFd);
   }
+  */
 }
 
 
@@ -70,13 +77,19 @@ void CardReader::run() {
 
   if (job != NULL) {
     if (SpoolingSystem::spoolingSystem->submit(job,jobId) < 0) {
+cout << "Error on subnmission " << endl;
       delete job;
+cout << "Error on subnmission 2 " << endl;
       writeLine("ERROR DURING JOB SUBMISSION\n");
     } else {
+cout << "Submitted " << endl;
       sprintf(line,"JOB %s SUBMITTED\n",jobId);
+cout << "Submitted " << line << " " << outFile << endl;
       writeLine(line);
+cout << "Submitted " << line << endl;
     }
   }
 
   delete jclParser;  
+cout << "end run " << endl;
 }

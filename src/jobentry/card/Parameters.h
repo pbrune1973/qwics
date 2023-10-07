@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.10.2023                                  */
+/*   Author: Philipp Brune               Date: 06.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -65,11 +65,9 @@ class Parameters {
        if (value != NULL) {
           delete value;
        }
-       /*
        if (pvalue != NULL) {
           delete pvalue;
        }
-       */
        if (next != NULL) {
           delete next;
        }       
@@ -93,6 +91,7 @@ class Parameters {
   void addNew(char *param);
   void setValue(char *value);
   void setValue(Parameters *value);
+  Parameters *replaceValue(char *name, unsigned numOfMatch, Parameters *value);
   void addToParams(Parameters *params);
   
   char *getValue(unsigned index);
