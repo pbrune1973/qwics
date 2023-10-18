@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL environment standard dataset service program replacements          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.09.2023                                  */
+/*   Author: Philipp Brune               Date: 14.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -24,6 +24,11 @@
 #include <unistd.h>
 
 #include "../card/DD.h"    
+#include "./parser.h"    
+#include "../env/envconf.h"
+extern "C" {
+#include "../../tpmserver/dataset/isamdb.h"
+}
 
 
 int open(char *ddName, int in, int out, JobCard *exec) {
@@ -97,13 +102,46 @@ int idcams(JobCard *exec) {
         return 12;
     }
 
-cout << "open finished " << endl;
+    char tokens[MAX_TOKENS][50];
+    int tokenNum = 0;
     char linebuf[256];
+    char *isamDatasetDir;
+
+    startIsamDB(GETENV_STRING(isamDatasetDir,"QWICS_DATASET_DIR","../dataset"));
+
     while (get("SYSIN",(unsigned char*)&linebuf,exec) == 0) {
         linebuf[80] = 0x00;
         printf("%s\n",linebuf);
+
+        if (tokenize(linebuf,(char**)tokens,&tokenNum)) {
+            continue;
+        } else {
+            int i;
+            for (i = 0; i < tokenNum; i++) {
+                printf("%s\n",tokens[i]);
+            }
+
+            if (tokenNum > 0) {
+                if (strcmp(tokens[0],"DEFINE") == 0) {
+                
+                }
+
+                if (strcmp(tokens[0],"DELETE") == 0) {
+                    
+                }
+
+                if (strcmp(tokens[0],"REPRO") == 0) {
+                    int idx1 = getTokenIndex("INDD",(char**)tokens,tokenNum);
+                    if (idx1 < 0) {
+                        printf("MAXCC=12 Missing parameter INDD\n.");
+                        return 12;
+                    }                    
+                }
+            }
+        }
     }
-cout << "get finished " << endl;
+
+    stopIsamDB();
 
     if (close("SYSIN",exec) < 0) {
         printf("MAXCC=12 Could not close SYSIN\n.");

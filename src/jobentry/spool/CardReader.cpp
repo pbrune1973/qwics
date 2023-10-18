@@ -43,13 +43,11 @@ CardReader::CardReader(int inFd, int outFd) {
 
 CardReader::~CardReader() {
   if (inFile != NULL) fclose(inFile);
-  if (outFile != NULL) fclose(outFile);
-/*
   close(inFd);
   if (inFd != outFd) {
-      close(outFd);
+    if (outFile != NULL) fclose(outFile);
+    close(outFd);
   }
-  */
 }
 
 

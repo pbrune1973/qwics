@@ -1,5 +1,5 @@
 /*******************************************************************************************/
-/*   QWICS Batch Job Entry System                                                          */
+/*   QWICS Batch Job Entry System                                                         */
 /*                                                                                         */
 /*   Author: Philipp Brune               Date: 06.10.2023                                  */
 /*                                                                                         */
