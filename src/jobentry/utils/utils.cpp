@@ -191,9 +191,61 @@ int idcams(JobCard *exec) {
                 if (strcmp(tokens[0],"REPRO") == 0) {
                     int idx1 = getTokenIndex("INFILE",tokens,tokenNum);
                     if (idx1 < 0) {
-                        printf("MAXCC=12 Missing parameter INDD\n.");
+                        idx1 = getTokenIndex("IFILE",tokens,tokenNum);
+                    }
+                    if (idx1 < 0) {
+                        printf("MAXCC=12 Missing parameter INFILE\n.");
                         maxcc = 12;
                     }                    
+
+                    int idx2 = getTokenIndex("OUTFILE",tokens,tokenNum);
+                    if (idx2 < 0) {
+                        idx2 = getTokenIndex("OFILE",tokens,tokenNum);
+                    }
+                    if (idx2 < 0) {
+                        printf("MAXCC=12 Missing parameter OUTFILE\n.");
+                        maxcc = 12;
+                    }                    
+
+                    if ((idx1 > 0) && (idx1+2 < tokenNum) && (idx2 > 0) && (idx2+2 < tokenNum)) {
+                        DD *dd1 = (DD*)exec->getSubCard(tokens[idx1+2]);
+                        DD *dd2 = (DD*)exec->getSubCard(tokens[idx2+2]);
+                        char *dsn1 = NULL, *dsn2 = NULL;
+
+                        if (dd1 != NULL && dd2 != NULL) {
+                            dsn1 = dd1->getDataSetDef()->getDsn();
+                            dsn2 = dd2->getDataSetDef()->getDsn();
+                        }
+
+                        if (dsn1 != NULL && dsn2 != NULL) {
+                            void *txptr = beginTransaction();
+
+                            void *ds = openDataset("SYS.KSDS.KEYS");
+                            if (ds != NULL) {
+                                int isVSAM1 = 1, isVSAM2 = 1;
+                                keyDef key1;
+                                if (get(ds,txptr,NULL,(unsigned char*)dsn1,strlen(dsn1),(unsigned char*)&key1,sizeof(key1),MODE_SET) != 0) {
+                                    isVSAM1 = 0;
+                                }
+                                keyDef key2;
+                                if (get(ds,txptr,NULL,(unsigned char*)dsn2,strlen(dsn2),(unsigned char*)&key2,sizeof(key2),MODE_SET) != 0) {
+                                    isVSAM2 = 0;
+                                }
+
+                                closeDataset(ds);
+                            }
+
+                            if (endTransaction(txptr,1) != 0) {
+                                maxcc = 12;
+                            }
+                        } else {
+                            printf("MAXCC=12 Missing or wrong DD statements.\n");
+                            maxcc = 12;
+                        }
+                    } else {
+                        printf("MAXCC=12 Missing or wrong DD statements.\n");
+                        maxcc = 12;
+                    }
                 }
             }
         }

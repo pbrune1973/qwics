@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 24.08.2023                                  */
+/*   Author: Philipp Brune               Date: 02.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -69,6 +69,7 @@ class DataSetDef {
   void setNext(DataSetDef *next);
   DataSet *open(int mode);
   DataSet *getDataSet();
+  char *getDsn();
   int cleanup(int conditionCode);
 };
 

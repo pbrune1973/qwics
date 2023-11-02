@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.09.2023                                  */
+/*   Author: Philipp Brune               Date: 02.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -398,6 +398,11 @@ printf("open datasetdef %d %x %s\n",defType,toc,dsn);
 
 DataSet *DataSetDef::getDataSet() {
   return this->dataSet;
+}
+
+
+char *DataSetDef::getDsn() {
+  return dsn;
 }
 
 
