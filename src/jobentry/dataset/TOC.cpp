@@ -81,7 +81,7 @@ TOC::TOC(char *volume) {
   
   sprintf(this->volume,"%s",volume);
   sprintf(path,"%s/VTOC",volume);
-cout << "Path " << path << " " << access(path,F_OK) << endl;
+//cout << "Path " << path << " " << access(path,F_OK) << endl;
   if (access(path,F_OK) < 0) {
     convertDsn((unsigned char*)volume,newEntry.dsn,memberName);
     sprintf(newEntry.path,"%s",path); 
@@ -174,15 +174,15 @@ int TOC::findDsn(unsigned char *dsn, int dsnSeg) {
   char *nameA,*nameB;
   
   do {
-    cout << "findDsn 1" << dsn << " " << dsnSeg << " " << tocData << endl;
+    //cout << "findDsn 1" << dsn << " " << dsnSeg << " " << tocData << endl;
     if (tocData->point(tocPos) < 0) return -1;
-    cout << "findDsn 2" << dsn << " " << dsnSeg << endl;
+    //cout << "findDsn 2" << dsn << " " << dsnSeg << endl;
     if (tocData->get((unsigned char*)&entry) < 0) return -1;
-    cout << "findDsn 3" << dsn << " " << dsnSeg << endl;
+    //cout << "findDsn 3" << dsn << " " << dsnSeg << endl;
 
     nameA = (char*)&(dsn[dsnSeg*9]);
     nameB = (char*)&(entry.dsn[dsnSeg*9]);
-cout << "findDsn " << nameA << " " << nameB << " " << tocPos << " " << dsnSeg << " " << entry.nextEntries[dsnSeg] << endl;
+//cout << "findDsn " << nameA << " " << nameB << " " << tocPos << " " << dsnSeg << " " << entry.nextEntries[dsnSeg] << endl;
 
     if (strcmp(nameA,nameB) == 0) {
       if (dsnSeg < 4) {
@@ -224,7 +224,7 @@ DataSet *TOC::allocate(unsigned char *dsn, char format, int recSize, int blockSi
   int i,n,accessMode;
   unsigned char memberName[9];
   struct PdsDirEntry userEntry;
-cout << "allocate DISP=" << disp << endl;
+//cout << "allocate DISP=" << disp << endl;
   userEntry.c = 0x00;   
   if (openMode == OPEN_RDWR) 
     accessMode = ACCESS_WRITE;
@@ -237,10 +237,10 @@ cout << "allocate " << dsn << endl;
   tocPos = 1;
   convertDsn(dsn,newEntry.dsn,memberName);
   int dsnSeg = findDsn(newEntry.dsn,0);
-cout << "dsnSeg " << dsnSeg << endl;
+//cout << "dsnSeg " << dsnSeg << endl;
 
   if (dsnSeg > 4) {
-    cout << "selected tocPos " << tocPos << endl;
+    //cout << "selected tocPos " << tocPos << endl;
     if ((disp == DISP_MOD) || (disp == DISP_OLD)) {
       tocData->unlock();
       if (disp == DISP_MOD) {
@@ -337,13 +337,14 @@ printf("Sizes %d %d\n",size,extend);
   
   if (dsnSeg >= 0) {
     entry.nextEntries[dsnSeg] = newPos;    
+/*
 cout << "nextEntries for " << tocPos << " "
                 << entry.nextEntries[0] << " "
                 << entry.nextEntries[1] << " "
                 << entry.nextEntries[2] << " "
                 << entry.nextEntries[3] << " "
                 << entry.nextEntries[4] << endl;
-
+*/
     if (tocData->point(tocPos) < 0) { tocData->unlock(); return NULL; }
     if (tocPos < 2) {
       // Toc entry of toc itself
@@ -359,7 +360,7 @@ cout << "nextEntries for " << tocPos << " "
     if (tocData->put((unsigned char*)&entry) < 0) { tocData->unlock(); return NULL; }
   }
 
-  cout << "selected tocPos " << newPos << endl;
+  //cout << "selected tocPos " << newPos << endl;
   tocData->unlock(); 
   if (newEntry.dirSize > 0) {
     if (memberName[0] != 0x00) {
@@ -383,7 +384,7 @@ cout << "remove " << dsn << endl;
   tocPos = 2;
   convertDsn(dsn,deletedEntry.dsn,memberName);
   dsnSeg = findDsn(deletedEntry.dsn,0);
-cout << "dsnSeg " << dsnSeg << endl;
+//cout << "dsnSeg " << dsnSeg << endl;
  
   if (dsnSeg > 4) {
     if (memberName[0] != 0x00) {

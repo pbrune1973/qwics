@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Dataset-based ISAM DB (VSAM replacement)                                 */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 27.07.2023                                  */
+/*   Author: Philipp Brune               Date: 19.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -34,6 +34,7 @@ int stopIsamDB();
 
 // Dataset access
 void* openDataset(char *name);
+int removeDataset(char *name, void *txptr);
 int put(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl);
 int get(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl, int mode);
 int del(void *dsptr, void *txptr, unsigned char *rid, int idlen);

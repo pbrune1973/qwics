@@ -45,8 +45,6 @@ JobCard::JobCard(char *name) {
 
 
 JobCard::~JobCard() {
-cout << "destruct " << name << endl;
-
   delete name;
   //if (params != NULL) delete params;
   if (runtimeParams != NULL) delete runtimeParams;
@@ -57,7 +55,6 @@ cout << "destruct " << name << endl;
     delete sourceLines[i];
   }
   delete sourceLines;
-cout << "destruct end " << endl;
 }
   
 

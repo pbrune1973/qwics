@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL environment standard dataset service program replacements          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 14.10.2023                                  */
+/*   Author: Philipp Brune               Date: 02.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -29,6 +29,11 @@
 extern "C" {
 #include "../../tpmserver/dataset/isamdb.h"
 }
+
+typedef struct {
+    int len;
+    int pos;
+} keyDef;
 
 
 int open(char *ddName, int in, int out, JobCard *exec) {
@@ -96,24 +101,29 @@ int get(char *ddName, unsigned char *data, JobCard *exec) {
 
 int idcams(JobCard *exec) {
     printf("IDCAMS started\n");
+    int maxcc = 0;
 
     if (open("SYSIN",1,0,exec) < 0) {
         printf("MAXCC=12 Could not open SYSIN\n.");
         return 12;
     }
 
-    char tokens[MAX_TOKENS][50];
+    char *tokens[MAX_TOKENS];
+    int n;
+    for (n = 0; n < MAX_TOKENS; n++) {
+        tokens[n] = (char*)malloc(50);
+    }
     int tokenNum = 0;
     char linebuf[256];
     char *isamDatasetDir;
 
     startIsamDB(GETENV_STRING(isamDatasetDir,"QWICS_DATASET_DIR","../dataset"));
 
-    while (get("SYSIN",(unsigned char*)&linebuf,exec) == 0) {
+    while ((get("SYSIN",(unsigned char*)&linebuf,exec) == 0) && (maxcc == 0)){
         linebuf[80] = 0x00;
-        printf("%s\n",linebuf);
+        //printf("%s\n",linebuf);
 
-        if (tokenize(linebuf,(char**)tokens,&tokenNum)) {
+        if (tokenize(linebuf,tokens,&tokenNum)) {
             continue;
         } else {
             int i;
@@ -123,22 +133,74 @@ int idcams(JobCard *exec) {
 
             if (tokenNum > 0) {
                 if (strcmp(tokens[0],"DEFINE") == 0) {
-                
+                    if (getTokenIndex("CLUSTER",tokens,tokenNum) == 1) {
+                        int idx1 = getTokenIndex("NAME",tokens,tokenNum);
+                        if ((idx1 > 1) && (idx1+2 < tokenNum)) {
+                            void *txptr = beginTransaction();
+                            char *dsn = tokens[idx1+2];
+                        
+                            void *ds = openDataset(dsn);
+                            if (ds != NULL) {
+                                closeDataset(ds);
+
+                                ds = openDataset("SYS.KSDS.KEYS");
+                                if (ds != NULL) {
+                                    idx1 = getTokenIndex("KEYS",tokens,tokenNum);
+                                    if ((idx1 > 1) && (idx1+3 < tokenNum))  {
+                                        keyDef key;
+                                        key.len = atoi(tokens[idx1+2]);
+                                        if (key.len <= 0) {
+                                            key.len = 0;
+                                        } 
+                                        key.pos = atoi(tokens[idx1+3]);
+
+                                        put(ds,txptr,NULL,(unsigned char*)dsn,strlen(dsn),(unsigned char*)&key,sizeof(key));
+                                    }
+                                    closeDataset(ds);
+                                }
+                            } else {
+                                maxcc = 12;
+                            }
+
+                            if (endTransaction(txptr,1) != 0) {
+                                maxcc = 12;
+                            }
+                        }
+                    }
                 }
 
                 if (strcmp(tokens[0],"DELETE") == 0) {
-                    
+                    if (tokenNum > 1) {
+                        void *txptr = beginTransaction();
+                        char *dsn = tokens[1];
+
+                        void *ds = openDataset("SYS.KSDS.KEYS");
+                        if (ds != NULL) {
+                            del(ds,txptr,(unsigned char*)dsn,strlen(dsn));
+                            closeDataset(ds);
+                        }
+
+                        removeDataset(dsn,txptr);
+
+                        if (endTransaction(txptr,1) != 0) {
+                            maxcc = 12;
+                        }
+                    }
                 }
 
                 if (strcmp(tokens[0],"REPRO") == 0) {
-                    int idx1 = getTokenIndex("INDD",(char**)tokens,tokenNum);
+                    int idx1 = getTokenIndex("INFILE",tokens,tokenNum);
                     if (idx1 < 0) {
                         printf("MAXCC=12 Missing parameter INDD\n.");
-                        return 12;
+                        maxcc = 12;
                     }                    
                 }
             }
         }
+    }
+
+    for (n = 0; n < MAX_TOKENS; n++) {
+        free(tokens[n]);
     }
 
     stopIsamDB();
@@ -148,8 +210,12 @@ int idcams(JobCard *exec) {
         return 12;
     }
 
+    if (maxcc > 0) {
+        printf("MAXCC=%d error\n.",maxcc);
+    }
+
     printf("IDCAMS finished\n");
-    return 0;
+    return maxcc;
 }
 
 

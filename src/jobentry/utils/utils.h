@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL environment standard dataset service program replacements          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.09.2023                                  */
+/*   Author: Philipp Brune               Date: 19.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */

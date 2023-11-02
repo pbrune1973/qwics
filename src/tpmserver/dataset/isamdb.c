@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Dataset-based ISAM DB (VSAM replacement)                                 */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.08.2023                                  */
+/*   Author: Philipp Brune               Date: 19.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -67,6 +67,15 @@ void* openDataset(char *name) {
 		return NULL;
 	}
 	return (void*)dbp;
+}
+
+int removeDataset(char *name, void *txptr) {
+	int ret = 0;
+	if ((ret = envp->dbremove(envp, txptr, NULL, name, 0)) != 0) {
+		fprintf(stderr, "dbremove: %s\n", db_strerror(ret));
+        return 0;
+	}	
+	return 1;
 }
 
 int put(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, unsigned char *rec, int lrecl) {

@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 30.08.2023                                  */
+/*   Author: Philipp Brune               Date: 02.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -44,7 +44,6 @@ DD::DD(char *name) : JobCard(name) {
 
 
 DD::~DD() {
-  cout << "destruct DD " << endl;
   int i;
 
   if (fileName != NULL) delete fileName;
@@ -54,7 +53,6 @@ DD::~DD() {
   }
   */
   if (dataSetDef != NULL) delete dataSetDef;
-  cout << "destruct DD end " << endl;
 }
   
 
@@ -244,7 +242,7 @@ int DD::execute() {
         context->writeLog(0,"TOO MANY SYSOUT DATASETS CREATED (>40)");
         throw ABORT_EXCPT;
       }
-      sprintf(submits[numOfSubmits].msgClass,"%s",msgClass);
+      sprintf(submits[numOfSubmits].msgClass,"_%s",msgClass);
       submits[numOfSubmits].params = myOUTPUT->getParameters()->getRuntimeParams(this->getParameters(),NULL,NULL);
       numOfSubmits++;
     } else 
@@ -321,7 +319,7 @@ int DD::execute() {
           context->writeLog(0,"TOO MANY SYSOUT DATASETS CREATED (>40)");
           throw ABORT_EXCPT;
         }
-        sprintf(submits[numOfSubmits].msgClass,"%s",msgClass);
+        sprintf(submits[numOfSubmits].msgClass,"_%s",msgClass);
         submits[numOfSubmits].params = myOUTPUT->getParameters()->getRuntimeParams(this->getParameters(),NULL,NULL);
         numOfSubmits++;
         i++;
@@ -346,7 +344,7 @@ int DD::execute() {
         context->writeLog(0,"TOO MANY SYSOUT DATASETS CREATED (>40)");
         throw ABORT_EXCPT;
       }
-      sprintf(submits[numOfSubmits].msgClass,"%s",msgClass);
+      sprintf(submits[numOfSubmits].msgClass,"_%s",msgClass);
       if (myOUTPUT != NULL) {
         submits[numOfSubmits].params = myOUTPUT->getParameters()->getCopy();
       } else {

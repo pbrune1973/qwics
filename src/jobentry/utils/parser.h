@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL environment standard dataset service program replacements          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 10.10.2023                                  */
+/*   Author: Philipp Brune               Date: 20.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -25,7 +25,7 @@
 
 extern int comment;
 
-int tokenize(char *line, char **tokens, int *tokenNum);
-int getTokenIndex(char *name, char **tokens, int tokenNum);
+int tokenize(char *line, char *tokens[], int *tokenNum);
+int getTokenIndex(char *name, char *tokens[], int tokenNum);
 
 #endif

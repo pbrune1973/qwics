@@ -168,16 +168,12 @@ JobInfo JobClassQueue::get(char status) {
   job.job = NULL;
   job.params = NULL;
   job.fileName = NULL;
-cout << "get " << status << " " << this <<endl;
 
-cout << "get entries " << semaphore_value(&entriesThere) << endl;
   semaphore_down(&entriesThere);
-cout << "get continue " << endl;
   pthread_mutex_lock(&queueMutex);
 cout << "get " << readFile << " " << writeFile << " " << queueFile[readFile] << endl;
 
   wf = fopen(queueFile[readFile],"r+");
-cout << "get " << wf << endl;
   if (wf == NULL) {
     pthread_mutex_unlock(&queueMutex);
     return(job);
@@ -192,7 +188,6 @@ cout << "get " << wf << endl;
         pos = ftell(wf)-23;
       }
 
-cout << count << " " << job.jobId << " " << job.status << " " << pos << endl;
       count++;
     }
   } while (!feof(wf) && !ferror(wf) && (pos < 0));
@@ -271,14 +266,11 @@ JobInfo JobClassQueue::get(char status, char *jobName, char *jobId, int keep) {
   job.params = NULL;
   job.fileName = NULL;
 
-cout << "get entries " << semaphore_value(&entriesThere) << endl;
   semaphore_down(&entriesThere);
-cout << "get continue " << endl;
   pthread_mutex_lock(&queueMutex);
 cout << "get " << readFile << " " << writeFile << " " << queueFile[readFile] << endl;
 
   wf = fopen(queueFile[readFile],"r+");
-cout << "get " << wf << endl;   
   if (wf == NULL) {
     pthread_mutex_unlock(&queueMutex);
     return(job);
@@ -422,7 +414,6 @@ int JobClassQueue::put(JobInfo job) {
 cout << "put " << readFile << " " << writeFile << " " << queueFile[writeFile] << endl;
 
  wf = fopen(queueFile[writeFile],"a");
-cout << "put " << wf << " " << this << endl;  
  if (wf == NULL) {
     pthread_mutex_unlock(&queueMutex);
     return -1;
@@ -431,7 +422,6 @@ cout << "put " << wf << " " << this << endl;
  fwrite(&job,23,1,wf);
 
  if (fclose(wf) != 0) {
-cout << "put fclose " << endl;  
    unlink(getJobFileName(job.jobId));
    pthread_mutex_unlock(&queueMutex);
    return -1;
@@ -444,17 +434,13 @@ cout << "put fclose " << endl;
    }
  }
 
-cout << "put 2 " << i << " " << memQueued << " " << job.job << endl; 
  if (i >= memQueued) {
    if (job.job != NULL) delete job.job;
    if (job.fileName != NULL) delete job.fileName;
    if (job.params != NULL) delete job.params;
  }
-cout << "put 3" << endl;  
 
  semaphore_up(&entriesThere);
-cout << "put 4" << endl;  
  pthread_mutex_unlock(&queueMutex);
-cout << "put 5" << endl;  
  return 0;
 }

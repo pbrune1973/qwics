@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL environment standard dataset service program replacements          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 12.10.2023                                  */
+/*   Author: Philipp Brune               Date: 20.10.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -29,7 +29,7 @@
 int comment = 0;
 
 
-int tokenize(char *line, char **tokens, int *tokenNum) {
+int tokenize(char *line, char *tokens[], int *tokenNum) {
     int l = strlen(line),i;
     int tokenPos = 0;
     int verbatim = 0;
@@ -54,10 +54,10 @@ int tokenize(char *line, char **tokens, int *tokenNum) {
         if (line[i] == '\'') {
             if (verbatim > 0) {
                 if (tokenPos > 0) {
-                    tokens[*tokenNum][tokenPos] = 0x00;
+                    tokens[(*tokenNum)][tokenPos] = 0x00;
                     tokenPos = 0;
                     (*tokenNum)++;
-                    if (*tokenNum >= MAX_TOKENS) {
+                    if ((*tokenNum) >= MAX_TOKENS) {
                         return 0;
                     }
                 }                
@@ -69,7 +69,7 @@ int tokenize(char *line, char **tokens, int *tokenNum) {
         }
 
         if (verbatim > 0) {
-            tokens[*tokenNum][tokenPos] = line[i];
+            tokens[(*tokenNum)][tokenPos] = line[i];
             tokenPos++;
             if (tokenPos >= 50) {
                 return 0;
@@ -80,34 +80,34 @@ int tokenize(char *line, char **tokens, int *tokenNum) {
         if ((line[i] == ' ') || (line[i] == '(') || (line[i] == ')') || 
             (line[i] == '=') || (line[i] == ',') || (line[i] == '-')) {
             if (tokenPos > 0) {
-                tokens[*tokenNum][tokenPos] = 0x00;
+                tokens[(*tokenNum)][tokenPos] = 0x00;
                 tokenPos = 0;
                 (*tokenNum)++;
-                if (*tokenNum >= MAX_TOKENS) {
+                if ((*tokenNum) >= MAX_TOKENS) {
                     return 0;
                 }
             }
 
             if (line[i] != ' ') {
-                tokens[*tokenNum][tokenPos] = line[i];
+                tokens[(*tokenNum)][tokenPos] = line[i];
                 tokenPos++;
                 if (tokenPos >= 50) {
                     return 0;
                 }
-                tokens[*tokenNum][tokenPos] = 0x00;
+                tokens[(*tokenNum)][tokenPos] = 0x00;
                 tokenPos = 0;
                 (*tokenNum)++;
-                if (*tokenNum >= MAX_TOKENS) {
+                if ((*tokenNum) >= MAX_TOKENS) {
                     return 0;
                 }
             }
 
-            if (line[i] != '-') {
+            if (line[i] == '-') {
                 // Has continuation line
                 return 1;
             }
         } else {
-            tokens[*tokenNum][tokenPos] = line[i];
+            tokens[(*tokenNum)][tokenPos] = line[i];
             tokenPos++;
             if (tokenPos >= 50) {
                 return 0;
@@ -119,7 +119,7 @@ int tokenize(char *line, char **tokens, int *tokenNum) {
 }
 
 
-int getTokenIndex(char *name, char **tokens, int tokenNum) {
+int getTokenIndex(char *name, char *tokens[], int tokenNum) {
     int i;
 
     for (i = 0; i < tokenNum; i++) {

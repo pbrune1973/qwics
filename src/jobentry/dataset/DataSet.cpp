@@ -111,7 +111,7 @@ DataSet::DataSet(struct TocEntry &entry, int accessMode) {
 
   if ((*this->entry).format == 'F') {
     if (mod) {
-cout << "eodPos = " << this->entry->eodPos << " " << this->entry->recSize << endl;
+//cout << "eodPos = " << this->entry->eodPos << " " << this->entry->recSize << endl;
       this->point(this->entry->eodPos/this->entry->recSize);
     } else {
       this->point((long)0);
@@ -216,7 +216,7 @@ cout << entry->numOfExtends << endl;
 
   if ((*this->entry).format == 'F') {
     if (mod) {
-      cout << "eodPos = " << this->entry->eodPos << " " << this->entry->recSize << endl;
+      //cout << "eodPos = " << this->entry->eodPos << " " << this->entry->recSize << endl;
       this->point(this->entry->eodPos/this->entry->recSize);
     } else {
       this->point((long)0);
