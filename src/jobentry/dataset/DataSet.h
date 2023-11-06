@@ -121,7 +121,7 @@ class DataSet {
   DataSet(struct TocEntry &entry, int accessMode);
   DataSet(DataSet *toc, unsigned long tocPos, int accessMode);
   DataSet(char *path, struct TocEntry &entry, int accessMode);
-  ~DataSet();
+  virtual ~DataSet();
 
   void lock();
   void unlock();

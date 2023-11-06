@@ -104,10 +104,15 @@ JobClassQueue::JobClassQueue(char *spoolDir, char *name, int memQueued, int swit
 
 JobClassQueue::~JobClassQueue() {
   if (jobs != NULL) delete jobs;
+  jobs = NULL;
   if (queueFile[0] != NULL) delete queueFile[0];
+  queueFile[0] = NULL;
   if (queueFile[1] != NULL) delete queueFile[1];
+  queueFile[1] = NULL;
   if (spoolDir != NULL) delete spoolDir;
+  spoolDir = NULL;
   if (jobFile != NULL) delete jobFile;
+  jobFile = NULL;
   semaphore_destroy(&entriesThere);
 }
 
@@ -436,8 +441,11 @@ cout << "put " << readFile << " " << writeFile << " " << queueFile[writeFile] <<
 
  if (i >= memQueued) {
    if (job.job != NULL) delete job.job;
+   job.job = NULL;
    if (job.fileName != NULL) delete job.fileName;
+   job.fileName = NULL;
    if (job.params != NULL) delete job.params;
+   job.params = NULL;
  }
 
  semaphore_up(&entriesThere);

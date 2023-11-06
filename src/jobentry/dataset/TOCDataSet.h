@@ -31,7 +31,7 @@ class TOCDataSet : public DataSet {
 
  public:
   TOCDataSet(char *path, struct TocEntry &entry, int accessMode);
-  ~TOCDataSet();
+  virtual ~TOCDataSet();
   virtual int read(unsigned long blockNr, unsigned char *block);
   virtual int write(unsigned long blockNr, unsigned char *block);
 };

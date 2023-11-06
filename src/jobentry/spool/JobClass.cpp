@@ -66,10 +66,13 @@ JobClass::~JobClass() {
   if (initiators != NULL) {
     for (i = 0; i < maxNumOfInitiators; i++) {
       if (initiators[i] != NULL) delete initiators[i];
+      initiators[i] = NULL;
     }
   }
   if (queue != NULL) delete queue; 
+  queue = NULL;
   if (initiators != NULL) delete initiators; 
+  initiators = NULL;
 } 
  
 

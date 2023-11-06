@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 11.06.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -45,7 +45,7 @@ class JobClass {
            char *spoolDir, 
            int memQueued, 
            int switchLimit);
-  ~JobClass();
+  virtual ~JobClass();
   
   char *getName();
   int addInitiator(int stop);

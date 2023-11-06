@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -36,7 +36,7 @@ class OutputWriter : public Initiator {
   OutputWriter(JobClassQueue *queue, int stop);
   OutputWriter(JobClassQueue *queue, CardReader *reader, char *jobName, 
                char *jobId, int keep);
-  ~OutputWriter();
+  virtual ~OutputWriter();
   
   virtual void run();
 };

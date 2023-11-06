@@ -77,7 +77,9 @@ EXEC::EXEC(char *name) : JobCard(name) {
 
 EXEC::~EXEC() {
   if (procLib != NULL) delete procLib;
+  procLib = NULL;
   if (linkLib != NULL) delete linkLib;  
+  linkLib = NULL;
 }
   
 

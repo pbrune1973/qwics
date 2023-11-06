@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -24,7 +24,7 @@
 class JOB : public JobCard {
  public:
   JOB(char *name);
-  ~JOB();
+  virtual ~JOB();
 
   virtual int execute();
   virtual void print(FILE *file);

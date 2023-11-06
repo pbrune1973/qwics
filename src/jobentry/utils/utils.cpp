@@ -345,7 +345,7 @@ int iebgener(JobCard *exec) {
             n = ds2->getRecSize();
         }
             
-        unsigned char *data = (unsigned char*)malloc(n);
+        unsigned char *data = (unsigned char*)malloc(ds1->getRecSize());
         unsigned char *data2 = (unsigned char*)malloc(ds2->getRecSize());
 
         if (data != NULL && data2 != NULL) {
@@ -357,7 +357,7 @@ int iebgener(JobCard *exec) {
                 } 
                 memcpy(data2,data,n);
                 char line[73];
-                memcpy(line,data,n);
+                memcpy(line,data,72);
                 line[72] = 0x00;
                 printf("%s\n",line);
                 ds2->put(data2);

@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.10.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -57,7 +57,7 @@ class JobClassQueue {
          
  public:
   JobClassQueue(char *spoolDir, char *name, int memQueued, int switchLimit);
-  ~JobClassQueue();
+  virtual ~JobClassQueue();
   
   JobInfo get(char status);
   JobInfo get(char status, char *jobName, char *jobId, int keep);

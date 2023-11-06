@@ -48,7 +48,7 @@ class PartitionedDataSet : public DataSet {
  public:
   PartitionedDataSet(struct TocEntry &entry, int accessMode);
   PartitionedDataSet(DataSet *toc, unsigned long tocPos, int accessMode);
-  ~PartitionedDataSet();
+  virtual ~PartitionedDataSet();
 
   int stow(struct PdsDirEntry *e);
   virtual DataSet *findMember(char *name, struct PdsDirEntry *e);

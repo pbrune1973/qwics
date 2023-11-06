@@ -31,6 +31,10 @@ FileDataSet::FileDataSet(char *path, struct TocEntry &entry) :
     DataSet() {
   this->entry = &(stateData.entry);
   (*this->entry) = entry;
+  block = NULL;
+  emptyBlock = NULL;
+  eod = NULL;
+  writeImmediate = 1;
 
   dataFile = fopen(path,"rb");
 }
@@ -39,7 +43,9 @@ FileDataSet::FileDataSet(char *path, struct TocEntry &entry) :
 FileDataSet::~FileDataSet() {
   if (dataFile != NULL) {
     fclose(dataFile);
+    dataFile = NULL;
   }
+  accessMode = 0;
 }
 
 

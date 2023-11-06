@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -38,7 +38,7 @@ class Initiator {
  public:
   Initiator(JobClassQueue *queue, int stop, 
             unsigned long memLimit, unsigned long cpuLimit);
-  ~Initiator();
+  virtual ~Initiator();
   
   virtual void run();
   void stop();

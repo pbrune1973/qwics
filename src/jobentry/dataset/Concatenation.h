@@ -37,7 +37,7 @@ class Concatenation : public PartitionedDataSet {
  
  public:
   Concatenation(DataSet *firstDataSet);
-  ~Concatenation();
+  virtual ~Concatenation();
 
   int addDataSet(DataSet *newDataSet);
   virtual int point(long recNr);

@@ -34,7 +34,7 @@ class Member : public DataSet {
  public:
   Member(long startBlockNr, DataSet *toc, unsigned long tocPos, 
          int accessMode, PartitionedDataSet *pds, int isNew);
-  ~Member();
+  virtual ~Member();
 
   long getStartBlockNr();
   void setAutoDeletePDS(int autoDeletePDS);

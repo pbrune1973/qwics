@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -83,7 +83,8 @@ cout << "Initiator started 2 " << queue << endl;
         SpoolingSystem::spoolingSystem->submitToClass(logFileInfo,"_SYSOUT");
       }
 
-      delete job.job;
+      if (job.job != NULL) delete job.job;
+      job.job = NULL;
     }
     delete context;
     pthread_mutex_lock(&stopMutex);

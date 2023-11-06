@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.08.2023                                  */
+/*   Author: Philipp Brune               Date:06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -51,6 +51,7 @@ printf("Creating JOB subdir %s\n",jobDir);
 
   if (mkdir(jobDir,S_IRWXU | S_IXGRP | S_IRGRP | S_IXOTH | S_IROTH) < 0) {
     context->writeLog(0,"ERROR CREATING JOB SUBDIRECTORY");
+    delete jobDir;
     return errno;
   }
 
@@ -71,6 +72,7 @@ printf("Creating JOB subdir %s\n",jobDir);
 
   if (rmdir(jobDir) < 0) {
     context->writeLog(0,"ERROR DELETING JOB SUBDIRECTORY");
+    delete jobDir;
     return errno;
   }
 

@@ -92,8 +92,10 @@ void OutputWriter::run() {
         } else {  
           RuntimeContext::deleteSysoutFile(job.fileName);
         }
-        delete job.fileName;
-        delete job.params;
+        if (job.fileName != NULL) job.fileName;
+        job.fileName = NULL;
+        if (job.params != NULL) job.params;
+        job.params = NULL;
       }
 
       if (jobId != NULL) {

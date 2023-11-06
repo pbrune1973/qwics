@@ -28,7 +28,7 @@
 class FileDataSet : public DataSet {    
   public:
     FileDataSet(char *path, struct TocEntry &entry);
-    ~FileDataSet();
+    virtual ~FileDataSet();
 
     virtual int get(unsigned char *record);
 };
