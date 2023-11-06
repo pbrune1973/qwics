@@ -403,6 +403,7 @@ int DD::executeSpecial(Parameters *params, JobCard *SubCards) {
     myEXEC = context->top();
     dataSetDef->cleanup(myEXEC->getConditionCode());
     delete dataSetDef;
+    dataSetDef = NULL;
   }
 
   while (i < numOfSubmits) {

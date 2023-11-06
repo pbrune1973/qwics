@@ -340,7 +340,7 @@ cout << (*this->entry).numOfExtends << endl;
 
 DataSet::~DataSet() {
   struct RequestParameters r;
-cout << "Destruct DataSet " << entry->path << endl;
+
   if (eod != NULL) {
     if ((*eodPos) >= 0) {
       if (entry->format == 'F') {
@@ -371,13 +371,11 @@ cout << "Destruct DataSet " << entry->path << endl;
   block = NULL;
   if (emptyBlock != NULL) delete emptyBlock;  
   emptyBlock = NULL;
-cout << "Destruct DataSet 2 " << endl;
 
   if (accessMode & ACCESS_LOCK) {
     lockManager->releaseLock(entry->path);    
     accessMode = 0;
   }
-cout << "Destruct DataSet 3 " << endl;
 }
 
 

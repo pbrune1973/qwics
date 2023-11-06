@@ -58,14 +58,11 @@ printf("Creating JOB subdir %s\n",jobDir);
   context->push(this);
   
   while (card != NULL) {
-    printf("run job card %x\n",card);
     card->setRuntimeContext(context);
     int rc = card->execute();
     if (rc > condCode) condCode = rc;
-    printf("end job card rc=%d\n",rc);
  
     card = card->nextJobCard;
-    printf("next job card %x\n",card);
   }
   
   context->pop();
