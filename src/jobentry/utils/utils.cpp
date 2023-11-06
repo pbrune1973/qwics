@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL environment standard dataset service program replacements          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 02.11.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2018-2023 by Philipp Brune  Email: Philipp.Brune@qwics.de               */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -233,6 +233,50 @@ int idcams(JobCard *exec) {
                                 }
 
                                 closeDataset(ds);
+cout << "REPRO " << isVSAM1 << " " << isVSAM2 << endl;
+
+                                DataSet *ds1 = NULL, *ds2 = NULL;
+                                unsigned char *data = NULL;
+
+                                if (isVSAM1) {
+                                    
+                                } else {
+                                    ds1 = dd1->getDataSetDef()->open(OPEN_RDONLY);
+                                    if (ds1 == NULL) {
+                                        printf("MAXCC=12 Could not open infile dataset.\n");
+                                        maxcc = 12;
+                                    } else {
+                                        data = (unsigned char*)malloc(ds1->getRecSize());
+                                        if (data == NULL) {
+                                            delete ds1;
+                                            ds1 = NULL;
+                                        }
+                                    }
+                                }
+
+                                int hasNext = 1;
+                                while (hasNext) {
+                                    if (isVSAM1) {
+
+                                    } else {
+                                        if (ds1 != NULL) {
+                                            if (ds1->get(data) < 0) {
+                                               hasNext = 0;
+                                            }
+                                        } else {
+                                            hasNext = 0;
+                                        }
+                                    }
+                                }
+
+                                if (isVSAM1) {
+
+                                } else {
+                                    if (ds1 != NULL) {
+                                        free(data);
+                                        delete ds1;  
+                                    }                                        
+                                }
                             }
 
                             if (endTransaction(txptr,1) != 0) {
@@ -274,4 +318,59 @@ int idcams(JobCard *exec) {
 int sdsf(JobCard *exec) {
     printf("SDSF started\n");
     return 0;
+}
+
+
+int iebgener(JobCard *exec) {
+    printf("IEBGENER started\n");
+    int maxcc = 0;
+    DD *dd1 = (DD*)exec->getSubCard("SYSUT1");
+    DD *dd2 = (DD*)exec->getSubCard("SYSUT2");
+
+    DataSet *ds1 = dd1->getDataSetDef()->open(OPEN_RDONLY);
+    if (ds1 == NULL) {
+        printf("MAXCC=12 Could not open SYSUT1 dataset.\n");
+        maxcc = 12;
+    } 
+
+    DataSet *ds2 = dd2->getDataSetDef()->open(OPEN_RDWR);
+    if (ds2 == NULL) {
+        printf("MAXCC=12 Could not open SYSUT2 dataset.\n");
+        maxcc = 12;
+    } 
+
+    if (ds1 != NULL & ds2 != NULL) {
+        int n = ds1->getRecSize();
+        if (ds2->getRecSize() < n) {
+            n = ds2->getRecSize();
+        }
+            
+        unsigned char *data = (unsigned char*)malloc(n);
+        unsigned char *data2 = (unsigned char*)malloc(ds2->getRecSize());
+
+        if (data != NULL && data2 != NULL) {
+            int hasNext = 1;
+            while (hasNext) {
+                if (ds1->get(data) < 0) {
+                    hasNext = 0;
+                    continue;
+                } 
+                memcpy(data2,data,n);
+                char line[73];
+                memcpy(line,data,n);
+                line[72] = 0x00;
+                printf("%s\n",line);
+                ds2->put(data2);
+            }
+
+            free(data);
+            free(data2);
+        }
+
+        delete ds1;         
+        delete ds2;     
+    }
+
+    printf("IEBGENER finished\n");
+    return maxcc;
 }

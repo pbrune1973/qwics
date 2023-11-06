@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 02.11.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -107,8 +107,11 @@ DataSetDef::DataSetDef(Parameters *ddParams) {
     val = pval->getValue("BLKSIZE",0);
     if ((val != NULL) && isNumber(val)) {
       blockSize = atoi(val);
+      if (blockSize == 0) {
+        blockSize = recSize*10;     
+      }  
     } else {
-      blockSize = recSize*100;     
+      blockSize = recSize*10;     
     }
     
     // Evaluate SPACE parameters
@@ -255,14 +258,17 @@ DataSetDef::DataSetDef(char *fileName, Parameters *ddParams) {
   val = pval->getValue("BLKSIZE",0);
   if ((val != NULL) && isNumber(val)) {
     blockSize = atoi(val);
+    if (blockSize == 0) {
+      blockSize = recSize*10;     
+    }  
   } else {
-    blockSize = recSize*100;     
+    blockSize = recSize*10;     
   }
-    
+
   // Evaluate SPACE parameters
   spaceType = SPACETYPE_TRK;
-  size = 100;
-  extend = 100;
+  size = 1;
+  extend = 1;
   dirSize = 0;
     
   pval = ddParams->getPValue("SPACE",0);
@@ -301,14 +307,14 @@ DataSetDef::DataSetDef(char *fileName, Parameters *ddParams) {
 
   switch (spaceType) {
     case SPACETYPE_BLK : break;
-    case SPACETYPE_TRK : size = size*56664/blockSize+blockSize;
-                         extend = extend*56664/blockSize+blockSize; 
+    case SPACETYPE_TRK : size = size*56664/blockSize+1;
+                         extend = extend*56664/blockSize+1; 
                          break;
-    case SPACETYPE_CYL : size = size*56664*15/blockSize+blockSize;
-                         extend = extend*56664*15/blockSize+blockSize; 
+    case SPACETYPE_CYL : size = size*56664*15/blockSize+1;
+                         extend = extend*56664*15/blockSize+1; 
                          break;
-    case SPACETYPE_MB :  size = size*1024*1024/blockSize+blockSize;
-                         extend = extend*1024*1024/blockSize+blockSize;
+    case SPACETYPE_MB :  size = size*1024*1024/blockSize+1;
+                         extend = extend*1024*1024/blockSize+1;
                          break;
   }
 
@@ -375,6 +381,9 @@ printf("open datasetdef %d %x %s\n",defType,toc,dsn);
                        break;
     case DEFTYPE_FILE: dataSet = new DataSet(entry,mode);
                        break;
+    case DEFTYPE_DSNFILE: 
+                       dataSet = new FileDataSet(entry.path,entry);
+                       break;
   }
   
   if ((next != NULL) && (dataSet != NULL)) {
@@ -427,4 +436,9 @@ int DataSetDef::cleanup(int conditionCode) {
   }
   
   return 0;
+}
+
+
+void DataSetDef::setDefType(int defType) {
+  this->defType = defType;
 }

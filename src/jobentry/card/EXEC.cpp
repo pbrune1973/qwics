@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.09.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -165,6 +165,10 @@ printf("%s%s%s\n","execPGM *",pgm,"*");
 
   if (strcmp(pgm,"SDSF") == 0) {
     return idcams(this);
+  }
+
+  if (strcmp(pgm,"IEBGENER") == 0) {
+    return iebgener(this);
   }
 
   childPID = fork();

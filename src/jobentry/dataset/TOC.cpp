@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 08.09.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -286,14 +286,14 @@ cout << "allocate " << dsn << endl;
   
   switch (spaceType) {
     case SPACETYPE_BLK : break;
-    case SPACETYPE_TRK : size = size*56664/blockSize+blockSize;
-                         extend = extend*56664/blockSize+blockSize; 
+    case SPACETYPE_TRK : size = size*56664/blockSize+1;
+                         extend = extend*56664/blockSize+1; 
                          break;
-    case SPACETYPE_CYL : size = size*56664*15/blockSize+blockSize;
-                         extend = extend*56664*15/blockSize+blockSize; 
+    case SPACETYPE_CYL : size = size*56664*15/blockSize+1;
+                         extend = extend*56664*15/blockSize+1; 
                          break;
-    case SPACETYPE_MB :  size = size*1024*1024/blockSize+blockSize;
-                         extend= extend*1024*1024/blockSize+blockSize;
+    case SPACETYPE_MB :  size = size*1024*1024/blockSize+1;
+                         extend= extend*1024*1024/blockSize+1;
                          break;
   }
 printf("Sizes %d %d\n",size,extend);

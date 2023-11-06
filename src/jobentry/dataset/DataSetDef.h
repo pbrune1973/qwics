@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 02.11.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -21,7 +21,7 @@
 #ifndef _DataSetDef_h
 #define _DataSetDef_h
 
-#include "DataSet.h"
+#include "FileDataSet.h"
 #include "TOC.h"
 #include "../card/Parameters.h"
 #include "Catalog.h"
@@ -30,11 +30,12 @@
 #define DISP_DELETE  1
 #define DISP_PASS    2
 
-#define DEFTYPE_NONE   0   
-#define DEFTYPE_DUMMY  1
-#define DEFTYPE_TERM   2  
-#define DEFTYPE_DSN    3   
-#define DEFTYPE_FILE   4
+#define DEFTYPE_NONE    0   
+#define DEFTYPE_DUMMY   1
+#define DEFTYPE_TERM    2  
+#define DEFTYPE_DSN     3   
+#define DEFTYPE_FILE    4
+#define DEFTYPE_DSNFILE 5
 
 
 class DataSetDef {
@@ -71,6 +72,7 @@ class DataSetDef {
   DataSet *getDataSet();
   char *getDsn();
   int cleanup(int conditionCode);
+  void setDefType(int defType);
 };
 
 #endif

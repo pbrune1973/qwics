@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 02.11.2023                                  */
+/*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -377,6 +377,12 @@ int DD::execute() {
       fileName[i] = 0x00;
       deleteFile = 0;
     }
+  } else 
+  if ((path = params->getValue("DSNPATH",0)) != NULL) {
+    // Uncataloged dataset image import file in Unix filesystem (QWICS extension)
+cout << " DSNPATH detected " << path << endl;
+    dataSetDef = new DataSetDef(path,params);
+    dataSetDef->setDefType(DEFTYPE_DSNFILE);
   } else {
     // Normal DD card
     dataSetDef = new DataSetDef(params);

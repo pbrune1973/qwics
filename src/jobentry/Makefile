@@ -6,8 +6,8 @@ OBJS = spool/JCLParser.o spool/SpoolingSystem.o spool/JobClass.o spool/OutputCla
        spool/CardReader.o spool/semaphore.o card/RuntimeContext.o card/Parameters.o card/JobCard.o \
 	   card/JOB.o card/EXEC.o card/DD.o card/PROC.o card/SET.o card/OUTPUT.o \
 	   dataset/LockManager.o dataset/DataSet.o dataset/TOC.o dataset/Member.o dataset/ebcdic.o \
-	   dataset/PartitionedDataSet.o dataset/TOCDataSet.o dataset/Concatenation.o dataset/Catalog.o \
-	   dataset/DataSetDef.o env/envconf.o utils/utils.o utils/parser.o jobentry.o 
+	   dataset/PartitionedDataSet.o dataset/TOCDataSet.o dataset/FileDataSet.o dataset/Concatenation.o \
+	   dataset/Catalog.o dataset/DataSetDef.o env/envconf.o utils/utils.o utils/parser.o jobentry.o 
 
 
 DEFINES = 

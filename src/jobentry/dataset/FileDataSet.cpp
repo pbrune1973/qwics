@@ -1,9 +1,9 @@
 /*******************************************************************************************/
-/*   QWICS Server COBOL environment standard dataset service program replacements          */
+/*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
 /*   Author: Philipp Brune               Date: 06.11.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
+/*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -18,11 +18,34 @@
 /*   along with this project. If not, see <http://www.gnu.org/licenses/>.                  */
 /*******************************************************************************************/
 
-#ifndef _utils_h
-#define _utils_h
+#include <iostream>
+#include <unistd.h>
+#include <cstring>
+#include "FileDataSet.h"
+#include "ebcdic.h"
 
-int idcams(JobCard *exec);
-int sdsf(JobCard *exec);
-int iebgener(JobCard *exec);
+using namespace std;
 
-#endif
+
+FileDataSet::FileDataSet(char *path, struct TocEntry &entry) : 
+    DataSet() {
+  this->entry = &(stateData.entry);
+  (*this->entry) = entry;
+
+  dataFile = fopen(path,"rb");
+}
+
+
+FileDataSet::~FileDataSet() {
+  if (dataFile != NULL) {
+    fclose(dataFile);
+  }
+}
+
+
+int FileDataSet::get(unsigned char *record) {
+    if (fread(record,entry->recSize,1,dataFile) == 1) {
+      return 0;
+    }
+    return -1;
+}
