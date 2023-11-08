@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 07.09.2023                                  */
+/*   Author: Philipp Brune               Date: 07.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -510,7 +510,7 @@ cout << "extend " << j << " " << entry->extends[j].sizeInBlocks << " " << entry-
     currentEntry = *entry;
     toc->point(*tocPos);
     toc->get((unsigned char*)&currentEntry);
-  
+
     if (currentEntry.lastBlockNr > entry->lastBlockNr) {
       entry->lastBlockNr = currentEntry.lastBlockNr;
     }
@@ -522,6 +522,12 @@ cout << "extend " << j << " " << entry->extends[j].sizeInBlocks << " " << entry-
     if (currentEntry.numOfBlocks > entry->numOfBlocks) {
       entry->numOfBlocks = currentEntry.numOfBlocks;
     }
+
+    entry->nextEntries[0] = currentEntry.nextEntries[0];
+    entry->nextEntries[1] = currentEntry.nextEntries[1];
+    entry->nextEntries[2] = currentEntry.nextEntries[2];
+    entry->nextEntries[3] = currentEntry.nextEntries[3];
+    entry->nextEntries[4] = currentEntry.nextEntries[4];
 
     if ((*eodPos) >= 0) {
       if (currentEntry.eodPos > (*eodPos)) {

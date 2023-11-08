@@ -18,6 +18,7 @@
 /*   along with this project. If not, see <http://www.gnu.org/licenses/>.                  */
 /*******************************************************************************************/
 
+#include <iostream>
 #include <string.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -25,6 +26,8 @@
 extern "C" {
 #include "../../tpmserver/shm/shmtpm.h"
 }
+
+using namespace std;
 
 
 LockManager *LockManager::lockManager = NULL;
@@ -71,7 +74,8 @@ struct Lock *LockManager::findLock(char *resourceName) {
 
 void LockManager::getLock(char *resourceName, int type) {
   struct Lock *lock;
-  
+
+//cout << "getLock " << resourceName << endl;  
   pthread_mutex_lock(&lockManagerMutex);
 
   lock = findLock(resourceName);
@@ -119,6 +123,7 @@ void LockManager::getLock(char *resourceName, int type) {
 
 void LockManager::releaseLock(char *resourceName) {
   struct Lock *lock;
+//cout << "releaseLock " << resourceName << endl;  
   
   pthread_mutex_lock(&lockManagerMutex);
 

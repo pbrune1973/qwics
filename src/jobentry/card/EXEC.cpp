@@ -166,7 +166,7 @@ printf("%s%s%s\n","execPGM *",pgm,"*");
   }
 
   if (strcmp(pgm,"SDSF") == 0) {
-    return idcams(this);
+    return sdsf(this);
   }
 
   if (strcmp(pgm,"IEBGENER") == 0) {

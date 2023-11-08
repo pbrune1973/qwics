@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                         */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 06.10.2023                                  */
+/*   Author: Philipp Brune               Date: 07.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -110,7 +110,6 @@ void *runJobListener(char *udsfile) {
 
     do {
       childfd = accept(parentfd, (struct sockaddr *) &serversockaddr, (socklen_t*)&clientlen);
-cout << "accept " << childfd << endl;
       if (childfd == -1) {
         if (errno == EINTR) {
           break;
@@ -124,7 +123,6 @@ cout << "accept " << childfd << endl;
       } else {
           cout << " ERROR: Unable to accept connection!" << endl;
       }
-  cout << "stop " << stop << endl; 
     } while (!stop);
 
     return NULL;

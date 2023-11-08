@@ -445,7 +445,6 @@ JobCard *JCLParser::parse() {
       getNextValidLine();
     } while (strcmp(lineBuf,"//*XXXX                                                                         ") != 0);  
   } catch (const int &ex) {
-cout << "Exception " << ex << endl;
     if (ex != 8) {
       if (currentJob != NULL) {
         delete currentJob; 

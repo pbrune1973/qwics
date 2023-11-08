@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 06.11.2023                                  */
+/*   Author: Philipp Brune               Date: 07.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -145,6 +145,10 @@ void TOC::convertDsn(unsigned char *dsn, unsigned char *dsnOut, unsigned char *m
     if (dsn[i] == '.') {
       dsnOut[seg*9+j] = 0x00;
       seg++;
+      if (seg > 4) {
+        seg = 4;
+        break;
+      }
       j = 0;
       i++;
     } else
@@ -167,6 +171,10 @@ void TOC::convertDsn(unsigned char *dsn, unsigned char *dsnOut, unsigned char *m
   } while ((i < 44) && (dsn[i] != 0x00));
 
   dsnOut[seg*9+j] = 0x00;
+
+  for (i = seg+1; i < 5; i++) {
+    dsnOut[i*9] = 0x00;
+  }
 }
 
 
@@ -174,15 +182,18 @@ int TOC::findDsn(unsigned char *dsn, int dsnSeg) {
   char *nameA,*nameB;
   
   do {
-    //cout << "findDsn 1" << dsn << " " << dsnSeg << " " << tocData << endl;
+    //cout << "findDsn 1" << " " << dsnSeg << " " << tocData << " " << tocPos << endl;
     if (tocData->point(tocPos) < 0) return -1;
     //cout << "findDsn 2" << dsn << " " << dsnSeg << endl;
     if (tocData->get((unsigned char*)&entry) < 0) return -1;
-    //cout << "findDsn 3" << dsn << " " << dsnSeg << endl;
+    //cout << "findDsn " << entry.dsn[0] << " " << entry.dsn[1] << " " << entry.dsn[2] << endl;
 
     nameA = (char*)&(dsn[dsnSeg*9]);
     nameB = (char*)&(entry.dsn[dsnSeg*9]);
-//cout << "findDsn " << nameA << " " << nameB << " " << tocPos << " " << dsnSeg << " " << entry.nextEntries[dsnSeg] << endl;
+    //cout << "findDsn " << nameA << " " << nameB << endl;
+    if ((nameA[0] == 0x00) && (nameB[0] == 0x00)) {
+      return 5;
+    }
 
     if (strcmp(nameA,nameB) == 0) {
       if (dsnSeg < 4) {
@@ -236,7 +247,7 @@ cout << "allocate " << dsn << endl;
   prevTocPos = 0;
   tocPos = 1;
   convertDsn(dsn,newEntry.dsn,memberName);
-  int dsnSeg = findDsn(newEntry.dsn,0);
+  int dsnSeg = findDsn(newEntry.dsn,0); 
 //cout << "dsnSeg " << dsnSeg << endl;
 
   if (dsnSeg > 4) {
@@ -432,7 +443,7 @@ cout << "remove " << dsn << endl;
       if (tocData->point(replaceTocPos) < 0) { tocData->unlock(); return -1; }
       if (tocData->put((unsigned char*)&entry) < 0) { tocData->unlock(); return -1; }     
     }
-    
+
     if (unlink(deletedEntry.path) < 0) { tocData->unlock(); return -1; }   
   }  
 

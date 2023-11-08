@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL environment standard dataset service program replacements          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 06.11.2023                                  */
+/*   Author: Philipp Brune               Date: 07.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018-2023 by Philipp Brune  Email: Philipp.Brune@qwics.de               */
 /*                                                                                         */
@@ -31,9 +31,12 @@ extern "C" {
 }
 
 typedef struct {
+    int recl;
     int len;
     int pos;
 } keyDef;
+
+char *isamDatasetDir = NULL;
 
 
 int open(char *ddName, int in, int out, JobCard *exec) {
@@ -115,7 +118,6 @@ int idcams(JobCard *exec) {
     }
     int tokenNum = 0;
     char linebuf[256];
-    char *isamDatasetDir;
 
     startIsamDB(GETENV_STRING(isamDatasetDir,"QWICS_DATASET_DIR","../dataset"));
 
@@ -127,10 +129,11 @@ int idcams(JobCard *exec) {
             continue;
         } else {
             int i;
+/*
             for (i = 0; i < tokenNum; i++) {
                 printf("%s\n",tokens[i]);
             }
-
+*/
             if (tokenNum > 0) {
                 if (strcmp(tokens[0],"DEFINE") == 0) {
                     if (getTokenIndex("CLUSTER",tokens,tokenNum) == 1) {
@@ -145,9 +148,19 @@ int idcams(JobCard *exec) {
 
                                 ds = openDataset("SYS.KSDS.KEYS");
                                 if (ds != NULL) {
+                                    int recl = 80;
+                                    idx1 = getTokenIndex("RECORDSIZE",tokens,tokenNum);
+                                    if ((idx1 > 1) && (idx1+3 < tokenNum))  {
+                                        recl = atoi(tokens[idx1+3]);
+                                        if (recl <= 0) {
+                                            recl = 80;
+                                        }
+                                    }
+                                    
                                     idx1 = getTokenIndex("KEYS",tokens,tokenNum);
                                     if ((idx1 > 1) && (idx1+3 < tokenNum))  {
                                         keyDef key;
+                                        key.recl = recl;
                                         key.len = atoi(tokens[idx1+2]);
                                         if (key.len <= 0) {
                                             key.len = 0;
@@ -236,22 +249,70 @@ int idcams(JobCard *exec) {
 cout << "REPRO " << isVSAM1 << " " << isVSAM2 << endl;
 
                                 DataSet *ds1 = NULL, *ds2 = NULL;
+                                void *vds1 = NULL, *vds2 = NULL;
                                 unsigned char *data = NULL;
+                                unsigned char *data2 = NULL;
+                                int l1 = 0, l2 = 0;
 
                                 if (isVSAM1) {
-                                    
+                                    vds1 = openDataset(dsn1);
+                                    if (vds1 == NULL) {
+                                        printf("MAXCC=12 Could not open infile dataset.\n");
+                                        maxcc = 12;
+                                    } else {
+                                        l1 = key1.recl;
+                                        data = (unsigned char*)malloc(key1.recl);
+                                        if (data == NULL) {
+                                            closeDataset(vds1);
+                                            vds1 = NULL;
+                                        }                                        
+                                    }
                                 } else {
                                     ds1 = dd1->getDataSetDef()->open(OPEN_RDONLY);
                                     if (ds1 == NULL) {
                                         printf("MAXCC=12 Could not open infile dataset.\n");
                                         maxcc = 12;
                                     } else {
+                                        l1 = ds1->getRecSize();
                                         data = (unsigned char*)malloc(ds1->getRecSize());
                                         if (data == NULL) {
                                             delete ds1;
                                             ds1 = NULL;
                                         }
                                     }
+                                }
+
+                                if (isVSAM2) {
+                                    vds2 = openDataset(dsn2);
+                                    if (vds2 == NULL) {
+                                        printf("MAXCC=12 Could not open outfile dataset.\n");
+                                        maxcc = 12;
+                                    } else {
+                                        l2 = key2.recl;
+                                        data2 = (unsigned char*)malloc(key2.recl);
+                                        if (data2 == NULL) {
+                                            closeDataset(vds2);
+                                            vds2 = NULL;
+                                        }                                        
+                                    }
+                                } else {
+                                    ds2 = dd2->getDataSetDef()->open(OPEN_RDWR);
+                                    if (ds2 == NULL) {
+                                        printf("MAXCC=12 Could not open outfile dataset.\n");
+                                        maxcc = 12;
+                                    } else {
+                                        l2 = ds2->getRecSize();
+                                        data2 = (unsigned char*)malloc(ds2->getRecSize());
+                                        if (data2 == NULL) {
+                                            delete ds2;
+                                            ds2 = NULL;
+                                        }
+                                    }
+                                }
+
+                                int n = l1;
+                                if (l2 < n) {
+                                    n = l2;
                                 }
 
                                 int hasNext = 1;
@@ -262,25 +323,73 @@ cout << "REPRO " << isVSAM1 << " " << isVSAM2 << endl;
                                         if (ds1 != NULL) {
                                             if (ds1->get(data) < 0) {
                                                hasNext = 0;
+                                               continue;
                                             }
                                         } else {
                                             hasNext = 0;
+                                            continue;
+                                        }
+                                    }
+
+                                    memcpy(data2,data,n);
+                                    
+                                    char line[73];
+                                    memcpy(line,data,72);
+                                    line[72] = 0x00;
+                                    printf("%s\n",line);
+
+                                    if (isVSAM2) {
+                                        if (vds2 != NULL) {
+                                           if (put(vds2,txptr,NULL,&data2[key2.pos],key2.len,data2,n) != 0) {
+                                                printf("MAXCC=12 Could not write record to outfile dataset.\n");
+                                                maxcc = 12;
+                                                break;
+                                            }
+                                        }
+                                    } else {
+                                        if (ds2 != NULL) {
+                                            if (ds2->put(data2) < 0) {
+                                                printf("MAXCC=12 Could not write record to outfile dataset.\n");
+                                                maxcc = 12;
+                                                break;
+                                            }
                                         }
                                     }
                                 }
 
                                 if (isVSAM1) {
-
+                                    if (vds1 != NULL) {
+                                        free(data);
+                                        closeDataset(vds1);
+                                    }                                        
                                 } else {
                                     if (ds1 != NULL) {
                                         free(data);
                                         delete ds1;  
                                     }                                        
                                 }
+
+                                if (isVSAM2) {
+                                    if (vds2 != NULL) {
+                                        free(data2);
+                                        closeDataset(vds2);
+                                    }                                        
+                                } else {
+                                    if (ds2 != NULL) {
+                                        free(data2);
+                                        delete ds2;  
+                                    }                                        
+                                }
                             }
 
-                            if (endTransaction(txptr,1) != 0) {
-                                maxcc = 12;
+                            if (maxcc == 0) {
+                                if (endTransaction(txptr,1) != 0) {
+                                    maxcc = 12;
+                                }
+                            } else {
+                                if (endTransaction(txptr,0) != 0) {
+                                    maxcc = 12;
+                                }
                             }
                         } else {
                             printf("MAXCC=12 Missing or wrong DD statements.\n");

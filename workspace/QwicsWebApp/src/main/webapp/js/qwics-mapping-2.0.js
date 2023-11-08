@@ -88,10 +88,12 @@ function showMap(map) {
 	for (y = 0; y <= 25; y++) {
 		screen = screen + '<div class="row">';
 		for (x = 1; x <= 80; x++) {
-			screen = screen + '<div class="row">';
 			for (i = 0; i < fields.length; i++) {
 				if (fields[i].x == x && fields[i].y == y) {
-					screen = screen + '<div class="form-group">';
+					screen = screen + '<div class="form-group" style="position:absolute;top:0px;left:'+((x-1)*25)+'px;">';
+					$(mapTargetId).append(screen);
+					screen = '';
+
 					if (fields[i].name=="") {
 						screen = screen + '<label>'+fields[i].value+'</label>';
 					} else {
@@ -107,7 +109,6 @@ function showMap(map) {
 					x = x + fields[i].length - 1;
 				}
 			}
-			screen = screen + '</div>';
 		}
 		screen = screen + '</div>';
 	}

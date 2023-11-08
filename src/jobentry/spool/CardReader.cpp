@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 30.08.2023                                  */
+/*   Author: Philipp Brune               Date: 07.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -75,19 +75,13 @@ void CardReader::run() {
 
   if (job != NULL) {
     if (SpoolingSystem::spoolingSystem->submit(job,jobId) < 0) {
-cout << "Error on subnmission " << endl;
       delete job;
-cout << "Error on subnmission 2 " << endl;
       writeLine("ERROR DURING JOB SUBMISSION\n");
     } else {
-cout << "Submitted " << endl;
       sprintf(line,"JOB %s SUBMITTED\n",jobId);
-cout << "Submitted " << line << " " << outFile << endl;
       writeLine(line);
-cout << "Submitted " << line << endl;
     }
   }
 
   delete jclParser;  
-cout << "end run " << endl;
 }

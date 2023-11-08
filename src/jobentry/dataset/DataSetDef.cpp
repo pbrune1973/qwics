@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Batch Job Entry System                                                          */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 06.11.2023                                  */
+/*   Author: Philipp Brune               Date: 07.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -399,7 +399,9 @@ printf("open datasetdef %d %x %s\n",defType,toc,dsn);
     }    
   }
   
-  dataSet->setWriteImmediate(1);
+  if (dataSet != NULL) {
+    dataSet->setWriteImmediate(1);
+  }
   this->dataSet = dataSet;
   return dataSet;
 }
