@@ -2806,7 +2806,7 @@ join_environment (void)
 	bdb_env->set_cachesize (bdb_env, 0, 2*1024*1024, 0);
 	bdb_env->set_alloc (bdb_env, cob_malloc, realloc, cob_free);
 	//flags = DB_CREATE | DB_INIT_MPOOL | DB_INIT_CDB;
-	flags = DB_CREATE | DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_INIT_MPOOL;
+	flags = DB_CREATE | DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_INIT_MPOOL | DB_AUTO_COMMIT;
 	ret = bdb_env->open (bdb_env, cobsetptr->bdb_home, flags, 0);
 	if (ret) {
 		cob_runtime_error (_("cannot join BDB environment (%s), error: %d %s"),
@@ -3802,6 +3802,7 @@ dobuild:
 #endif
 
 		/* btree info */
+		printf("OPEN BDB %s\n",&p->db[i]);
 		ret = db_create (&p->db[i], bdb_env, 0);
 		if (!ret) {
 			handle_created = 1;
@@ -3814,6 +3815,7 @@ dobuild:
 					   BDB1565 DB->pget: method not permitted before handle's open method
 					*/
 					p->db[i]->remove (p->db[i], runtime_buffer, NULL, 0);
+					printf("OPEN BDB %s\n",&p->db[i]);
 					ret = db_create (&p->db[i], bdb_env, 0);
 				}
 			}

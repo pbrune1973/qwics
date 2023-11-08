@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 08.09.2023                                  */
+/*   Author: Philipp Brune               Date: 08.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -197,7 +197,14 @@ int datasetfh(unsigned char *opcode, FCD3 *fcd) {
         memcpy(ddname,fcd->fnamePtr,l);
         ddname[l] = 0x00;
 
+        #ifdef _IN_JOBENTRY_
         // Resolve DSNAME of VSAM file        
+        DD* dd = (DD*)thisEXEC->getSubCard(ddname);
+        char *dsn = dd->getDataSetDef()->getDsn();
+        fcd->fnamePtr = dsn;
+        fcd->fnameLen[1] = (unsigned char)strlen(dsn);
+        printf("datasetfh set fname to %s %d\n",dsn,(int)fcd->fnameLen[1]);
+        #endif
     } 
     return EXTFH(opcode,fcd);
 }

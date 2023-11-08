@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.09.2023                                  */
+/*   Author: Philipp Brune               Date: 08.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -58,6 +58,7 @@ char *datasetDir = NULL;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
+extern void* (*resolveCALL)(char*);
 
 
 void init() {
@@ -610,6 +611,22 @@ int execCallback(char *cmd, void *var) {
 }
 
 
+void* callCallback(char *name) {
+    char ucname[20];
+    int i = 0;
+    for (i = 0; i < strlen(name); i++) {
+      ucname[i] = toupper(name[i]);
+    }
+    ucname[i] = 0x00;
+printf("call callback for %s\n",ucname);
+    if (strcmp("CEE3ABD",ucname) == 0) {
+        exit(EXIT_FAILURE);
+    }
+
+    return NULL;
+}
+
+
 int batchrun(int argc, char *argv[]) {
     int ret = 0;
 
@@ -624,6 +641,7 @@ int batchrun(int argc, char *argv[]) {
 
     fprintf(stdout,"Starting batchrun of %s\n",argv[1]);
     performEXEC = &execCallback;
+    resolveCALL = &callCallback;
     outputVars[0] = NULL; // NULL terminated list
     _cmdbuf[0] = 0x00;
 
