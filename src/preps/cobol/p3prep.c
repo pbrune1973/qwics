@@ -205,45 +205,83 @@ char *getExecTerminator(int quotes) {
 }
 
 
-void printJavaCmd(int num, ...) {
-    printf("printJavaCmd %d\n",num);
-    if (num > 2) {
-        char *outbuf;
-        char *fmt;
-        char *val;
-        va_list list;
-        va_start(list, num);
+void printJavaCmd(char *outbuf, char *fmt, ...) {
+    char *val,*end = outbuf;
+    va_list list;
+    va_start(list, fmt);
 
-        outbuf = va_arg(list,char*);
-        fmt = va_arg(list,char*);
+    int cnt = 0,i,l = strlen(fmt);
+    for (i = 0; i < l; i++) {
+        if (fmt[i] == 's') {
+            cnt++;
+        }
+    }
+
+    val = va_arg(list,char*);
+    char *cmd = &val[19];
+    int hasVar = 0;
+
+    sprintf(end,"%s%s","           java\n               org.qwics.jni.QwicsTPMServerWrapper.getInstance()\n                   .execCallback(",cmd);
+    if (cmd[strlen(cmd)-1] == '"' || cmd[strlen(cmd)-1] == ' ') {
+        end = &outbuf[strlen(outbuf)-1];
+        sprintf(end,"%s",",");
+        end = &outbuf[strlen(outbuf)];
+        hasVar = 1;
+    } else {
+        end = &outbuf[strlen(outbuf)];
+    }
+ 
+    if (cnt == 2) {
         val = va_arg(list,char*);
-printf("printJavaCmd %s %s\n",fmt,val);
+        if (val[0] == '"') {
+            val = &val[1];            
+        }
+        sprintf(end,"%s%s\n","null);\n           end-java",val);
+        end = &outbuf[strlen(outbuf)];
+    }
 
-        int cnt = 0,i,l = strlen(fmt);
-        for (i = 0; i < l; i++) {
-            if (fmt[i] == 's') {
-                cnt++;
-            }
+    if (cnt == 3) {
+        val = va_arg(list,char*);
+        if (hasVar) {
+            sprintf(end,"%s%s%s","`",val,"`");
+        } else {
+            sprintf(end,"%s%s",val,"\",null");
+        }
+        end = &outbuf[strlen(outbuf)];
+        val = va_arg(list,char*);
+        if (val[0] == '"') {
+            val = &val[1];            
+        }
+        sprintf(end,"%s%s\n",");\n           end-java",val);
+        end = &outbuf[strlen(outbuf)];
+    }
+
+    if (cnt == 5) {
+        val = va_arg(list,char*);
+        sprintf(end,"%s",val);
+        end = &outbuf[strlen(outbuf)];
+
+        val = va_arg(list,char*);
+        sprintf(end,"%s",val);
+        if (outbuf[strlen(outbuf)-1] == ' ') {
+            end = &outbuf[strlen(outbuf)-1];
+        } else {
+            end = &outbuf[strlen(outbuf)];
         }
 
-        sprintf(outbuf,"%s%s%s","           java\n               org.qwics.jni.QwicsTPMServerWrapper.getWrapper()\n                   .execCallback(",
-                &val[19],",");
+        val = va_arg(list,char*);
+        sprintf(end,"%s%s%s",",`",val,"`");
+        end = &outbuf[strlen(outbuf)];
 
-        if (cnt == 2) {
-            val = va_arg(list,char*);
-            sprintf(outbuf,"%s%s","null);\n           end-java",val);
+        val = va_arg(list,char*);
+        if (val[0] == '"') {
+            val = &val[1];            
         }
+        sprintf(end,"%s%s\n",");\n           end-java",val);
+        end = &outbuf[strlen(outbuf)];
+    }
 
-        if (cnt == 3) {
-            val = va_arg(list,char*);
-            sprintf(outbuf,"%s%s%s","`",val,"`");
-            val = va_arg(list,char*);
-            sprintf(outbuf,"%s%s",");\n           end-java",val);
-        }
-
-        va_end(list);
-printf("printJavaCmd %s\n",outbuf);
-    }    
+    va_end(list);
 }
 
 
@@ -1694,6 +1732,7 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
           execSQLCnt = 0;
           setptrbuf[0] = 0;
       }
+      /*
       if ((cmd != NULL) && strstr_noverb(buf,"SQL")) {
           allowIntoParam = 0;
           allowFromParam = 0;
@@ -1701,6 +1740,7 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
           execSQLCnt = 0;
           setptrbuf[0] = 0;
       }
+      */
   }
 
   if (execCmd == 0) {

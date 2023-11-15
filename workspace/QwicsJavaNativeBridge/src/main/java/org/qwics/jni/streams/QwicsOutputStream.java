@@ -53,6 +53,10 @@ public class QwicsOutputStream extends OutputStream {
     private long fd = 0;
     private String lineBuf = "";
 
+    public QwicsOutputStream(QwicsTPMServerWrapper wrapper, long fd) {
+        this.wrapper = wrapper;
+        this.fd = fd;
+    }
 
     @Override
     public void write(int b) throws IOException {

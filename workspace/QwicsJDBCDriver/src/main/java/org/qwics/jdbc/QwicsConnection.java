@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018-2020 Philipp Brune    Email: Philipp.Brune@hqwics.org
+Copyright (c) 2018-2023 Philipp Brune    Email: Philipp.Brune@hqwics.org
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -127,8 +127,13 @@ public class QwicsConnection implements Connection {
 			if (port != 0) {
 				socket = new Socket(host, port);
 			} else {
-				socket = AFUNIXSocket.newInstance();
-				socket.connect(new AFUNIXSocketAddress(new File(host)));
+				if ("jni".equals(host)) {
+					Class wr = Class.forName("org.qwics.jni.QwicsTPMServerWrapper");;
+					socket = (Socket)wr.newInstance();
+				} else {
+					socket = AFUNIXSocket.newInstance();
+					socket.connect(new AFUNIXSocketAddress(new File(host)));
+				}
 			}
 			socketWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), "ISO-8859-1"));
 			socketReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), "ISO-8859-1"));

@@ -46,10 +46,16 @@ package org.qwics.jni;
 import org.qwics.jni.streams.QwicsInputStream;
 import org.qwics.jni.streams.QwicsOutputStream;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
+import java.net.Socket;
 import java.util.HashMap;
 
-public class QwicsTPMServerWrapper {
+public class QwicsTPMServerWrapper extends Socket {
+    private static ThreadLocal<QwicsTPMServerWrapper> _instance = new ThreadLocal<QwicsTPMServerWrapper>();
+
     static {
         System.loadLibrary("libtpmserver");
     }
@@ -59,15 +65,25 @@ public class QwicsTPMServerWrapper {
     private QwicsOutputStream outputStream = null;
 
     private QwicsTPMServerWrapper() {
-
+        inputStream = new QwicsInputStream(this,0);
+        outputStream = new QwicsOutputStream(this,0);
     }
 
     public static QwicsTPMServerWrapper getWrapper() {
         return new QwicsTPMServerWrapper();
     }
 
+    public static QwicsTPMServerWrapper getInstance() {
+        return _instance.get();
+    }
+
+    public void setAsInstance() {
+        _instance.set(this);
+    }
+
     public void launchClass(String name) {
         try {
+            final QwicsTPMServerWrapper _this = this;
             final Class cl = Class.forName(loadModClasses.get(name));
             Method main = cl.getMethod("main",String[].class);
             if (main != null) {
@@ -75,6 +91,7 @@ public class QwicsTPMServerWrapper {
                     @Override
                     public void run() {
                         try {
+                            _this.setAsInstance();
                             main.invoke(null, new String[0]);
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -92,15 +109,25 @@ public class QwicsTPMServerWrapper {
         loadModClasses.put(loadMod,className);
     }
 
-    public QwicsInputStream getInputStream() {
+    @Override
+    public InputStream getInputStream() {
         return inputStream;
     }
 
-    public QwicsOutputStream getOutputStream() {
+    @Override
+    public OutputStream getOutputStream() {
         return outputStream;
     }
 
-    public native void execCallback(String cmd, Object var);
+    @Override
+    public synchronized void close() throws IOException {
+        super.close();
+    }
+
+    public void execCallback(String cmd, Object var) {
+    }
+
+    public native void execCallbackNative(String cmd, Object var);
     public native int readByte(long fd);
     public native int writeByte(long fd, byte b);
 }
