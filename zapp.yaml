@@ -1,0 +1,16 @@
+name: Automatisch erzeugte ZAPP-Datei
+description: >-
+  Beachten sie, das diese erzeugte Datei in allen Verzeichnissen nach
+  Inkludierungsdateien sucht, welches sehr ineffizient sein kann. Modifizieren
+  Sie die "locations"-Einträge, um the korrekten Pfade so spezifisch wie möglich
+  anzugeben. Benutzen Sie den Typ "MVS" um Dateipfade in Ihrem MVS System
+  anzugeben. Beachten Sie die Benutzerdokumentation hier:
+  https://ibm.github.io/zopeneditor-about/Docs/setting_propertygroup.html
+author: IBM Z Open Editor
+propertyGroups:
+  - name: search-all
+    libraries:
+      - name: syslib
+        type: local
+        locations:
+          - '**'

@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL embedded SQL executor                                              */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 08.11.2023                                  */
+/*   Author: Philipp Brune               Date: 15.11.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
+/*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -23,6 +23,8 @@
 #ifdef _IN_JOBENTRY_
 extern "C" {
 #include <libcob.h>
+
+extern cob_file* get_file (FCD3 *fcd);
 }
 
 #include "../jobentry/card/DD.h"    
@@ -197,14 +199,35 @@ int datasetfh(unsigned char *opcode, FCD3 *fcd) {
         memcpy(ddname,fcd->fnamePtr,l);
         ddname[l] = 0x00;
 
-        #ifdef _IN_JOBENTRY_
-        // Resolve DSNAME of VSAM file        
-        DD* dd = (DD*)thisEXEC->getSubCard(ddname);
-        char *dsn = dd->getDataSetDef()->getDsn();
-        fcd->fnamePtr = dsn;
-        fcd->fnameLen[1] = (unsigned char)strlen(dsn);
-        printf("datasetfh set fname to %s %d\n",dsn,(int)fcd->fnameLen[1]);
-        #endif
+        // Handle operation
+        switch (LDCOMPX2(opcode)) {
+            case OP_OPEN_INPUT :
+            case OP_OPEN_OUTPUT :
+            case OP_OPEN_IO :
+                #ifdef _IN_JOBENTRY_
+                // Resolve DSNAME of VSAM file        
+                DD* dd = (DD*)thisEXEC->getSubCard(ddname);
+                char *dsn = dd->getDataSetDef()->getDsn();
+                fcd->fnamePtr = dsn;
+                fcd->fnameLen[1] = (unsigned char)strlen(dsn);
+                printf("datasetfh set fname to %s %d\n",dsn,(int)fcd->fnameLen[1]);
+                // Duplicate fcd to force re-creation of cob_file in fileio.c
+                FCD3 *newFcd = (FCD3*)malloc(sizeof(FCD3));
+                if (newFcd != NULL) {
+                    memcpy(newFcd,fcd,sizeof(FCD3));
+printf("Calling EXTFH 1 with fcd %x %x\n",fcd,newFcd);
+                    int r = EXTFH(opcode,newFcd);
+
+                    cob_file *f = get_file(fcd);
+                    cob_file *nf = get_file(newFcd);
+                    memcpy(fcd,newFcd,sizeof(FCD3));
+                    memcpy(f,nf,sizeof(cob_file));
+                    return r;
+                }
+                #endif
+                break;
+        }
     } 
+printf("Calling EXTFH 2 with fcd %x %s\n",fcd,fcd->fnamePtr);
     return EXTFH(opcode,fcd);
 }

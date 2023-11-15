@@ -1,9 +1,9 @@
 #!/bin/bash
 
-../bin/cobbatchprep $1
+../bin/p3prep $1
 PROG=${1%.*}
 PROG=$(echo $PROG | tr a-z A-Z)
-cobc -std=ibm -fcallfh=datasetfh -m exec_$PROG.cob
+#cobc -std=mf exec_$PROG.cob
 
 var=$QWICS_LOADMODDIR
 
@@ -11,7 +11,8 @@ if [ -z ${var} ]; then
   var='../loadmod'
 fi
 
-echo 'Copying to load module dir ' $var
+#echo 'Copying to load module dir ' $var
  
 #mv exec_$PROG.dylib $var/$PROG.dylib
-mv exec_$PROG.so $var/$PROG.so
+#mv exec_$PROG.so $var/$PROG.so
+

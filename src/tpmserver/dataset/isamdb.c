@@ -63,7 +63,7 @@ void* openDataset(char *name) {
 		fprintf(stderr, "db_create: %s\n", db_strerror(ret));
         return NULL;
 	}
-	if ((ret = dbp->open(dbp, NULL, name, NULL, DB_BTREE, DB_CREATE | DB_AUTO_COMMIT, 0644)) != 0) {
+	if ((ret = dbp->open(dbp, NULL, name, NULL, DB_BTREE, DB_CREATE | DB_AUTO_COMMIT, 0666)) != 0) {
 		dbp->err(dbp, ret, "%s", name);
 		return NULL;
 	}

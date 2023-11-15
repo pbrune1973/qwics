@@ -1202,9 +1202,11 @@ save_status (cob_file *f, cob_field *fnstatus, const int status)
 {
 	cobglobptr->cob_error_file = f;
 	if (likely(status == 0)) {
+printf("save_status\n");
 		memset (f->file_status, '0', (size_t)2);
 		if (fnstatus) {
 			memset (fnstatus->data, '0', (size_t)2);
+printf("save_status %x %x\n",fnstatus->data[0],fnstatus->data[1]);
 		}
 		/* EOP is non-fatal therefore 00 status but needs exception */
 		if (unlikely (eop_status)) {
@@ -1216,6 +1218,7 @@ save_status (cob_file *f, cob_field *fnstatus, const int status)
 		if (unlikely (cobsetptr->cob_do_sync)) {
 			cob_sync (f);
 		}
+printf("save_status %x %x\n",fnstatus->data[0],fnstatus->data[1]);
 		return;
 	}
 	cob_set_exception (status_exception[status / 10]);
@@ -3396,7 +3399,7 @@ indexed_open (cob_file *f, char *filename, const int mode, const int sharing)
 {
 	/* Note filename points to file_open_name */
 	/* cob_chk_file_mapping manipulates file_open_name directly */
-
+printf("indexed open %s\n",filename);
 #ifdef	WITH_INDEX_EXTFH
 	int		ret;
 
@@ -3802,7 +3805,7 @@ dobuild:
 #endif
 
 		/* btree info */
-		printf("OPEN BDB %s\n",&p->db[i]);
+		printf("OPEN BDB\n");
 		ret = db_create (&p->db[i], bdb_env, 0);
 		if (!ret) {
 			handle_created = 1;
@@ -3815,7 +3818,7 @@ dobuild:
 					   BDB1565 DB->pget: method not permitted before handle's open method
 					*/
 					p->db[i]->remove (p->db[i], runtime_buffer, NULL, 0);
-					printf("OPEN BDB %s\n",&p->db[i]);
+					printf("OPEN BDB\n");
 					ret = db_create (&p->db[i], bdb_env, 0);
 				}
 			}
@@ -3833,10 +3836,13 @@ dobuild:
 			   on OPEN-OUTPUT results with MinGW & BDB 6 in
 			   BDB0588 At least one secondary cursor must be specified to DB->join
 			*/
+			printf("OPEN DB %s\n",runtime_buffer);
+			flags = flags | DB_AUTO_COMMIT;
 			ret = p->db[i]->open (p->db[i], NULL, runtime_buffer, NULL,
 						DB_BTREE, flags, COB_FILE_MODE);
 		}
 		if (ret) {
+			p->db[i]->err(p->db[i], ret, "%s", runtime_buffer);
 			for (j = 0; j < i; ++j) {
 				DB_CLOSE (p->db[j]);
 			}
@@ -3905,6 +3911,8 @@ dobuild:
 	ret = DB_SEQ (p->cursor[0], DB_FIRST);
 	p->cursor[0]->c_close (p->cursor[0]);
 	p->cursor[0] = NULL;
+printf("DB SEQ %d\n",ret);
+
 	if (!ret) {
 		memcpy (p->last_readkey[0], p->key.data, (size_t)p->key.size);
 		if (p->data.data != NULL
@@ -3917,11 +3925,13 @@ dobuild:
 	}
 
 	f->open_mode = mode;
+printf("DB SEQ %d %d %d %d\n",f->flag_optional,nonexistent,mode,COB_OPEN_OUTPUT);	
 	if (f->flag_optional 
 	 && nonexistent
 	 && mode != COB_OPEN_OUTPUT) {
 		return COB_STATUS_05_SUCCESS_OPTIONAL;
 	}
+printf("DB SEQ %x %x\n",f->file_status[0],f->file_status[1]);
 	return 0;
 
 #else
@@ -5363,6 +5373,7 @@ cob_open (cob_file *f, const int mode, const int sharing, cob_field *fnstatus)
 	save_status (f, fnstatus,
 		     fileio_funcs[(int)f->organization]->open (f, file_open_name,
 								mode, sharing));
+printf("cob_open end %x %x %x %x\n",fnstatus->data[0],fnstatus->data[1],f->file_status[0],f->file_status[1]);
 }
 
 void
@@ -7546,6 +7557,13 @@ static const cob_field_attr alnum_attr = {COB_TYPE_ALPHANUMERIC, 0, 0, 0, NULL};
 static void
 update_file_to_fcd (cob_file *f, FCD3 *fcd, unsigned char *fnstatus)
 {
+	if (fnstatus) {
+		printf("update_file_to_fcd 1 %x %x\n",fnstatus[0],fnstatus[1]);
+	}
+	if (f->file_status) {
+		printf("update_file_to_fcd 2 %x %x\n",f->file_status[0],f->file_status[1]);
+	}
+
 	if (f->file_status)
 		memcpy (fcd->fileStatus,f->file_status,2);
 	else if (fnstatus)
@@ -7570,6 +7588,13 @@ update_file_to_fcd (cob_file *f, FCD3 *fcd, unsigned char *fnstatus)
 		STCOMPX4(f->record_min, fcd->curRecLen);
 	}
 	STCOMPX4(f->record_max, fcd->maxRecLen);
+
+	if (fnstatus) {
+		printf("update_file_to_fcd 3 %x %x\n",fnstatus[0],fnstatus[1]);
+	}
+	if (f->file_status) {
+		printf("update_file_to_fcd 4 %x %x\n",f->file_status[0],f->file_status[1]);
+	}
 }
 
 /*
@@ -7939,6 +7964,23 @@ find_file (FCD3 *fcd)
 	return f;
 }
 
+
+// BEGIN QWICS extension
+cob_file* get_file (FCD3 *fcd)
+{
+	cob_file	*f;
+	struct fcd_file	*ff;
+	for(ff = fcd_file_list; ff; ff=ff->next) {
+		if(ff->fcd == fcd) {
+			return ff->f;
+		}
+
+	}
+	return NULL;
+}
+// END QWICS extension
+
+
 static void
 save_fcd_status (FCD3 *fcd, int sts)
 {
@@ -7991,7 +8033,7 @@ cob_extfh_open (
 		}
 	} else {
 		fcd->openMode &= ~OPEN_NOT_OPEN;
-	}
+	}	
 	update_fcd_to_file (fcd, f, fnstatus, 1);
 	save_fcd_status (fcd, sts);
 }
@@ -8289,7 +8331,7 @@ EXTFH (unsigned char *opcode, FCD3 *fcd)
 	cob_field key[1];
 	cob_field rec[1];
 	cob_file *f;
-
+printf("EXTFH huhu 1\n");
 	if (fcd->fcdVer != FCD_VER_64Bit) {
 #if 1
 		fcd->fileStatus[0] = '9';
@@ -8307,6 +8349,7 @@ EXTFH (unsigned char *opcode, FCD3 *fcd)
 	fs->attr = &alnum_attr;
 	memcpy (fnstatus, "00", 2);
 	memcpy (fcd->fileStatus, "00", 2);
+printf("EXTFH huhu 2\n");
 
 	if (cobglobptr == NULL) {	/* Auto Init GnuCOBOL runtime */
 		cob_init (0, NULL);
@@ -8324,9 +8367,11 @@ EXTFH (unsigned char *opcode, FCD3 *fcd)
 		opcd = opcode[1];
 	}
 
+printf("EXTFH huhu 3\n");
 	/* Look for fcd in table and if found use associated 'cob_file' after copying values over */
 	/* If fcd is not found, then 'callfh' created it, so create a new 'cob_file' and table that */
 	f = find_file (fcd);
+printf("EXTFH huhu 4\n");
 
 org_handling:
 	switch (fcd->fileOrg) {
@@ -8390,6 +8435,7 @@ org_handling:
 	rec->data = fcd->recPtr;
 	rec->size = LDCOMPX4(fcd->curRecLen);
 	rec->attr = &alnum_attr;
+printf("EXTFH huhu 5 %x\n",opcd);
 
 	switch (opcd) {
 	case OP_OPEN_INPUT:
@@ -8489,8 +8535,11 @@ org_handling:
 			opts |= COB_READ_NO_LOCK;
 		else if (opcd == OP_READ_SEQ_KEPT_LOCK)
 			opts |= COB_READ_KEPT_LOCK;
+printf("EXTFH huhu 5a %x %x %x\n",f,fs,opts);			
 		cob_read_next(f, fs, opts);
+printf("EXTFH huhu 5b %x\n",fcd);			
 		update_file_to_fcd(f,fcd,NULL);
+printf("EXTFH huhu 5c\n");			
 		break;
 
 	case OP_STEP_NEXT:
@@ -8622,5 +8671,6 @@ org_handling:
 		/* Some sort of error message */
 		break;
 	}
+printf("EXTFH huhu 6\n");
 	return sts;
 }
