@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 11.08.2023                                  */
+/*   Author: Philipp Brune               Date: 16.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -81,6 +81,7 @@ pthread_key_t chnBufListKey;
 pthread_key_t chnBufListPtrKey;
 pthread_key_t isamTxKey;
 pthread_key_t currentNamesKey;
+pthread_key_t callbackFuncKey;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
@@ -1269,6 +1270,15 @@ void globalCallCleanup() {
 
 // Execute COBOL loadmod in transaction
 int execLoadModule(char *name, int mode, int parCount) {
+#ifdef _LIBTPMSERVER_
+    struct callbackFuncType {
+        int (*callback)(char *loadmod, void *data);
+    } *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
+
+    if (cbInfo != NULL) {
+        return cbInfo->callback(name,(void*)cbInfo);
+    }
+#endif
     int (*loadmod)();
     int (*abndhndl)();
     char fname[255];
@@ -4488,6 +4498,7 @@ void initExec(int initCons) {
     pthread_key_create(&chnBufListPtrKey, NULL);
     pthread_key_create(&isamTxKey, NULL);
     pthread_key_create(&currentNamesKey, NULL);
+    pthread_key_create(&callbackFuncKey, NULL);
 
 #ifndef _USE_ONLY_PROCESSES_
     pthread_mutex_init(&moduleMutex,NULL);
@@ -4763,7 +4774,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(chnBufListPtrKey, &chnBufListPtr);
     pthread_setspecific(isamTxKey, NULL);
     pthread_setspecific(currentNamesKey, &currentNames);
-
+    
     // Oprionally read in content of commarea
     if (setCommArea == 1) {
       write(*(int*)fd,"COMMAREA\n",9);
@@ -4821,4 +4832,11 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     // Flush output buffers
     fflush(stdout);
     fflush(stderr);
+}
+
+
+// Execute in existing DB transaction using load module callback for JNI
+void execCallbackInTransaction(char *name, void *fd, int setCommArea, int parCount, void *callbackFunc) {
+    pthread_setspecific(callbackFuncKey, callbackFunc);
+    execInTransaction(name,fd,setCommArea,parCount);
 }

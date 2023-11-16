@@ -63,10 +63,14 @@ public class QwicsTPMServerWrapper extends Socket {
     private HashMap<String,String> loadModClasses = new HashMap<String,String>();
     private QwicsInputStream inputStream = null;
     private QwicsOutputStream outputStream = null;
+    private long fd = 0;
+
 
     private QwicsTPMServerWrapper() {
-        inputStream = new QwicsInputStream(this,0);
-        outputStream = new QwicsOutputStream(this,0);
+        System.out.println("CREATE QwicsTPMServerWrapper");
+        fd = init();
+        inputStream = new QwicsInputStream(this,fd);
+        outputStream = new QwicsOutputStream(this,fd);
     }
 
     public static QwicsTPMServerWrapper getWrapper() {
@@ -81,25 +85,33 @@ public class QwicsTPMServerWrapper extends Socket {
         _instance.set(this);
     }
 
-    public void launchClass(String name) {
+    public void execLoadModule(String loadmod) {
         try {
-            final QwicsTPMServerWrapper _this = this;
-            final Class cl = Class.forName(loadModClasses.get(name));
+            Class cl = Class.forName(loadModClasses.get(loadmod));
             Method main = cl.getMethod("main",String[].class);
             if (main != null) {
+                main.invoke(null, new String[0]);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void launchClass(String name, int setCommArea, int parCount) {
+        try {
+            final QwicsTPMServerWrapper _this = this;
                 Thread exec = new Thread() {
                     @Override
                     public void run() {
                         try {
                             _this.setAsInstance();
-                            main.invoke(null, new String[0]);
+                            _this.execInTransaction(name,_this.fd,setCommArea,parCount);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
                     }
                 };
                 exec.start();
-            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -121,7 +133,7 @@ public class QwicsTPMServerWrapper extends Socket {
 
     @Override
     public synchronized void close() throws IOException {
-        super.close();
+        clear(fd);
     }
 
     public void execCallback(String cmd, Object var) {
@@ -130,4 +142,7 @@ public class QwicsTPMServerWrapper extends Socket {
     public native void execCallbackNative(String cmd, Object var);
     public native int readByte(long fd);
     public native int writeByte(long fd, byte b);
+    public native long init();
+    public native void clear(long fd);
+    public native int execInTransaction(String loadmod, long fd, int setCommArea, int parCount);
 }

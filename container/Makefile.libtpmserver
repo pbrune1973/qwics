@@ -1,0 +1,20 @@
+
+OPENCOBOL = /home/qwics/gnucobol-3.1.2
+POSTGRES = /usr
+
+CC = gcc
+CFLAGS = -fpic -I$(OPENCOBOL) -I$(POSTGRES)/include/postgresql -I/opt/java/openjdk/include -I/opt/java/openjdk/include/linux -L/usr/local/lib -L$(POSTGRES)/lib 
+TPMSRC = src/tpmserver
+TPMOBJS = $(TPMSRC)/jni/libtpmserver.o $(TPMSRC)/cobexec.o $(TPMSRC)/db/conpool.o $(TPMSRC)/dataset/isamdb.o $(TPMSRC)/msg/queueman.o $(TPMSRC)/shm/shmtpm.o $(TPMSRC)/enqdeq/enqdeq.o $(TPMSRC)/env/envconf.o 
+LIBS = -lcob -lpthread -lpq -ldl -ldb
+
+.c.o:
+	$(CC) -c $(CFLAGS) $< -o $@
+
+
+libtpmserver: $(TPMOBJS) 
+	$(CC) $(CFLAGS) -shared -o bin/libtpmserver.so $(TPMOBJS) $(LIBS)
+	
+	
+clean:
+	rm -r $(TPMOBJS) bin/libtpmserver.so

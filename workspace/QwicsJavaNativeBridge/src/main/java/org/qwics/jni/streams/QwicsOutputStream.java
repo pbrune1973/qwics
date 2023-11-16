@@ -62,10 +62,10 @@ public class QwicsOutputStream extends OutputStream {
     public void write(int b) throws IOException {
         if (b == '\n' || b == '\r' || lineBuf.length() >= 80) {
             if (lineBuf.startsWith("PROGRAM")) {
-                wrapper.launchClass(lineBuf.substring(8).trim());
+                wrapper.launchClass(lineBuf.substring(8).trim(),0, 0);
             }
             if (lineBuf.startsWith("CAPROG")) {
-                wrapper.launchClass(lineBuf.substring(7).trim());
+                wrapper.launchClass(lineBuf.substring(7).trim(),1, 0);
             }
             lineBuf = "";
         } else {

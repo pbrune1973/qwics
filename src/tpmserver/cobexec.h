@@ -1,9 +1,9 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.09.2020                                  */
+/*   Author: Philipp Brune               Date: 16.11.2023                                  */
 /*                                                                                         */
-/*   Copyright (C) 2018 - 2020 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
+/*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
 /*   This file is part of of the QWICS Server project.                                     */
 /*                                                                                         */
@@ -30,6 +30,9 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount);
 
 // Exec COBOL module within an existing DB transaction
 void execInTransaction(char *name, void *fd, int setCommArea, int parCount);
+
+// Execute in existing DB transaction using load module callback for JNI
+void execCallbackInTransaction(char *name, void *fd, int setCommArea, int parCount, void *callbackFunc);
 
 // Execute SQL pure instruction
 void _execSql(char *sql, void *fd, int sendRes, int sync);
