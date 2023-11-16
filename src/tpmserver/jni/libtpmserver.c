@@ -29,6 +29,7 @@
 #include <signal.h>
 #include <errno.h>
 
+#include <libcob.h>
 #include "../shm/shmtpm.h"
 #include "../env/envconf.h"
 #include "../config.h"
@@ -68,7 +69,8 @@ static void sig_handler(int signo) {
 
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNative(JNIEnv *env, jobject self, jstring cmd, jobject var) {
     const char* cmdStr = (*env)->GetStringUTFChars(env, cmd, NULL);
-
+    cob_field cobvar;
+    execCallback((char*)cmdStr,(void*)&cobvar);
     (*env)->ReleaseStringUTFChars(env, cmd, cmdStr);
 }
 

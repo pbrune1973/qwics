@@ -25,6 +25,8 @@
 void initExec(int initCons);
 void clearExec(int initCons);
 
+int execCallback(char *cmd, void *var);
+
 // Execute COBOL loadmod in transaction
 void execTransaction(char *name, void *fd, int setCommArea, int parCount);
 
