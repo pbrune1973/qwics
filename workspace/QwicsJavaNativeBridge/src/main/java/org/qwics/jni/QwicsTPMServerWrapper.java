@@ -100,18 +100,20 @@ public class QwicsTPMServerWrapper extends Socket {
     public void launchClass(String name, int setCommArea, int parCount) {
         try {
             final QwicsTPMServerWrapper _this = this;
-                Thread exec = new Thread() {
+            outputStream.setWriteThrough(true);
+            Thread exec = new Thread() {
                     @Override
                     public void run() {
                         try {
                             _this.setAsInstance();
                             _this.execInTransaction(name,_this.fd[1],setCommArea,parCount);
+                            outputStream.setWriteThrough(false);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
                     }
-                };
-                exec.start();
+            };
+            exec.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -139,10 +141,31 @@ public class QwicsTPMServerWrapper extends Socket {
     public void execCallback(String cmd, Object var) {
     }
 
+    public void execSql(String sql, int sendRes, int sync) {
+        try {
+            final QwicsTPMServerWrapper _this = this;
+            Thread exec = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        _this.setAsInstance();
+                        _this.execSqlNative(sql, fd[1], sendRes, sync);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+            exec.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     public native void execCallbackNative(String cmd, Object var);
     public native int readByte(long fd);
     public native int writeByte(long fd, byte b);
     public native long[] init();
     public native void clear(long fd[]);
     public native int execInTransaction(String loadmod, long fd, int setCommArea, int parCount);
+    public native void execSqlNative(String sql, long fd, int sendRes, int sync);
 }

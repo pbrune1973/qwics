@@ -45,21 +45,37 @@ package org.qwics.jni.streams;
 
 import org.qwics.jni.QwicsTPMServerWrapper;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
 public class QwicsInputStream extends InputStream {
     private QwicsTPMServerWrapper wrapper = null;
     private long fd = 0;
+    private InputStream responseBuf = null;
 
     public QwicsInputStream(QwicsTPMServerWrapper wrapper, long fd) {
         this.wrapper = wrapper;
         this.fd = fd;
     }
 
+    public synchronized void setResponse(String resp) {
+        responseBuf = new ByteArrayInputStream(resp.getBytes());
+    }
+
     @Override
     public int read() throws IOException {
         int b = 0;
+        synchronized (this) {
+            if (responseBuf != null) {
+                b = responseBuf.read();
+                if (b >= 0) {
+                    return b;
+                }
+                responseBuf = null;
+            }
+        }
+
         if ((b = wrapper.readByte(fd)) < 0) {
             throw new IOException("Error reading byte from fd "+fd);
         };

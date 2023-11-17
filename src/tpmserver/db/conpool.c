@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server Database Connection Pool (currently PostgreSQL only)                     */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 13.09.2020                                  */
+/*   Author: Philipp Brune               Date: 17.11.2020                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -62,7 +62,9 @@ void setUpPool(int numCon, char *conInfo, int openCons) {
         printf("%s\n","ERROR: Could not open pool access semaphore");
         exit(1);
     }
-
+#ifdef _LIBTPMSERVER_
+    openCons = 0;
+#endif
     // Open connections
     if (openCons == 1) {
       int i;
@@ -83,7 +85,9 @@ void setUpPool(int numCon, char *conInfo, int openCons) {
 void tearDownPool(int closeCons) {
     // Ensure no transcations are currently processed, wait for completion
     sem_wait(poolAccess);
-
+#ifdef _LIBTPMSERVER_
+    closeCons = 0;
+#endif
     if (closeCons == 1) {
       int i;
       for (i = 0; i < poolSize; i++) {
@@ -101,6 +105,7 @@ void tearDownPool(int closeCons) {
 // Pool usage: Used connection always forms one transaction
 PGconn *getDBConnection() {
     PGconn *conn = NULL;
+#ifndef _LIBTPMSERVER_    
     while (conn == NULL) {
         sem_wait(poolAccess);
         int i;
@@ -154,7 +159,7 @@ PGconn *getDBConnection() {
         printf("ERROR: START TRANSACTION failed: %s", PQerrorMessage(conn));
     }
     PQclear(res);
-
+#endif
     return conn;
 }
 
@@ -162,6 +167,10 @@ PGconn *getDBConnection() {
 int returnDBConnection(PGconn *conn, int commit) {
     int ret = 1;
     PGresult *res;
+
+    if (conn == NULL) {
+        return ret;
+    }
 
     res = PQexec(conn, "SELECT curname FROM qwics_decl WHERE curhold=true");
     if (PQresultStatus(res) == PGRES_TUPLES_OK) {
@@ -218,6 +227,10 @@ int returnDBConnection(PGconn *conn, int commit) {
 
 
 void beginDBConnection(PGconn *conn) {
+    if (conn == NULL) {
+        return;
+    }
+
     PGresult *res;
     res = PQexec(conn, "START TRANSACTION ISOLATION LEVEL READ COMMITTED READ WRITE");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
@@ -230,6 +243,9 @@ void beginDBConnection(PGconn *conn) {
 int syncDBConnection(PGconn *conn, int commit) {
     int ret = 1;
     PGresult *res;
+    if (conn == NULL) {
+        return ret;
+    }
 
     res = PQexec(conn, "DELETE FROM qwics_decl WHERE curhold=false");
     if (PQresultStatus(res) != PGRES_COMMAND_OK) {
@@ -266,6 +282,9 @@ int checkSQL(PGconn *conn, char *sql) {
     char token[255];
     int pos = 0, i = 0, l = strlen(sql), state = 0;
     PGresult *res;
+    if (conn == NULL) {
+        return 1;
+    }
 
     do {
         while ((i < l) && (sql[i] == ' ')) {

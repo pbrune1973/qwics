@@ -52,6 +52,8 @@ public class QwicsOutputStream extends OutputStream {
     private QwicsTPMServerWrapper wrapper = null;
     private long fd = 0;
     private String lineBuf = "";
+    private int parcnt = 0;
+    private boolean writeThrough = false;
 
     public QwicsOutputStream(QwicsTPMServerWrapper wrapper, long fd) {
         this.wrapper = wrapper;
@@ -60,20 +62,47 @@ public class QwicsOutputStream extends OutputStream {
 
     @Override
     public void write(int b) throws IOException {
-        if (b == '\n' || b == '\r' || lineBuf.length() >= 80) {
-            if (lineBuf.startsWith("PROGRAM")) {
-                wrapper.launchClass(lineBuf.substring(8).trim(),0, 0);
-            }
-            if (lineBuf.startsWith("CAPROG")) {
-                wrapper.launchClass(lineBuf.substring(7).trim(),1, 0);
-            }
-            lineBuf = "";
-        } else {
-            lineBuf = lineBuf + (char)b;
-        }
+        if (!writeThrough) {
+            if (b == '\n' || b == '\r' || lineBuf.length() >= 80) {
+                System.out.println(lineBuf);
 
-        if (wrapper.writeByte(fd,(byte)b) < 0) {
-            throw new IOException("Error writing byte to fd "+fd);
-        };
+                if (lineBuf.startsWith("sql")) {
+                    String sql = lineBuf.substring(4);
+                    wrapper.execSql(sql, 1, 0);
+                }
+                if (lineBuf.startsWith("PROGRAM")) {
+                    wrapper.launchClass(lineBuf.substring(8).trim(), 0, parcnt);
+                }
+                if (lineBuf.startsWith("PROGRAM")) {
+                    wrapper.launchClass(lineBuf.substring(8).trim(), 0, parcnt);
+                }
+                if (lineBuf.startsWith("CAPROG")) {
+                    wrapper.launchClass(lineBuf.substring(7).trim(), 1, parcnt);
+                }
+                if (lineBuf.startsWith("parcnt")) {
+                    try {
+                        parcnt = Integer.parseInt(lineBuf.substring(7).trim());
+                    } catch (NumberFormatException e) {
+                        parcnt = 0;
+                    }
+                }
+                if (lineBuf.startsWith("quit")) {
+                    wrapper.execSql("COMMIT", 0, 0);
+                }
+
+                lineBuf = "";
+                return;
+            } else {
+                lineBuf = lineBuf + (char) b;
+            }
+        } else {
+            if (wrapper.writeByte(fd,(byte)b) < 0) {
+                throw new IOException("Error writing byte to fd "+fd);
+            };
+        }
+    }
+
+    public void setWriteThrough(boolean writeThrough) {
+        this.writeThrough = writeThrough;
     }
 }

@@ -1,0 +1,26 @@
+=========================
+| P3/COBOL Build report |
+=========================
+
+Build Overview
+==============
+🏁  Total (build/scheduled)      : 1/1 (100,0%)
+✅  Successful                   : 1/1 (100,0%)
+❌  Failed                       : 0/1 (0,0%)
+❔  Ignored                      : 0/1 (0,0%)
+
+Build Details
+=============
+✅  Successful                   : 0/1
+✅  Successful (with information): 1/1
+✅  Successful (with caution)    : 0/1
+✅  Successful (with warnings)   : 0/1
+❌  Error Cobol                  : 0/1 (0,0%)
+❌  Error Java                   : 0/1 (0,0%)
+❌  Severe Error                 : 0/1
+❌  Fatal                        : 0/1
+
+Build Performance
+=================
+🚀  Total build time (cpuTime)   : 1,40 in sec
+🚀  Total build time (clockTime) : 2,38 in sec

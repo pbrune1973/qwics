@@ -78,12 +78,16 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
 
 
 JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_readByte(JNIEnv *env, jobject self, jlong fd) {
-    return 0;
+    int b = 0;
+    if (read((int)fd,(void*)&b,1) < 0) {
+        b = -1;
+    }
+    return b;
 }
 
 
 JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_writeByte(JNIEnv *env, jobject self, jlong fd, jbyte b) {
-    return 0;
+    return write((int)fd,(void*)&b,1);
 }
 
 
@@ -139,4 +143,22 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
     (*env)->ReleaseStringUTFChars(env, loadmod, name);
 
     return 0;
+}
+
+
+JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execSqlNative(JNIEnv *env, jobject self, jstring sql, jlong fd, jint sendRes, jint sync) {
+    int _fd = (int)fd;
+
+    // Init shared memory area
+    if ((shmPtr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE,
+                    MAP_SHARED | MAP_ANONYMOUS, -1, 0)) == (void *) -1) {
+      fprintf(stderr, "Failed to attach shared memory segment.\n");
+      return -1;
+    }
+
+    const char* sqlStr = (*env)->GetStringUTFChars(env, sql, NULL); 
+    initExec(1);
+    _execSql((char*)sqlStr, &_fd, sendRes, sync);
+    clearExec(1);
+    (*env)->ReleaseStringUTFChars(env, sql, sqlStr);
 }

@@ -38,7 +38,7 @@
                 libraryRef="QwicsJDBCJar"/>
     <library filesetRef="QwicsFileset" id="QwicsJDBCJar"/>
     <fileset dir="${server.config.dir}/drivers" id="QwicsFileset"
-             includes="QwicsJDBCDriver.jar,junixsocket-common-2.7.0.jar,junixsocket-native-common-2.7.0.jar"/>
+             includes="QwicsJDBCDriver.jar,QwicsJavaNativeBridge-0.9.jar,junixsocket-common-2.7.0.jar,junixsocket-native-common-2.7.0.jar"/>
 
     <library filesetRef="JUnixSocketFileset" id="JUnixSocketLib"/>
     <fileset dir="${server.config.dir}/drivers" id="JUnixSocketFileset"
@@ -46,7 +46,7 @@
 
     <dataSource id="jdbc/QwicsCobolDS" jdbcDriverRef="QwicsJDBCDriver" jndiName="jdbc/QwicsCobolDS"
                 type="javax.sql.XADataSource">
-        <properties URL="jdbc:qwics:/home/qwics/comm/sock:0"/>
+        <properties URL="jdbc:qwics:jni:0"/>
     </dataSource>
 
     <!-- JMS MQ configuration -->
@@ -72,7 +72,7 @@
     <applicationManager autoExpand="true"></applicationManager>
     <applicationMonitor updateTrigger="mbean"></applicationMonitor>
 
-    <webApplication id="QwicsWebApp" location="QwicsWebApp.war" name="QwicsWebApp">
+    <webApplication id="QwicsJNIWebApp" location="QwicsJNIWebApp.war" name="QwicsJNIWebApp">
         <classloader commonLibraryRef="hibernate,QwicsJDBCJar,PostgresLib,JUnixSocketLib"/>
     </webApplication>
 </server>

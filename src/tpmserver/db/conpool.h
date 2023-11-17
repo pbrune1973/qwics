@@ -28,6 +28,7 @@
 #include <semaphore.h>
 #include <unistd.h>
 #include <libpq-fe.h>
+#include "../config.h"
 
 
 // Pool management

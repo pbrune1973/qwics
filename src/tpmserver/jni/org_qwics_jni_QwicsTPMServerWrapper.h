@@ -55,6 +55,14 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear
 JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransaction
   (JNIEnv *, jobject, jstring, jlong, jint, jint);
 
+/*
+ * Class:     org_qwics_jni_QwicsTPMServerWrapper
+ * Method:    execSqlNative
+ * Signature: (Ljava/lang/String;JII)V
+ */
+JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execSqlNative
+  (JNIEnv *, jobject, jstring, jlong, jint, jint);
+
 #ifdef __cplusplus
 }
 #endif

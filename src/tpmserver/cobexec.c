@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 16.11.2023                                  */
+/*   Author: Philipp Brune               Date: 17.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -682,6 +682,7 @@ void setSQLCA(int code, char *state) {
 // Callback handler for EXEC statements
 int processCmd(char *cmd, cob_field **outputVars) {
     char *pos;
+#ifndef _LIBTPMSERVER_  
     if ((pos=strstr(cmd,"EXEC SQL")) != NULL) {
         char *sql = (char*)pos+9;
         PGconn *conn = (PGconn*)pthread_getspecific(connKey);
@@ -796,6 +797,7 @@ int processCmd(char *cmd, cob_field **outputVars) {
         }
         printf("%s\n",sql);
     }
+#endif
     return 1;
 }
 
