@@ -63,14 +63,14 @@ public class QwicsTPMServerWrapper extends Socket {
     private HashMap<String,String> loadModClasses = new HashMap<String,String>();
     private QwicsInputStream inputStream = null;
     private QwicsOutputStream outputStream = null;
-    private long fd = 0;
+    private long fd[] = null;
 
 
     private QwicsTPMServerWrapper() {
         System.out.println("CREATE QwicsTPMServerWrapper");
         fd = init();
-        inputStream = new QwicsInputStream(this,fd);
-        outputStream = new QwicsOutputStream(this,fd);
+        inputStream = new QwicsInputStream(this,fd[0]);
+        outputStream = new QwicsOutputStream(this,fd[0]);
     }
 
     public static QwicsTPMServerWrapper getWrapper() {
@@ -105,7 +105,7 @@ public class QwicsTPMServerWrapper extends Socket {
                     public void run() {
                         try {
                             _this.setAsInstance();
-                            _this.execInTransaction(name,_this.fd,setCommArea,parCount);
+                            _this.execInTransaction(name,_this.fd[1],setCommArea,parCount);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
@@ -142,7 +142,7 @@ public class QwicsTPMServerWrapper extends Socket {
     public native void execCallbackNative(String cmd, Object var);
     public native int readByte(long fd);
     public native int writeByte(long fd, byte b);
-    public native long init();
-    public native void clear(long fd);
+    public native long[] init();
+    public native void clear(long fd[]);
     public native int execInTransaction(String loadmod, long fd, int setCommArea, int parCount);
 }

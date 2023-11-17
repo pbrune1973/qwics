@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 16.11.2023                                  */
+/*   Author: Philipp Brune               Date: 17.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -26,6 +26,8 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <signal.h>
 #include <errno.h>
 
@@ -85,13 +87,27 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_writeByte(JNIEnv
 }
 
 
-JNIEXPORT jlong JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init(JNIEnv *env, jobject self) {
-    return 0;
+JNIEXPORT jlongArray JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init(JNIEnv *env, jobject self) {
+    int sockets[2];
+    jlong fds[2];
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) < 0) {
+        printf("Error opening internal socket pair\n");
+        return NULL;
+    }
+    fds[0] = (jlong)sockets[0];
+    fds[1] = (jlong)sockets[1];
+    jlongArray fd = (*env)->NewLongArray(env,2);
+    (*env)->SetLongArrayRegion(env,fd,0,2,fds);
+    return fd;
 }
 
 
-JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear(JNIEnv *env, jobject self, jlong fd) {
-    close((int)fd);
+JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear(JNIEnv *env, jobject self, jlongArray fd) {
+    jlong *fds = (*env)->GetLongArrayElements(env, fd, 0);
+    close((int)fds[0]);
+    close((int)fds[1]);
+    (*env)->ReleaseLongArrayElements(env, fd, fds, 0);
 }
 
 

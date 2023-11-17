@@ -34,18 +34,18 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_writeByte
 /*
  * Class:     org_qwics_jni_QwicsTPMServerWrapper
  * Method:    init
- * Signature: ()J
+ * Signature: ()[J
  */
-JNIEXPORT jlong JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init
+JNIEXPORT jlongArray JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init
   (JNIEnv *, jobject);
 
 /*
  * Class:     org_qwics_jni_QwicsTPMServerWrapper
  * Method:    clear
- * Signature: (J)V
+ * Signature: ([J)V
  */
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear
-  (JNIEnv *, jobject, jlong);
+  (JNIEnv *, jobject, jlongArray);
 
 /*
  * Class:     org_qwics_jni_QwicsTPMServerWrapper

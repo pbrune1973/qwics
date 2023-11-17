@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor for EasiRun(tm) P3 Cobol Compiler (tm)                */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 16.11.2023                                  */
+/*   Author: Philipp Brune               Date: 17.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -205,6 +205,16 @@ char *getExecTerminator(int quotes) {
 }
 
 
+int isNumber(char s[]) {
+    for (int i = 0; s[i]!= '\0'; i++) {
+        if (isdigit(s[i]) == 0 && s[i] != '.' && s[i] != '-') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
 void printJavaCmd(char *outbuf, char *fmt, ...) {
     char *val,*end = outbuf;
     va_list list;
@@ -243,7 +253,11 @@ void printJavaCmd(char *outbuf, char *fmt, ...) {
     if (cnt == 3) {
         val = va_arg(list,char*);
         if (hasVar) {
-            sprintf(end,"%s%s%s","`ADDRESS OF ",val,"`");
+            if (isNumber(val)) {
+                sprintf(end,"%s",val);
+            } else {
+                sprintf(end,"%s%s%s","`ADDRESS OF ",val,"`");
+            }
         } else {
             sprintf(end,"%s%s",val,"\",null");
         }
@@ -270,7 +284,11 @@ void printJavaCmd(char *outbuf, char *fmt, ...) {
         }
 
         val = va_arg(list,char*);
-        sprintf(end,"%s%s%s",",`ADDRESS OF ",val,"`");
+        if (isNumber(val)) {
+            sprintf(end,"%s%s",",",val);
+        } else {
+            sprintf(end,"%s%s%s",",`ADDRESS OF ",val,"`");
+        }
         end = &outbuf[strlen(outbuf)];
 
         val = va_arg(list,char*);
