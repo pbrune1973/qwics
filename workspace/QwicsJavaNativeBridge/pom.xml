@@ -14,4 +14,13 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>com.turrettech</groupId>
+            <artifactId>p3cobol</artifactId>
+            <version>17.0.0</version>
+            <scope>system</scope>
+            <systemPath>/Users/pbrune/p3cobol_17.0.0_SNAPSHOT_692/lib/p3cobol.jar</systemPath>
+        </dependency>
+    </dependencies>
 </project>

@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 17.11.2023                                  */
+/*   Author: Philipp Brune               Date: 20.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 #include <sys/un.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -44,10 +45,20 @@ int shmId;
 key_t shmKey;
 void *shmPtr;
 
+pthread_key_t execVarsKey;
+
+
 struct callbackFuncType {
     int (*callback)(char *loadmod, void *data);
     JNIEnv *env;
     jobject self;
+};
+
+
+struct cobVarData {
+    cob_field vars[50];
+    int varNum;
+    unsigned char *memBuffer;
 };
 
 
@@ -69,10 +80,50 @@ static void sig_handler(int signo) {
 }
 
 
-JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNative(JNIEnv *env, jobject self, jstring cmd, jobject var) {
+JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNative(JNIEnv *env, jobject self, 
+                jstring cmd, jbyteArray var, jint pos, jint len, jint attr) {
     const char* cmdStr = (*env)->GetStringUTFChars(env, cmd, NULL);
-    cob_field cobvar;
-    execCallback((char*)cmdStr,(void*)&cobvar);
+    struct cobVarData *execVars = (struct cobVarData*)pthread_getspecific(execVarsKey);
+
+    if (strstr(cmdStr,"TPMI:EXEC") != NULL) {
+        if (execVars != NULL) {
+            free(execVars);
+            execVars = NULL;
+        }
+        execVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
+        execVars->varNum = 0;
+        execVars->memBuffer = NULL;
+        pthread_setspecific(execVarsKey,execVars);
+    }
+
+    if (len < 0) {
+        execCallback((char*)cmdStr,NULL);
+    } else {
+        if (execVars != NULL) {
+            if (execVars->memBuffer == NULL) {
+                execVars->memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, var, 0);                
+            }
+            if ((execVars->varNum < 50) && (execVars->memBuffer != NULL)) {
+                cob_field *f = &(execVars->vars[execVars->varNum]);
+                execVars->varNum++;
+                f->data = &(execVars->memBuffer[pos]);
+                f->attr = (int)attr;
+                f->size = (int)len;
+                execCallback((char*)cmdStr,f);
+            }
+        }
+    }
+
+    if (strstr(cmdStr,"TPMI:END-EXEC") != NULL) {
+        if (execVars->memBuffer != NULL) {
+            (*env)->ReleaseByteArrayElements(env, var, execVars->memBuffer, 0);
+            execVars->memBuffer = NULL;
+        }
+        if (execVars != NULL) {
+            free(execVars);
+        }
+        pthread_setspecific(execVarsKey,NULL);
+    }
     (*env)->ReleaseStringUTFChars(env, cmd, cmdStr);
 }
 
@@ -94,6 +145,7 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_writeByte(JNIEnv
 JNIEXPORT jlongArray JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init(JNIEnv *env, jobject self) {
     int sockets[2];
     jlong fds[2];
+    pthread_key_create(&execVarsKey, NULL);
 
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) < 0) {
         printf("Error opening internal socket pair\n");
@@ -153,7 +205,7 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execSqlNative(JN
     if ((shmPtr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE,
                     MAP_SHARED | MAP_ANONYMOUS, -1, 0)) == (void *) -1) {
       fprintf(stderr, "Failed to attach shared memory segment.\n");
-      return -1;
+      return;
     }
 
     const char* sqlStr = (*env)->GetStringUTFChars(env, sql, NULL); 

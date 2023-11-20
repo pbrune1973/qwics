@@ -3,9 +3,12 @@
 *.la
 *.so
 *.dylib
+*.class
+**/p3cobol.*
+P3CobVarResolver.java
+P3CobVarResolver.class
 **/exec_*
 **/.DS_Store
 **/target
 **/JavaKurs
 **/JavaKurs/.idea
-

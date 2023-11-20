@@ -38,7 +38,7 @@
                 libraryRef="QwicsJDBCJar"/>
     <library filesetRef="QwicsFileset" id="QwicsJDBCJar"/>
     <fileset dir="${server.config.dir}/drivers" id="QwicsFileset"
-             includes="QwicsJDBCDriver.jar,QwicsJavaNativeBridge-0.9.jar,junixsocket-common-2.7.0.jar,junixsocket-native-common-2.7.0.jar"/>
+             includes="QwicsJDBCDriver.jar,QwicsJavaNativeBridge-0.9.jar,p3cobol.jar,junixsocket-common-2.7.0.jar,junixsocket-native-common-2.7.0.jar"/>
 
     <library filesetRef="JUnixSocketFileset" id="JUnixSocketLib"/>
     <fileset dir="${server.config.dir}/drivers" id="JUnixSocketFileset"
