@@ -106,9 +106,18 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
             if ((execVars->varNum < 50) && (execVars->memBuffer != NULL)) {
                 cob_field *f = &(execVars->vars[execVars->varNum]);
                 execVars->varNum++;
+
+                cob_field_attr *a = (cob_field_attr*)malloc(sizeof(cob_field_attr));
+                a->type = attr & 0xFF; 
+                a->flags = (attr >> 8) & 0xFF;
+                a->digits = (attr >> 16) & 0xFF;
+                a->scale = (attr >> 24) & 0xFF; 
+                a->pic = NULL;
+
                 f->data = &(execVars->memBuffer[pos]);
-                f->attr = (int)attr;
+                f->attr = a;
                 f->size = (int)len;
+
                 execCallback((char*)cmdStr,f);
             }
         }
@@ -120,6 +129,10 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
             execVars->memBuffer = NULL;
         }
         if (execVars != NULL) {
+            int i;
+            for (i = 0; i < execVars->varNum; i++) {
+                free((void*)execVars->vars[i].attr);
+            }
             free(execVars);
         }
         pthread_setspecific(execVarsKey,NULL);

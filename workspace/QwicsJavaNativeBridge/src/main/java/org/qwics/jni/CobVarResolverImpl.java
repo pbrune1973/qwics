@@ -100,4 +100,16 @@ public class CobVarResolverImpl implements CobVarResolver {
                 ", attr=" + attr +
                 '}';
     }
+
+    protected void setFlags(int flags) {
+        attr = attr | (flags << 8);
+    }
+
+    protected void setDigits(int digits) {
+        attr = attr | (digits << 16);
+    }
+
+    protected void setScale(int scale) {
+        attr = attr | (scale << 24);
+    }
 }
