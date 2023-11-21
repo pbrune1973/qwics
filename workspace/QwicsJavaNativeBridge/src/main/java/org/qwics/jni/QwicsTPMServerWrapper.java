@@ -60,7 +60,7 @@ public class QwicsTPMServerWrapper extends Socket {
         System.loadLibrary("libtpmserver");
     }
 
-    private HashMap<String,String> loadModClasses = new HashMap<String,String>();
+    private static HashMap<String,String> loadModClasses = new HashMap<String,String>();
     private QwicsInputStream inputStream = null;
     private QwicsOutputStream outputStream = null;
     private long fd[] = null;
@@ -87,7 +87,16 @@ public class QwicsTPMServerWrapper extends Socket {
 
     public void execLoadModule(String loadmod) {
         try {
-            Class cl = Class.forName(loadModClasses.get(loadmod));
+            Class cl = null;
+            synchronized (loadModClasses) {
+                if (!loadModClasses.containsKey(loadmod)) {
+                    String lmClass = null;
+                    if ((lmClass = System.getProperty(loadmod)) != null) {
+                        defineLoadModClass(loadmod,lmClass);
+                    }
+                }
+                cl = Class.forName(loadModClasses.get(loadmod));
+            }
             Method main = cl.getMethod("main",String[].class);
             if (main != null) {
                 main.invoke(null, new String[0]);
@@ -119,8 +128,10 @@ public class QwicsTPMServerWrapper extends Socket {
         }
     }
 
-    public void defineLoadModClass(String loadMod, String className) {
-        loadModClasses.put(loadMod,className);
+    public static void defineLoadModClass(String loadMod, String className) {
+        synchronized (loadModClasses) {
+            loadModClasses.put(loadMod, className);
+        }
     }
 
     @Override

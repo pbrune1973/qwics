@@ -57,7 +57,18 @@ public class CobVarResolverImpl implements CobVarResolver {
 
     public static CobVarResolverImpl getInstance() {
         if (instance == null) {
-            instance = new CobVarResolverImpl();
+            String cl = null;
+            try {
+                if ((cl = System.getProperty("org.qwics.cobvarresolver")) != null) {
+                    Class clazz = Class.forName(cl);
+                    instance = (CobVarResolverImpl)clazz.newInstance();
+                } else {
+                    instance = new CobVarResolverImpl();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                instance = new CobVarResolverImpl();
+            }
         }
         return instance;
     }

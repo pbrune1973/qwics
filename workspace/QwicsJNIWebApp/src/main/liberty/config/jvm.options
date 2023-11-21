@@ -1,1 +1,3 @@
 -Djava.library.path=/home/qwics/bin
+-Dorg.qwics.cobvarresolver=org.qwics.jni.P3CobVarResolver
+-DTESTBR=programs.Testbr

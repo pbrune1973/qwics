@@ -1,4 +1,5 @@
 P3CobVarResolver.*
+workspace/loadlib/
 *.o
 *.a
 *.la
