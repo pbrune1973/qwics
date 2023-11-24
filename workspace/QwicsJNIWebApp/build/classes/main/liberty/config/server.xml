@@ -62,7 +62,7 @@
         <properties.wasJms queueName="MyQueue"/>
     </jmsQueue>
 
-    <jmsActivationSpec id="QwicsWebApp/QwicsMDB">
+    <jmsActivationSpec id="QwicsJNIWebApp/QwicsMDB">
         <properties.wasJms destinationRef="MyQueue"/>
     </jmsActivationSpec>
 

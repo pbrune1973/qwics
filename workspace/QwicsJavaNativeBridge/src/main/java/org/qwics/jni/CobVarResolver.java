@@ -52,4 +52,7 @@ public interface CobVarResolver {
     public int getLen();
 
     public int getAttr();
+
+    public void registerModule(Class module);
+    public void cobmain(String name, String args[]);
 }

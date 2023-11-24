@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 20.11.2023                                  */
+/*   Author: Philipp Brune               Date: 23.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -46,6 +46,7 @@ key_t shmKey;
 void *shmPtr;
 
 pthread_key_t execVarsKey;
+pthread_key_t globVarsKey;
 
 
 struct callbackFuncType {
@@ -84,6 +85,34 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
                 jstring cmd, jbyteArray var, jint pos, jint len, jint attr) {
     const char* cmdStr = (*env)->GetStringUTFChars(env, cmd, NULL);
     struct cobVarData *execVars = (struct cobVarData*)pthread_getspecific(execVarsKey);
+    struct cobVarData *globVars = (struct cobVarData*)pthread_getspecific(globVarsKey);
+printf("execCallbackNative %s %x %x %d\n",cmdStr,execVars,globVars,len);
+
+    if (strstr(cmdStr,"TPMI:SET") != NULL) {
+        if ((globVars != NULL) && (len >= 0)) {
+            if (globVars->memBuffer == NULL) {
+                globVars->memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, var, 0);                
+            }
+            if ((globVars->varNum < 50) && (globVars->memBuffer != NULL)) {
+                cob_field *f = &(globVars->vars[globVars->varNum]);
+                globVars->varNum++;
+
+                cob_field_attr *a = (cob_field_attr*)malloc(sizeof(cob_field_attr));
+                a->type = attr & 0xFF; 
+                a->flags = (attr >> 8) & 0xFF;
+                a->digits = (attr >> 16) & 0xFF;
+                a->scale = (attr >> 24) & 0xFF; 
+                a->pic = NULL;
+
+                f->data = &(globVars->memBuffer[pos]);
+                f->attr = a;
+                f->size = (int)len;
+
+                execCallback((char*)cmdStr,f);
+            }
+        }
+        return;
+    }
 
     if (strstr(cmdStr,"TPMI:EXEC") != NULL) {
         if (execVars != NULL) {
@@ -125,6 +154,16 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
 
     if (strstr(cmdStr,"TPMI:END-EXEC") != NULL) {
         if (execVars->memBuffer != NULL) {
+            int i;
+            for (i = 0; i < execVars->varNum; i++) {
+                printf("VAR %d %d %x %d %d\n",i,execVars->vars[i].size,execVars->vars[i].attr->type,execVars->vars[i].attr->digits,execVars->vars[i].attr->scale);
+                int j;
+                for (j = 0; j < execVars->vars[i].size; j++) {
+                    printf("%c",(char)execVars->vars[i].data[j]);
+                }
+                printf("\n\n");
+            }
+
             (*env)->ReleaseByteArrayElements(env, var, execVars->memBuffer, 0);
             execVars->memBuffer = NULL;
         }
@@ -159,6 +198,12 @@ JNIEXPORT jlongArray JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init(JNIEn
     int sockets[2];
     jlong fds[2];
     pthread_key_create(&execVarsKey, NULL);
+    pthread_setspecific(execVarsKey,NULL);
+    pthread_key_create(&globVarsKey, NULL);
+    struct cobVarData *globVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
+    globVars->varNum = 0;
+    globVars->memBuffer = NULL;
+    pthread_setspecific(globVarsKey,globVars);
 
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) < 0) {
         printf("Error opening internal socket pair\n");
@@ -177,6 +222,16 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear(JNIEnv *en
     close((int)fds[0]);
     close((int)fds[1]);
     (*env)->ReleaseLongArrayElements(env, fd, fds, 0);
+
+    struct cobVarData *globVars = (struct cobVarData*)pthread_getspecific(globVarsKey);
+    if (globVars != NULL) {
+        int i;
+        for (i = 0; i < globVars->varNum; i++) {
+            free((void*)globVars->vars[i].attr);
+        }
+        free(globVars);
+    }
+    pthread_setspecific(globVarsKey,NULL);
 }
 
 
@@ -202,6 +257,7 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
     }
 
     const char* name = (*env)->GetStringUTFChars(env, loadmod, NULL); 
+printf("execInTransaction %s\n",name);    
     initExec(1);
     execCallbackInTransaction((char*)name,&_fd,(int)setCommArea,(int)parcnt,(void*)&callbackFunc);
     clearExec(1);
@@ -222,6 +278,7 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execSqlNative(JN
     }
 
     const char* sqlStr = (*env)->GetStringUTFChars(env, sql, NULL); 
+printf("execSqlNative %s\n",sqlStr);    
     initExec(1);
     _execSql((char*)sqlStr, &_fd, sendRes, sync);
     clearExec(1);

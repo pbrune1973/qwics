@@ -73,9 +73,6 @@ public class QwicsOutputStream extends OutputStream {
                 if (lineBuf.startsWith("PROGRAM")) {
                     wrapper.launchClass(lineBuf.substring(8).trim(), 0, parcnt);
                 }
-                if (lineBuf.startsWith("PROGRAM")) {
-                    wrapper.launchClass(lineBuf.substring(8).trim(), 0, parcnt);
-                }
                 if (lineBuf.startsWith("CAPROG")) {
                     wrapper.launchClass(lineBuf.substring(7).trim(), 1, parcnt);
                 }

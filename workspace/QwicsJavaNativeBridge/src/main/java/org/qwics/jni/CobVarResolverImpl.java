@@ -123,4 +123,12 @@ public class CobVarResolverImpl implements CobVarResolver {
     protected void setScale(int scale) {
         attr = attr | (scale << 24);
     }
+
+    @Override
+    public void cobmain(String name, String[] args) {
+    }
+
+    @Override
+    public void registerModule(Class module) {
+    }
 }

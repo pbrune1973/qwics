@@ -45,4 +45,4 @@ RUN runuser -l qwics -c 'cd /home/qwics/src/preps/cobol && make clean; make cobp
 #RUN runuser -l qwics -c 'mkdir /home/qwics/spool'
 #RUN runuser -l qwics -c 'mkdir /home/qwics/work'
 
-CMD runuser -l qwics -c 'export JAVA_HOME=/opt/java/openjdk; export PATH=$PATH:/opt/java/openjdk/bin; /home/qwics/wlp/bin/server run'
+CMD runuser -l qwics -c 'export JAVA_HOME=/opt/java/openjdk; export PATH=$PATH:/opt/java/openjdk/bin; export QWICS_DB_CONNECTSTR="host=qwics-postgres user=postgres password=postgres dbname=postgres"; export QWICS_DATASET_DIR=/home/qwics/dataset; export QWICS_JSDIR=/home/qwics/copybooks; /home/qwics/wlp/bin/server run'

@@ -48,6 +48,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.lang.reflect.Method;
 import java.net.Socket;
 import java.sql.Array;
 import java.sql.Blob;
@@ -127,9 +128,16 @@ public class QwicsConnection implements Connection {
 			if (port != 0) {
 				socket = new Socket(host, port);
 			} else {
-				if ("jni".equals(host)) {
-					Class wr = Class.forName("org.qwics.jni.QwicsTPMServerWrapper");;
-					socket = (Socket)wr.newInstance();
+				if (host.startsWith("jni")) {
+					System.out.println("open jni connection");
+					try {
+						Class wr = Class.forName("org.qwics.jni.QwicsTPMServerWrapper");
+						Method getWrapper = wr.getMethod("getWrapper");
+						socket = (Socket)getWrapper.invoke(null);
+					} catch (Exception e) {
+						e.printStackTrace();
+						throw e;
+					}
 				} else {
 					socket = AFUNIXSocket.newInstance();
 					socket.connect(new AFUNIXSocketAddress(new File(host)));

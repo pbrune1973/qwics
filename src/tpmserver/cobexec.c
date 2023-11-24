@@ -1419,7 +1419,7 @@ int execCallback(char *cmd, void *var) {
 
     struct taskLock *taskLocks = (struct taskLock *)pthread_getspecific(taskLocksKey);
 
-    //printf("%s %s %d %d %x\n","execCallback",cmd,*cmdState,*memParamsState,var);
+    printf("%s %s %d %d %x\n","execCallback",cmd,*cmdState,*memParamsState,var);
 
     if (strstr(cmd,"SET SQLCODE") && (var != NULL)) {
         sqlcode = var;
