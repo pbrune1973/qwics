@@ -68,7 +68,6 @@ public class QwicsTPMServerWrapper extends Socket {
     private QwicsInputStream inputStream = null;
     private QwicsOutputStream outputStream = null;
     private long fd[] = null;
-    private byte[] varBuf = null;
 
     private QwicsTPMServerWrapper() {
         System.out.println("CREATE QwicsTPMServerWrapper");
@@ -162,12 +161,11 @@ public class QwicsTPMServerWrapper extends Socket {
     public void execCallback(String cmd, Object var) {
         int pos = 0, len = -1, attr = 0;
         System.out.println("execCallback "+cmd+" "+var);
+        byte[] varBuf = null;
         if (var != null) {
             CobVarResolver varResolver = CobVarResolverImpl.getInstance();
             varResolver.setVar(var);
-            if (varBuf == null) {
-                varBuf = varResolver.getMemoryBuffer();
-            }
+            varBuf = varResolver.getMemoryBuffer();
             pos = varResolver.getPos();
             len = varResolver.getLen();
             attr = varResolver.getAttr();
@@ -175,9 +173,6 @@ public class QwicsTPMServerWrapper extends Socket {
         }
 
         execCallbackNative(cmd,varBuf,pos,len,attr);
-        if (cmd != null && cmd.startsWith("TPMI:END-EXEC")) {
-            varBuf = null;
-        }
     }
 
     public void execSql(String sql, int sendRes, int sync) {

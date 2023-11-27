@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 23.11.2023                                  */
+/*   Author: Philipp Brune               Date: 27.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -55,11 +55,19 @@ struct callbackFuncType {
     jobject self;
 };
 
+struct memBufferDef {
+    jbyteArray var;
+    unsigned char *memBuffer;
+    int isGlobal;
+    int isMapped;
+};
 
 struct cobVarData {
     cob_field vars[50];
     int varNum;
-    unsigned char *memBuffer;
+    // Used only in globVars, execVars refer to globVars for their buffers
+    struct memBufferDef memBuffers[50];
+    int bufNum;
 };
 
 
@@ -81,19 +89,80 @@ static void sig_handler(int signo) {
 }
 
 
+unsigned char *getMemBuffer(jbyteArray var, JNIEnv *env, struct cobVarData *globVars, int isGlobal) {
+printf("getMemBuffer %x %x\n",var,globVars);
+    if (globVars == NULL) {
+        return NULL;
+    }
+
+    int i,j = -1;
+    for (i = 0; i < globVars->bufNum; i++) {
+        // Remap globals
+        if (globVars->memBuffers[i].isGlobal && !globVars->memBuffers[i].isMapped) {
+            globVars->memBuffers[i].memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, globVars->memBuffers[i].var, 0); 
+            globVars->memBuffers[i].isMapped = 1;
+        }
+        if (globVars->memBuffers[i].var == var) {
+            // Remember var if already found
+            j = i;
+        }
+    }
+
+    if (j < 0) {
+        j = 0;
+    }
+
+    for (i = j; i < globVars->bufNum; i++) {
+        if (globVars->memBuffers[i].var == var) {
+            if (!globVars->memBuffers[i].isMapped) {
+                globVars->memBuffers[i].memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, globVars->memBuffers[i].var, 0); 
+                globVars->memBuffers[i].isMapped = 1;
+            }
+printf("getMemBufferA %x %x %d %d\n",var,globVars->memBuffers[i].memBuffer,i,globVars->bufNum);
+            return globVars->memBuffers[i].memBuffer;
+        }
+    }
+
+    if ((i >= globVars->bufNum) && (globVars->bufNum < 50)) {
+        globVars->memBuffers[globVars->bufNum].var = var;
+        globVars->memBuffers[globVars->bufNum].memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, globVars->memBuffers[globVars->bufNum].var, 0); 
+        globVars->memBuffers[globVars->bufNum].isMapped = 1;
+        globVars->memBuffers[globVars->bufNum].isGlobal = isGlobal;
+printf("getMemBufferB  %x %x %d %d\n",var,globVars->memBuffers[i].memBuffer,i,globVars->bufNum);
+        globVars->bufNum++;    
+        return globVars->memBuffers[globVars->bufNum-1].memBuffer;
+    }
+
+    return NULL;
+}
+
+
+void releaseMemBuffers(JNIEnv *env, struct cobVarData *globVars) {
+    if (globVars == NULL) {
+        return;
+    }
+
+    int i;
+    for (i = 0; i < globVars->bufNum; i++) {
+        if (globVars->memBuffers[i].isMapped) {
+            (*env)->ReleaseByteArrayElements(env, globVars->memBuffers[i].var, globVars->memBuffers[i].memBuffer, 0);
+            globVars->memBuffers[i].isMapped = 0;
+        }
+    }
+}
+
+
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNative(JNIEnv *env, jobject self, 
                 jstring cmd, jbyteArray var, jint pos, jint len, jint attr) {
     const char* cmdStr = (*env)->GetStringUTFChars(env, cmd, NULL);
     struct cobVarData *execVars = (struct cobVarData*)pthread_getspecific(execVarsKey);
     struct cobVarData *globVars = (struct cobVarData*)pthread_getspecific(globVarsKey);
-printf("execCallbackNative %s %x %x %d\n",cmdStr,execVars,globVars,len);
+printf("execCallbackNative %s %x %x %x %d\n",cmdStr,var,execVars,globVars,len);
 
     if (strstr(cmdStr,"TPMI:SET") != NULL) {
         if ((globVars != NULL) && (len >= 0)) {
-            if (globVars->memBuffer == NULL) {
-                globVars->memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, var, 0);                
-            }
-            if ((globVars->varNum < 50) && (globVars->memBuffer != NULL)) {
+            unsigned char* memBuffer = getMemBuffer(var,env,globVars,1);
+            if ((globVars->varNum < 50) && (memBuffer != NULL)) {
                 cob_field *f = &(globVars->vars[globVars->varNum]);
                 globVars->varNum++;
 
@@ -104,7 +173,7 @@ printf("execCallbackNative %s %x %x %d\n",cmdStr,execVars,globVars,len);
                 a->scale = (attr >> 24) & 0xFF; 
                 a->pic = NULL;
 
-                f->data = &(globVars->memBuffer[pos]);
+                f->data = &(memBuffer[pos]);
                 f->attr = a;
                 f->size = (int)len;
 
@@ -121,7 +190,6 @@ printf("execCallbackNative %s %x %x %d\n",cmdStr,execVars,globVars,len);
         }
         execVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
         execVars->varNum = 0;
-        execVars->memBuffer = NULL;
         pthread_setspecific(execVarsKey,execVars);
     }
 
@@ -129,10 +197,8 @@ printf("execCallbackNative %s %x %x %d\n",cmdStr,execVars,globVars,len);
         execCallback((char*)cmdStr,NULL);
     } else {
         if (execVars != NULL) {
-            if (execVars->memBuffer == NULL) {
-                execVars->memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, var, 0);                
-            }
-            if ((execVars->varNum < 50) && (execVars->memBuffer != NULL)) {
+            unsigned char* memBuffer = getMemBuffer(var,env,globVars,0);
+            if ((execVars->varNum < 50) && (memBuffer != NULL)) {
                 cob_field *f = &(execVars->vars[execVars->varNum]);
                 execVars->varNum++;
 
@@ -143,7 +209,7 @@ printf("execCallbackNative %s %x %x %d\n",cmdStr,execVars,globVars,len);
                 a->scale = (attr >> 24) & 0xFF; 
                 a->pic = NULL;
 
-                f->data = &(execVars->memBuffer[pos]);
+                f->data = &(memBuffer[pos]);
                 f->attr = a;
                 f->size = (int)len;
 
@@ -153,20 +219,18 @@ printf("execCallbackNative %s %x %x %d\n",cmdStr,execVars,globVars,len);
     }
 
     if (strstr(cmdStr,"TPMI:END-EXEC") != NULL) {
-        if (execVars->memBuffer != NULL) {
-            int i;
-            for (i = 0; i < execVars->varNum; i++) {
-                printf("VAR %d %d %x %d %d\n",i,execVars->vars[i].size,execVars->vars[i].attr->type,execVars->vars[i].attr->digits,execVars->vars[i].attr->scale);
-                int j;
-                for (j = 0; j < execVars->vars[i].size; j++) {
-                    printf("%c",(char)execVars->vars[i].data[j]);
-                }
-                printf("\n\n");
+        int i;
+        for (i = 0; i < execVars->varNum; i++) {
+            printf("VAR %d %d %x %d %d\n",i,execVars->vars[i].size,execVars->vars[i].attr->type,execVars->vars[i].attr->digits,execVars->vars[i].attr->scale);
+            int j;
+            for (j = 0; j < execVars->vars[i].size; j++) {
+                printf("%c",(char)execVars->vars[i].data[j]);
             }
-
-            (*env)->ReleaseByteArrayElements(env, var, execVars->memBuffer, 0);
-            execVars->memBuffer = NULL;
+            printf("\n\n");
         }
+
+        releaseMemBuffers(env,globVars);
+
         if (execVars != NULL) {
             int i;
             for (i = 0; i < execVars->varNum; i++) {
@@ -197,13 +261,6 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_writeByte(JNIEnv
 JNIEXPORT jlongArray JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init(JNIEnv *env, jobject self) {
     int sockets[2];
     jlong fds[2];
-    pthread_key_create(&execVarsKey, NULL);
-    pthread_setspecific(execVarsKey,NULL);
-    pthread_key_create(&globVarsKey, NULL);
-    struct cobVarData *globVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
-    globVars->varNum = 0;
-    globVars->memBuffer = NULL;
-    pthread_setspecific(globVarsKey,globVars);
 
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) < 0) {
         printf("Error opening internal socket pair\n");
@@ -225,6 +282,7 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear(JNIEnv *en
 
     struct cobVarData *globVars = (struct cobVarData*)pthread_getspecific(globVarsKey);
     if (globVars != NULL) {
+        releaseMemBuffers(env,globVars);
         int i;
         for (i = 0; i < globVars->varNum; i++) {
             free((void*)globVars->vars[i].attr);
@@ -255,6 +313,14 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
       fprintf(stderr, "Failed to attach shared memory segment.\n");
       return -1;
     }
+
+    pthread_key_create(&execVarsKey, NULL);
+    pthread_setspecific(execVarsKey,NULL);
+    pthread_key_create(&globVarsKey, NULL);
+    struct cobVarData *globVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
+    globVars->varNum = 0;
+    globVars->bufNum = 0;
+    pthread_setspecific(globVarsKey,globVars);
 
     const char* name = (*env)->GetStringUTFChars(env, loadmod, NULL); 
 printf("execInTransaction %s\n",name);    

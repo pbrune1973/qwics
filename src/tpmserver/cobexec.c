@@ -1459,13 +1459,16 @@ int execCallback(char *cmd, void *var) {
         cob_put_picx(cobvar->data,(size_t)cobvar->size,buf);
         return 1;
     }
+printf("stackPtrs %d %d\n",(*linkStackPtr),(*callStackPtr));    
     if (strstr(cmd,"SET DFHEIBLK") && (((*linkStackPtr) == 0) && ((*callStackPtr) == 0))) {
         cob_field *cobvar = (cob_field*)var;
+printf("execCallback Huhu 1 %d\n",cobvar->size);
         if (cobvar->data != NULL) {
             eibbuf = (char*)cobvar->data;
             pthread_setspecific(eibbufKey, eibbuf);
         }
         // Read in TRNID from client
+printf("execCallback Huhu 2\n");
         char c = 0x00;
         int pos = 8;
         while (c != '\n') {
@@ -1475,10 +1478,12 @@ int execCallback(char *cmd, void *var) {
                 pos++;
             }
         }
+printf("execCallback Huhu 3\n");
         while (pos < 12) {
             eibbuf[pos] = ' ';
             pos++;
         }
+printf("execCallback Huhu 4\n");
         // Read in REQID from client
         c = 0x00;
         pos = 43;
@@ -1493,6 +1498,7 @@ int execCallback(char *cmd, void *var) {
             eibbuf[pos] = ' ';
             pos++;
         }
+printf("execCallback Huhu 5\n");
         // Read in TERMID from client
         c = 0x00;
         pos = 16;
@@ -1503,10 +1509,12 @@ int execCallback(char *cmd, void *var) {
                 pos++;
             }
         }
+printf("execCallback Huhu 6\n");
         while (pos < 20) {
             eibbuf[pos] = '0';
             pos++;
         }
+printf("execCallback Huhu 7\n");
         // Read in TASKID from client
         char idbuf[9];
         c = 0x00;
@@ -1521,6 +1529,7 @@ int execCallback(char *cmd, void *var) {
         idbuf[pos] = 0x00;
         int id = atoi(idbuf);
         cob_put_s64_comp3(id,(void*)&eibbuf[12],4);
+printf("execCallback Huhu 8\n");
         // SET EIBDATE and EIBTIME
         time_t t = time(NULL);
         struct tm now = *localtime(&t);
@@ -1533,6 +1542,7 @@ int execCallback(char *cmd, void *var) {
     if (strstr(cmd,"SET DFHEIBLK") && (((*linkStackPtr) >= 0) || ((*callStackPtr) >= 0))) {
         // Called by LINk inside transaction, pass through EIB
         cob_field *cobvar = (cob_field*)var;
+printf("execCallback Huhu 9 %d\n",cobvar->size);
         if (cobvar->data != NULL) {
             int n = 0;
             for (n = 0; n < cobvar->size; n++) {
