@@ -172,6 +172,7 @@ public class QwicsTPMServerWrapper extends Socket {
             System.out.println("execCallback var param (Java): "+pos+" "+len+" "+attr);
         }
 
+        System.out.println("execCallback varBuf (java): "+varBuf);
         execCallbackNative(cmd,varBuf,pos,len,attr);
     }
 
