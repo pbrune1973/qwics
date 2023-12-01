@@ -55,4 +55,6 @@ public interface CobVarResolver {
 
     public void registerModule(Class module);
     public void cobmain(String name, String args[]);
+
+    public void prepareClassloader();
 }

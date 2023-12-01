@@ -291,7 +291,7 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
     struct callbackFuncType callbackFunc;
     callbackFunc.callback = &execLoadModuleCallback;
     callbackFunc.env = env;
-    callbackFunc.self = self;
+    callbackFunc.self = (*env)->NewGlobalRef(env,self);
     int _fd = (int)fd;
 
     // Set signal handler for SIGINT (proper shutdown of server)
@@ -317,17 +317,19 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
     pthread_setspecific(globVarsKey,globVars);
 
     const char* name = (*env)->GetStringUTFChars(env, loadmod, NULL); 
-printf("execInTransaction %s\n",name);    
     initExec(1);
     execCallbackInTransaction((char*)name,&_fd,(int)setCommArea,(int)parcnt,(void*)&callbackFunc);
     clearExec(1);
-    (*env)->ReleaseStringUTFChars(env, loadmod, name);
 
+    (*env)->DeleteGlobalRef(env,callbackFunc.self);
+    (*env)->ReleaseStringUTFChars(env, loadmod, name);
     releaseMemBuffers(env,globVars);
+
     int i;
     for (i = 0; i < globVars->bufNum; i++) {
         (*env)->DeleteGlobalRef(env,globVars->memBuffers[i].var);
     }
+
     for (i = 0; i < globVars->varNum; i++) {
         free((void*)globVars->vars[i].attr);
     }

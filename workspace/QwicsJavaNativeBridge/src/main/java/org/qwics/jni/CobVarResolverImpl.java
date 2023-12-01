@@ -131,4 +131,15 @@ public class CobVarResolverImpl implements CobVarResolver {
     @Override
     public void registerModule(Class module) {
     }
+
+    @Override
+    public void prepareClassloader() {
+        try {
+            Class.forName("com.sun.jna.Pointer");
+            Class.forName("com.sun.jna.Structure");
+            Class.forName("com.sun.jna.CallbackReference");
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
 }

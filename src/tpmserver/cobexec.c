@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 17.11.2023                                  */
+/*   Author: Philipp Brune               Date: 30.11.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -124,6 +124,17 @@ struct currentNamesType {
     struct abendHandlerType abendHandlers[MAX_ABENDHANDLERS];
     char abcode[5];
 };
+
+#ifdef _LIBTPMSERVER_
+#include <jni.h>
+
+struct callbackFuncType {
+    int (*callback)(char *loadmod, void *data);
+    JNIEnv *env;
+    jobject self;
+};
+
+#endif
 
 // Making COBOl thread safe
 int runningModuleCnt = 0;
@@ -1209,7 +1220,7 @@ void* globalCallCallback(char *name) {
     int *callStackPtr = (int*)pthread_getspecific(callStackPtrKey);
     struct callLoadlib *callStack = (struct callLoadlib *)pthread_getspecific(callStackKey);
     int i = 0;
-
+printf("globalCallCallback %s %d\n",name,(*callStackPtr));
     #ifdef __APPLE__
     sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".dylib");
     #else
@@ -1273,11 +1284,11 @@ void globalCallCleanup() {
 // Execute COBOL loadmod in transaction
 int execLoadModule(char *name, int mode, int parCount) {
 #ifdef _LIBTPMSERVER_
-    struct callbackFuncType {
-        int (*callback)(char *loadmod, void *data);
-    } *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
-
+//    int *callStackPtr = (int*)pthread_getspecific(callStackPtrKey);
+//printf("execLoadModule %d\n",(*callStackPtr)); 
+    struct callbackFuncType *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
     if (cbInfo != NULL) {
+//printf("execLoadModule %d\n",(*callStackPtr)); 
         return cbInfo->callback(name,(void*)cbInfo);
     }
 #endif
@@ -1419,7 +1430,7 @@ int execCallback(char *cmd, void *var) {
 
     struct taskLock *taskLocks = (struct taskLock *)pthread_getspecific(taskLocksKey);
 
-    printf("%s %s %d %d %x\n","execCallback",cmd,*cmdState,*memParamsState,var);
+    printf("%s %s %d %d %x %d\n","execCallback",cmd,*cmdState,*memParamsState,var,(*callStackPtr));
 
     if (strstr(cmd,"SET SQLCODE") && (var != NULL)) {
         sqlcode = var;
@@ -4833,14 +4844,20 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
 
     initOpenDatasets(currentNames.openDatasets);
     initMain();
+printf("execInTranscation before execLoadmodule %d\n",callStackPtr);    
     execLoadModule(name,0,parCount);
+printf("execInTranscation after execLoadmodule 1 %d\n",callStackPtr);   
     releaseLocks(TASK,taskLocks);
+printf("execInTranscation after execLoadmodule 2 %d\n",callStackPtr);    
     globalCallCleanup();
+printf("execInTranscation after execLoadmodule 3 %d\n",callStackPtr);    
     clearMain();
+printf("execInTranscation after execLoadmodule 4 %d\n",callStackPtr);   
     free(allocMem);
     free(linkArea);
     clearChnBufList();
     closeOpenDatasets(currentNames.openDatasets);
+printf("execInTranscation after execLoadmodule 5 %d\n",callStackPtr);  
     // Flush output buffers
     fflush(stdout);
     fflush(stderr);
