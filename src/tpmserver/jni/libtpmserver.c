@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 28.11.2023                                  */
+/*   Author: Philipp Brune               Date: 01.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -78,6 +78,7 @@ int execLoadModuleCallback(char *loadmod, void *data) {
     jclass wrapperClass = (*env)->GetObjectClass(env, callbackFunc->self);
     jmethodID exec = (*env)->GetMethodID(env, wrapperClass, "execLoadModule", "(Ljava/lang/String;)V");
     (*env)->CallVoidMethod(env, callbackFunc->self, exec, (*env)->NewStringUTF(env,loadmod));
+    return 0;
 }
 
 
@@ -288,10 +289,10 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear(JNIEnv *en
 
 
 JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransaction(JNIEnv *env, jobject self, jstring loadmod, jlong fd, jint setCommArea, jint parcnt) {
-    struct callbackFuncType callbackFunc;
-    callbackFunc.callback = &execLoadModuleCallback;
-    callbackFunc.env = env;
-    callbackFunc.self = (*env)->NewGlobalRef(env,self);
+    struct callbackFuncType *callbackFunc = (struct callbackFuncType*)malloc(sizeof(struct callbackFuncType));
+    callbackFunc->callback = &execLoadModuleCallback;
+    callbackFunc->env = env;
+    callbackFunc->self = (*env)->NewGlobalRef(env,self);
     int _fd = (int)fd;
 
     // Set signal handler for SIGINT (proper shutdown of server)
@@ -318,10 +319,11 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
 
     const char* name = (*env)->GetStringUTFChars(env, loadmod, NULL); 
     initExec(1);
-    execCallbackInTransaction((char*)name,&_fd,(int)setCommArea,(int)parcnt,(void*)&callbackFunc);
+    execCallbackInTransaction((char*)name,&_fd,(int)setCommArea,(int)parcnt,(void*)callbackFunc);
     clearExec(1);
 
-    (*env)->DeleteGlobalRef(env,callbackFunc.self);
+    (*env)->DeleteGlobalRef(env,callbackFunc->self);
+    free(callbackFunc);
     (*env)->ReleaseStringUTFChars(env, loadmod, name);
     releaseMemBuffers(env,globVars);
 
