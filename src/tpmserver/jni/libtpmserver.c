@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.12.2023                                  */
+/*   Author: Philipp Brune               Date: 04.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -77,7 +77,9 @@ int execLoadModuleCallback(char *loadmod, void *data) {
 
     jclass wrapperClass = (*env)->GetObjectClass(env, callbackFunc->self);
     jmethodID exec = (*env)->GetMethodID(env, wrapperClass, "execLoadModule", "(Ljava/lang/String;)V");
-    (*env)->CallVoidMethod(env, callbackFunc->self, exec, (*env)->NewStringUTF(env,loadmod));
+    jstring loadmodStr = (*env)->NewStringUTF(env,loadmod);
+    (*env)->CallVoidMethod(env, callbackFunc->self, exec, loadmodStr);
+    (*env)->DeleteLocalRef(env,loadmodStr);
     return 0;
 }
 
@@ -91,7 +93,6 @@ static void sig_handler(int signo) {
 
 
 unsigned char *getMemBuffer(jbyteArray var, JNIEnv *env, struct cobVarData *globVars, int isGlobal) {
-printf("getMemBuffer %x %x\n",var,globVars);
     if (globVars == NULL) {
         return NULL;
     }
@@ -119,7 +120,6 @@ printf("getMemBuffer %x %x\n",var,globVars);
                 globVars->memBuffers[i].memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, globVars->memBuffers[i].var, 0); 
                 globVars->memBuffers[i].isMapped = 1;
             }
-printf("getMemBufferA %x %x %d %d\n",globVars->memBuffers[i].var,globVars->memBuffers[i].memBuffer,i,globVars->bufNum);
             return globVars->memBuffers[i].memBuffer;
         }
     }
@@ -129,7 +129,6 @@ printf("getMemBufferA %x %x %d %d\n",globVars->memBuffers[i].var,globVars->memBu
         globVars->memBuffers[globVars->bufNum].memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, globVars->memBuffers[globVars->bufNum].var, 0); 
         globVars->memBuffers[globVars->bufNum].isMapped = 1;
         globVars->memBuffers[globVars->bufNum].isGlobal = isGlobal;
-printf("getMemBufferB  %x %x %d %d\n",globVars->memBuffers[globVars->bufNum].var,globVars->memBuffers[i].memBuffer,i,globVars->bufNum);
         globVars->bufNum++;    
         return globVars->memBuffers[globVars->bufNum-1].memBuffer;
     }
@@ -250,10 +249,33 @@ printf("execCallbackNative %s %x %x %x %d\n",cmdStr,var,execVars,globVars,len);
 }
 
 
-JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_readByte(JNIEnv *env, jobject self, jlong fd) {
+JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_readByte(JNIEnv *env, jobject self, jlong fd, jint mode) {
     int b = 0;
-    if (read((int)fd,(void*)&b,1) < 0) {
-        b = -1;
+
+    int n = recv((int)fd,(void*)&b,1,MSG_DONTWAIT | MSG_PEEK); 
+    if (mode == 0) {
+        // Blocking mode
+        if (read((int)fd,(void*)&b,1) < 0) {
+            b = -1;
+        }
+    } else
+    if (mode == 1) {
+        // Peek mode
+        if (n <= 0) {
+            b = -2;
+        } else {
+            b = n;
+        }
+    } else 
+    if (mode == 2) {
+        // Non-blocking mode
+        if (n > 0) {
+            if (read((int)fd,(void*)&b,1) < 0) {
+                b = -1;
+            }
+        } else {
+            b = -1;
+        }
     }
     return b;
 }
@@ -282,6 +304,7 @@ JNIEXPORT jlongArray JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init(JNIEn
 
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear(JNIEnv *env, jobject self, jlongArray fd) {
     jlong *fds = (*env)->GetLongArrayElements(env, fd, 0);
+printf("clear %x %x\n",fds[0],fds[1]);
     close((int)fds[0]);
     close((int)fds[1]);
     (*env)->ReleaseLongArrayElements(env, fd, fds, 0);

@@ -53,6 +53,7 @@ public class QwicsInputStream extends InputStream {
     private QwicsTPMServerWrapper wrapper = null;
     private long fd = 0;
     private InputStream responseBuf = null;
+    private int lastByte = 0;
 
     public QwicsInputStream(QwicsTPMServerWrapper wrapper, long fd) {
         this.wrapper = wrapper;
@@ -64,21 +65,40 @@ public class QwicsInputStream extends InputStream {
     }
 
     @Override
+    public int available() throws IOException {
+        int n = wrapper.readByte(fd,1);
+        if (n < 0) {
+            return 0;
+        } else {
+            return n;
+        }
+    }
+
+    @Override
     public int read() throws IOException {
         int b = 0;
         synchronized (this) {
             if (responseBuf != null) {
                 b = responseBuf.read();
                 if (b >= 0) {
+                    lastByte = b;
                     return b;
                 }
                 responseBuf = null;
             }
         }
 
-        if ((b = wrapper.readByte(fd)) < 0) {
+        try {
+            if (lastByte == 10) {
+                // Handle line end (check for optional subsequent CR)
+                b = wrapper.readByte(fd,2);
+            } else {
+                b = wrapper.readByte(fd,0);
+            }
+        } catch (Throwable t) {
             throw new IOException("Error reading byte from fd "+fd);
-        };
+        }
+        lastByte = b;
         return b;
     }
 }

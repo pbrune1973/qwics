@@ -1293,17 +1293,13 @@ int execLoadModule(char *name, int mode, int parCount) {
     int res = 0;
 
     #ifdef _LIBTPMSERVER_
-    int *callStackPtr = (int*)pthread_getspecific(callStackPtrKey);
-printf("execLoadModule %d\n",(*callStackPtr)); 
     struct callbackFuncType *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
     if (cbInfo != NULL) {
         if (mode == 0) {
             sprintf(response,"%s\n","OK");
             write(childfd,&response,strlen(response));
         }
-printf("execLoadModule 1 %d\n",(*callStackPtr)); 
         int r = (*(cbInfo->callback))(name,(void*)cbInfo);
-printf("execLoadModule 2 %d\n",(*callStackPtr)); 
         return r;
     }
     #endif
@@ -1476,16 +1472,13 @@ int execCallback(char *cmd, void *var) {
         cob_put_picx(cobvar->data,(size_t)cobvar->size,buf);
         return 1;
     }
-printf("stackPtrs %d %d\n",(*linkStackPtr),(*callStackPtr));    
     if (strstr(cmd,"SET DFHEIBLK") && (((*linkStackPtr) == 0) && ((*callStackPtr) == 0))) {
         cob_field *cobvar = (cob_field*)var;
-printf("execCallback Huhu 1 %d\n",cobvar->size);
         if (cobvar->data != NULL) {
             eibbuf = (char*)cobvar->data;
             pthread_setspecific(eibbufKey, eibbuf);
         }
         // Read in TRNID from client
-printf("execCallback Huhu 2\n");
         char c = 0x00;
         int pos = 8;
         while (c != '\n') {
@@ -1495,12 +1488,10 @@ printf("execCallback Huhu 2\n");
                 pos++;
             }
         }
-printf("execCallback Huhu 3\n");
         while (pos < 12) {
             eibbuf[pos] = ' ';
             pos++;
         }
-printf("execCallback Huhu 4\n");
         // Read in REQID from client
         c = 0x00;
         pos = 43;
@@ -1515,7 +1506,6 @@ printf("execCallback Huhu 4\n");
             eibbuf[pos] = ' ';
             pos++;
         }
-printf("execCallback Huhu 5\n");
         // Read in TERMID from client
         c = 0x00;
         pos = 16;
@@ -1526,12 +1516,10 @@ printf("execCallback Huhu 5\n");
                 pos++;
             }
         }
-printf("execCallback Huhu 6\n");
         while (pos < 20) {
             eibbuf[pos] = '0';
             pos++;
         }
-printf("execCallback Huhu 7\n");
         // Read in TASKID from client
         char idbuf[9];
         c = 0x00;
@@ -1546,7 +1534,6 @@ printf("execCallback Huhu 7\n");
         idbuf[pos] = 0x00;
         int id = atoi(idbuf);
         cob_put_s64_comp3(id,(void*)&eibbuf[12],4);
-printf("execCallback Huhu 8\n");
         // SET EIBDATE and EIBTIME
         time_t t = time(NULL);
         struct tm now = *localtime(&t);
@@ -1559,7 +1546,6 @@ printf("execCallback Huhu 8\n");
     if (strstr(cmd,"SET DFHEIBLK") && (((*linkStackPtr) >= 0) || ((*callStackPtr) >= 0))) {
         // Called by LINk inside transaction, pass through EIB
         cob_field *cobvar = (cob_field*)var;
-printf("execCallback Huhu 9 %d\n",cobvar->size);
         if (cobvar->data != NULL) {
             int n = 0;
             for (n = 0; n < cobvar->size; n++) {
@@ -4746,7 +4732,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     int memParamsState = 0;
     void *memParams[10];
     int memParam = 0;
-     char twa[32768];
+    char twa[32768];
     char tua[256];
     void** allocMem = (void**)malloc(MEM_POOL_SIZE*sizeof(void*));
     int allocMemPtr = 0;
@@ -4851,20 +4837,14 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
 
     initOpenDatasets(currentNames.openDatasets);
     initMain();
-printf("execInTranscation before execLoadmodule %d\n",*callStackPtr);    
     execLoadModule(name,0,parCount);
-printf("execInTranscation after execLoadmodule 1 %d\n",*callStackPtr);   
     releaseLocks(TASK,taskLocks);
-printf("execInTranscation after execLoadmodule 2 %d\n",*callStackPtr);    
     globalCallCleanup();
-printf("execInTranscation after execLoadmodule 3 %d\n",*callStackPtr);    
     clearMain();
-printf("execInTranscation after execLoadmodule 4 %d\n",*callStackPtr);   
     free(allocMem);
     free(linkArea);
     clearChnBufList();
     closeOpenDatasets(currentNames.openDatasets);
-printf("execInTranscation after execLoadmodule 5 %d\n",*callStackPtr);  
     // Flush output buffers
     fflush(stdout);
     fflush(stderr);

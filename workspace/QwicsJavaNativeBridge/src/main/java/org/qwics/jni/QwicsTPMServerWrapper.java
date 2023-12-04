@@ -200,7 +200,7 @@ public class QwicsTPMServerWrapper extends Socket {
     }
 
     public native void execCallbackNative(String cmd, byte[] var, int pos, int len, int attr);
-    public native int readByte(long fd);
+    public native int readByte(long fd, int mode);
     public native int writeByte(long fd, byte b);
     public native long[] init();
     public native void clear(long fd[]);

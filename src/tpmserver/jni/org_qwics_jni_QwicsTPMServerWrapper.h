@@ -21,7 +21,7 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
  * Signature: (J)I
  */
 JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_readByte
-  (JNIEnv *, jobject, jlong);
+  (JNIEnv *, jobject, jlong, jint);
 
 /*
  * Class:     org_qwics_jni_QwicsTPMServerWrapper
