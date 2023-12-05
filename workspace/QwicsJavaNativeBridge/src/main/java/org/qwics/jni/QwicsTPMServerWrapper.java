@@ -59,6 +59,13 @@ public class QwicsTPMServerWrapper extends Socket {
     static {
         try {
             System.loadLibrary("tpmserver");
+            initGlobal();
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
+                public void run() {
+                    QwicsTPMServerWrapper.clearGlobal();
+                }
+            });
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -70,7 +77,6 @@ public class QwicsTPMServerWrapper extends Socket {
     private long fd[] = null;
 
     private QwicsTPMServerWrapper() {
-        System.out.println("CREATE QwicsTPMServerWrapper");
         fd = init();
         inputStream = new QwicsInputStream(this,fd[0]);
         outputStream = new QwicsOutputStream(this,fd[0]);
@@ -91,12 +97,10 @@ public class QwicsTPMServerWrapper extends Socket {
     public void execLoadModule(String loadmod) {
         try {
             Class cl = null;
-            System.out.println("execLoadModule "+loadmod);
             synchronized (loadModClasses) {
                 cl = loadModClasses.get(loadmod);
             }
             CobVarResolverImpl resolver = CobVarResolverImpl.getInstance();
-            System.out.println("execLoadModule "+cl.getCanonicalName());
             resolver.cobmain(cl.getCanonicalName(),null);
         } catch (Exception e) {
             e.printStackTrace();
@@ -163,7 +167,6 @@ public class QwicsTPMServerWrapper extends Socket {
 
     public void execCallback(String cmd, Object var) {
         int pos = 0, len = -1, attr = 0;
-        System.out.println("execCallback "+cmd+" "+var);
         byte[] varBuf = null;
         if (var != null) {
             CobVarResolver varResolver = CobVarResolverImpl.getInstance();
@@ -172,10 +175,8 @@ public class QwicsTPMServerWrapper extends Socket {
             pos = varResolver.getPos();
             len = varResolver.getLen();
             attr = varResolver.getAttr();
-            System.out.println("execCallback var param (Java): "+pos+" "+len+" "+attr);
         }
 
-        System.out.println("execCallback varBuf (java): "+varBuf);
         execCallbackNative(cmd,varBuf,pos,len,attr);
     }
 
@@ -202,7 +203,9 @@ public class QwicsTPMServerWrapper extends Socket {
     public native void execCallbackNative(String cmd, byte[] var, int pos, int len, int attr);
     public native int readByte(long fd, int mode);
     public native int writeByte(long fd, byte b);
+    public static native void initGlobal();
     public native long[] init();
+    public static native void clearGlobal();
     public native void clear(long fd[]);
     public native int execInTransaction(String loadmod, long fd, int setCommArea, int parCount);
     public native void execSqlNative(String sql, long fd, int sendRes, int sync);

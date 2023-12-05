@@ -18,7 +18,7 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
 /*
  * Class:     org_qwics_jni_QwicsTPMServerWrapper
  * Method:    readByte
- * Signature: (J)I
+ * Signature: (JI)I
  */
 JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_readByte
   (JNIEnv *, jobject, jlong, jint);
@@ -33,11 +33,27 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_writeByte
 
 /*
  * Class:     org_qwics_jni_QwicsTPMServerWrapper
+ * Method:    initGlobal
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_initGlobal
+  (JNIEnv *, jclass);
+
+/*
+ * Class:     org_qwics_jni_QwicsTPMServerWrapper
  * Method:    init
  * Signature: ()[J
  */
 JNIEXPORT jlongArray JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init
   (JNIEnv *, jobject);
+
+/*
+ * Class:     org_qwics_jni_QwicsTPMServerWrapper
+ * Method:    clearGlobal
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clearGlobal
+  (JNIEnv *, jclass);
 
 /*
  * Class:     org_qwics_jni_QwicsTPMServerWrapper

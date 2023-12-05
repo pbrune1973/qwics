@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 04.12.2023                                  */
+/*   Author: Philipp Brune               Date: 05.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -286,38 +286,8 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_writeByte(JNIEnv
 }
 
 
-JNIEXPORT jlongArray JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init(JNIEnv *env, jobject self) {
-    int sockets[2];
-    jlong fds[2];
-
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) < 0) {
-        printf("Error opening internal socket pair\n");
-        return NULL;
-    }
-    fds[0] = (jlong)sockets[0];
-    fds[1] = (jlong)sockets[1];
-    jlongArray fd = (*env)->NewLongArray(env,2);
-    (*env)->SetLongArrayRegion(env,fd,0,2,fds);
-    return fd;
-}
-
-
-JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear(JNIEnv *env, jobject self, jlongArray fd) {
-    jlong *fds = (*env)->GetLongArrayElements(env, fd, 0);
-printf("clear %x %x\n",fds[0],fds[1]);
-    close((int)fds[0]);
-    close((int)fds[1]);
-    (*env)->ReleaseLongArrayElements(env, fd, fds, 0);
-}
-
-
-JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransaction(JNIEnv *env, jobject self, jstring loadmod, jlong fd, jint setCommArea, jint parcnt) {
-    struct callbackFuncType *callbackFunc = (struct callbackFuncType*)malloc(sizeof(struct callbackFuncType));
-    callbackFunc->callback = &execLoadModuleCallback;
-    callbackFunc->env = env;
-    callbackFunc->self = (*env)->NewGlobalRef(env,self);
-    int _fd = (int)fd;
-
+JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_initGlobal(JNIEnv *env, jclass clazz) {
+printf("initGlobal\n");
     // Set signal handler for SIGINT (proper shutdown of server)
     struct sigaction a;
     a.sa_handler = sig_handler;
@@ -335,19 +305,63 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
     pthread_key_create(&execVarsKey, NULL);
     pthread_setspecific(execVarsKey,NULL);
     pthread_key_create(&globVarsKey, NULL);
+    pthread_setspecific(globVarsKey,NULL);
+
+    initExec(1);
+}    
+
+
+JNIEXPORT jlongArray JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init(JNIEnv *env, jobject self) {
+    int sockets[2];
+    jlong fds[2];
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) < 0) {
+        printf("Error opening internal socket pair\n");
+        return NULL;
+    }
+    fds[0] = (jlong)sockets[0];
+    fds[1] = (jlong)sockets[1];
+    jlongArray fd = (*env)->NewLongArray(env,2);
+    (*env)->SetLongArrayRegion(env,fd,0,2,fds);
+    return fd;
+}
+
+
+JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clearGlobal(JNIEnv *env, jclass clazz) {
+printf("clearGlobal\n");
+    clearExec(1);
+}    
+
+
+JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear(JNIEnv *env, jobject self, jlongArray fd) {
+    jlong *fds = (*env)->GetLongArrayElements(env, fd, 0);
+printf("clear %x %x\n",fds[0],fds[1]);
+    close((int)fds[0]);
+    close((int)fds[1]);
+    (*env)->ReleaseLongArrayElements(env, fd, fds, 0);
+}
+
+
+JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransaction(JNIEnv *env, jobject self, jstring loadmod, jlong fd, jint setCommArea, jint parcnt) {
+    jstring loadmodGlob = (*env)->NewGlobalRef(env,loadmod);
+    struct callbackFuncType *callbackFunc = (struct callbackFuncType*)malloc(sizeof(struct callbackFuncType));
+    callbackFunc->callback = &execLoadModuleCallback;
+    callbackFunc->env = env;
+    callbackFunc->self = (*env)->NewGlobalRef(env,self);
+    int _fd = (int)fd;
+
+    pthread_setspecific(execVarsKey,NULL);
     struct cobVarData *globVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
     globVars->varNum = 0;
     globVars->bufNum = 0;
     pthread_setspecific(globVarsKey,globVars);
 
-    const char* name = (*env)->GetStringUTFChars(env, loadmod, NULL); 
-    initExec(1);
+    const char* name = (*env)->GetStringUTFChars(env, loadmodGlob, NULL); 
     execCallbackInTransaction((char*)name,&_fd,(int)setCommArea,(int)parcnt,(void*)callbackFunc);
-    clearExec(1);
 
     (*env)->DeleteGlobalRef(env,callbackFunc->self);
     free(callbackFunc);
-    (*env)->ReleaseStringUTFChars(env, loadmod, name);
+    (*env)->ReleaseStringUTFChars(env, loadmodGlob, name);
     releaseMemBuffers(env,globVars);
 
     int i;
@@ -359,25 +373,16 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
         free((void*)globVars->vars[i].attr);
     }
     free(globVars);
-
     pthread_setspecific(globVarsKey,NULL);
+    (*env)->DeleteGlobalRef(env,loadmodGlob);
+printf("execInTranscation 2\n");
     return 0;
 }
 
 
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execSqlNative(JNIEnv *env, jobject self, jstring sql, jlong fd, jint sendRes, jint sync) {
     int _fd = (int)fd;
-
-    // Init shared memory area
-    if ((shmPtr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE,
-                    MAP_SHARED | MAP_ANONYMOUS, -1, 0)) == (void *) -1) {
-      fprintf(stderr, "Failed to attach shared memory segment.\n");
-      return;
-    }
-
     const char* sqlStr = (*env)->GetStringUTFChars(env, sql, NULL); 
-    initExec(1);
     _execSql((char*)sqlStr, &_fd, sendRes, sync);
-    clearExec(1);
     (*env)->ReleaseStringUTFChars(env, sql, sqlStr);
 }
