@@ -94,7 +94,7 @@ public class QwicsTPMServerWrapper extends Socket {
         _instance.set(this);
     }
 
-    public void execLoadModule(String loadmod) {
+    public void execLoadModule(String loadmod, int mode) {
         try {
             Class cl = null;
             synchronized (loadModClasses) {
@@ -102,6 +102,9 @@ public class QwicsTPMServerWrapper extends Socket {
             }
             CobVarResolverImpl resolver = CobVarResolverImpl.getInstance();
             resolver.cobmain(cl.getCanonicalName(),null);
+            if (mode == 1) {
+                outputStream.setWriteThrough(false);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -132,7 +135,6 @@ public class QwicsTPMServerWrapper extends Socket {
                             }
                             _this.setAsInstance();
                             _this.execInTransaction(name,_this.fd[1],setCommArea,parCount);
-                            outputStream.setWriteThrough(false);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
@@ -181,6 +183,7 @@ public class QwicsTPMServerWrapper extends Socket {
     }
 
     public void execSql(String sql, int sendRes, int sync) {
+        System.out.println("execSql "+sql);
         try {
             final QwicsTPMServerWrapper _this = this;
             Thread exec = new Thread() {
@@ -188,7 +191,7 @@ public class QwicsTPMServerWrapper extends Socket {
                 public void run() {
                     try {
                         _this.setAsInstance();
-                        _this.execSqlNative(sql, fd[1], sendRes, sync);
+                        _this.execSqlNative(sql, _this.fd[1], sendRes, sync);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

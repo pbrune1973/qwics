@@ -61,7 +61,7 @@ public class QwicsOutputStream extends OutputStream {
     }
 
     @Override
-    public void write(int b) throws IOException {
+    public synchronized void write(int b) throws IOException {
         if (!writeThrough) {
             if (b == '\n' || b == '\r' || lineBuf.length() >= 80) {
                 System.out.println(lineBuf);
@@ -99,7 +99,7 @@ public class QwicsOutputStream extends OutputStream {
         }
     }
 
-    public void setWriteThrough(boolean writeThrough) {
+    public synchronized void setWriteThrough(boolean writeThrough) {
         this.writeThrough = writeThrough;
     }
 }

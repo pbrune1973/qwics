@@ -2,3 +2,4 @@
 -Dorg.qwics.cobvarresolver=org.qwics.jni.P3CobVarResolver
 -DTESTBR=programs.Testbr
 -DTESTWRT=programs.Testwrt
+-Xss10m

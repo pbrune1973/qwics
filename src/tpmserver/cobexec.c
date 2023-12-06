@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 01.12.2023                                  */
+/*   Author: Philipp Brune               Date: 06.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -132,6 +132,7 @@ struct callbackFuncType {
     int (*callback)(char *loadmod, void *data);
     JNIEnv *env;
     jobject self;
+    int mode;
 };
 
 #endif
@@ -949,6 +950,8 @@ void _execSql(char *sql, void *fd, int sendRes, int sync) {
             } else {
                 r = syncDBConnection(conn, 1);
             }
+        } else {
+            r = 1;            
         }
         void* tx = pthread_getspecific(isamTxKey);
         if (tx != NULL) {
@@ -980,6 +983,8 @@ void _execSql(char *sql, void *fd, int sendRes, int sync) {
             } else {
                 r = syncDBConnection(conn, 0);
             }
+        } else {
+            r = 1;            
         }
         void* tx = pthread_getspecific(isamTxKey);
         if (tx != NULL) {
@@ -1295,11 +1300,24 @@ int execLoadModule(char *name, int mode, int parCount) {
     #ifdef _LIBTPMSERVER_
     struct callbackFuncType *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
     if (cbInfo != NULL) {
+        int *runState = (int*)pthread_getspecific(runStateKey);
         if (mode == 0) {
             sprintf(response,"%s\n","OK");
             write(childfd,&response,strlen(response));
+
+            if ((*runState) < 3) {
+                cbInfo->mode = 1;
+            } else {
+                cbInfo->mode = 0;
+            }
         }
+ 
         int r = (*(cbInfo->callback))(name,(void*)cbInfo);
+
+        if ((mode == 0) && ((*runState) < 3)) {
+            sprintf(response,"\n%s\n","STOP");
+            write(childfd,&response,strlen(response));
+        }   
         return r;
     }
     #endif
@@ -4713,15 +4731,15 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
 
 // Exec COBOL module within an existing DB transaction
 void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
-    char cmdbuf[CMDBUF_SIZE];
+    char *cmdbuf = (char*)malloc(CMDBUF_SIZE);
     int cmdState = 0;
     int runState = 0;
     int xctlState = 0;
     char *xctlParams[10];
     char eibbuf[150];
     char eibaid[2];
-    char *linkArea = malloc(16000000);
-    char commArea[32768];
+    char *linkArea = (char*)malloc(16000000);
+    char *commArea = (char*)malloc(32768);
     int linkAreaPtr = 0;
     char *linkAreaAdr = linkArea;
     int commAreaPtr = 0;
@@ -4732,7 +4750,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     int memParamsState = 0;
     void *memParams[10];
     int memParam = 0;
-    char twa[32768];
+    char *twa = malloc(32768);
     char tua[256];
     void** allocMem = (void**)malloc(MEM_POOL_SIZE*sizeof(void*));
     int allocMemPtr = 0;
@@ -4759,7 +4777,7 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     currentNames.abendHandlerCnt = 0;
     currentNames.abcode[0] = 0x00;
     pthread_setspecific(childfdKey, fd);
-    pthread_setspecific(cmdbufKey, &cmdbuf);
+    pthread_setspecific(cmdbufKey, cmdbuf);
     pthread_setspecific(cmdStateKey, &cmdState);
     pthread_setspecific(runStateKey, &runState);
     pthread_setspecific(cobFieldKey, &outputVars);
@@ -4770,14 +4788,14 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(linkAreaKey, linkArea);
     pthread_setspecific(linkAreaPtrKey, &linkAreaPtr);
     pthread_setspecific(linkAreaAdrKey, &linkAreaAdr);
-    pthread_setspecific(commAreaKey, &commArea);
+    pthread_setspecific(commAreaKey, commArea);
     pthread_setspecific(commAreaPtrKey, &commAreaPtr);
     pthread_setspecific(areaModeKey, &areaMode);
     pthread_setspecific(linkStackKey, &linkStack);
     pthread_setspecific(linkStackPtrKey, &linkStackPtr);
     pthread_setspecific(memParamsKey, &memParams);
     pthread_setspecific(memParamsStateKey, &memParamsState);
-    pthread_setspecific(twaKey, &twa);
+    pthread_setspecific(twaKey, twa);
     pthread_setspecific(tuaKey, &tua);
     pthread_setspecific(allocMemKey, allocMem);
     pthread_setspecific(allocMemPtrKey, &allocMemPtr);
@@ -4843,11 +4861,47 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     clearMain();
     free(allocMem);
     free(linkArea);
+    free(commArea);
+    free(twa);
+    free(cmdbuf);
     clearChnBufList();
     closeOpenDatasets(currentNames.openDatasets);
     // Flush output buffers
     fflush(stdout);
     fflush(stderr);
+
+    pthread_setspecific(childfdKey, NULL);
+    pthread_setspecific(cmdbufKey, NULL);
+    pthread_setspecific(cmdStateKey, NULL);
+    pthread_setspecific(runStateKey, NULL);
+    pthread_setspecific(cobFieldKey, NULL);
+    pthread_setspecific(xctlStateKey, NULL);
+    pthread_setspecific(xctlParamsKey, NULL);
+    pthread_setspecific(eibbufKey, NULL);
+    pthread_setspecific(eibaidKey, NULL);
+    pthread_setspecific(linkAreaKey, NULL);
+    pthread_setspecific(linkAreaPtrKey, NULL);
+    pthread_setspecific(linkAreaAdrKey, NULL);
+    pthread_setspecific(commAreaKey, NULL);
+    pthread_setspecific(commAreaPtrKey, NULL);
+    pthread_setspecific(areaModeKey, NULL);
+    pthread_setspecific(linkStackKey, NULL);
+    pthread_setspecific(linkStackPtrKey, NULL);
+    pthread_setspecific(memParamsKey, NULL);
+    pthread_setspecific(memParamsStateKey,NULL);
+    pthread_setspecific(twaKey, NULL);
+    pthread_setspecific(tuaKey, NULL);
+    pthread_setspecific(allocMemKey, NULL);
+    pthread_setspecific(allocMemPtrKey, NULL);
+    pthread_setspecific(respFieldsStateKey, NULL);
+    pthread_setspecific(respFieldsKey, NULL);
+    pthread_setspecific(taskLocksKey, NULL);
+    pthread_setspecific(callStackKey, NULL);
+    pthread_setspecific(callStackPtrKey, NULL);
+    pthread_setspecific(chnBufListKey, NULL);
+    pthread_setspecific(chnBufListPtrKey, NULL);
+    pthread_setspecific(isamTxKey, NULL);
+    pthread_setspecific(currentNamesKey, NULL);
 }
 
 
@@ -4855,4 +4909,5 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
 void execCallbackInTransaction(char *name, void *fd, int setCommArea, int parCount, void *callbackFunc) {
     pthread_setspecific(callbackFuncKey, callbackFunc);
     execInTransaction(name,fd,setCommArea,parCount);
+    pthread_setspecific(callbackFuncKey, NULL);
 }

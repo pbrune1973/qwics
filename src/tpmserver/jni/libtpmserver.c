@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 05.12.2023                                  */
+/*   Author: Philipp Brune               Date: 06.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -53,6 +53,7 @@ struct callbackFuncType {
     int (*callback)(char *loadmod, void *data);
     JNIEnv *env;
     jobject self;
+    int mode;
 };
 
 struct memBufferDef {
@@ -76,9 +77,9 @@ int execLoadModuleCallback(char *loadmod, void *data) {
     JNIEnv *env = callbackFunc->env;
 
     jclass wrapperClass = (*env)->GetObjectClass(env, callbackFunc->self);
-    jmethodID exec = (*env)->GetMethodID(env, wrapperClass, "execLoadModule", "(Ljava/lang/String;)V");
+    jmethodID exec = (*env)->GetMethodID(env, wrapperClass, "execLoadModule", "(Ljava/lang/String;I)V");
     jstring loadmodStr = (*env)->NewStringUTF(env,loadmod);
-    (*env)->CallVoidMethod(env, callbackFunc->self, exec, loadmodStr);
+    (*env)->CallVoidMethod(env, callbackFunc->self, exec, loadmodStr, (jint)callbackFunc->mode);
     (*env)->DeleteLocalRef(env,loadmodStr);
     return 0;
 }
@@ -287,7 +288,6 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_writeByte(JNIEnv
 
 
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_initGlobal(JNIEnv *env, jclass clazz) {
-printf("initGlobal\n");
     // Set signal handler for SIGINT (proper shutdown of server)
     struct sigaction a;
     a.sa_handler = sig_handler;
@@ -328,14 +328,12 @@ JNIEXPORT jlongArray JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_init(JNIEn
 
 
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clearGlobal(JNIEnv *env, jclass clazz) {
-printf("clearGlobal\n");
     clearExec(1);
 }    
 
 
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_clear(JNIEnv *env, jobject self, jlongArray fd) {
     jlong *fds = (*env)->GetLongArrayElements(env, fd, 0);
-printf("clear %x %x\n",fds[0],fds[1]);
     close((int)fds[0]);
     close((int)fds[1]);
     (*env)->ReleaseLongArrayElements(env, fd, fds, 0);
@@ -348,6 +346,7 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
     callbackFunc->callback = &execLoadModuleCallback;
     callbackFunc->env = env;
     callbackFunc->self = (*env)->NewGlobalRef(env,self);
+    callbackFunc->mode = 1;
     int _fd = (int)fd;
 
     pthread_setspecific(execVarsKey,NULL);
@@ -375,7 +374,6 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
     free(globVars);
     pthread_setspecific(globVarsKey,NULL);
     (*env)->DeleteGlobalRef(env,loadmodGlob);
-printf("execInTranscation 2\n");
     return 0;
 }
 
