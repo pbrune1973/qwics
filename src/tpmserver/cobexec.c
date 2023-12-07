@@ -4900,7 +4900,6 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(callStackPtrKey, NULL);
     pthread_setspecific(chnBufListKey, NULL);
     pthread_setspecific(chnBufListPtrKey, NULL);
-    pthread_setspecific(isamTxKey, NULL);
     pthread_setspecific(currentNamesKey, NULL);
 }
 

@@ -71,6 +71,56 @@ public class QwicsTPMServerWrapper extends Socket {
         }
     }
 
+    public static interface ExecutorAction {
+            public void perform(QwicsTPMServerWrapper self, String cmd, long fd, int a, int b);
+    }
+
+    public static class Executor extends Thread {
+        private boolean stop = false;
+        private ExecutorAction action;
+        private QwicsTPMServerWrapper self;
+        private String cmd;
+        private long fd;
+        private int a;
+        private int b;
+
+        public Executor() {
+        }
+
+        public synchronized void exec(ExecutorAction action, QwicsTPMServerWrapper self,
+                                      String cmd, long fd, int a, int b) {
+            this.action = action;
+            this.self = self;
+            this.cmd = cmd;
+            this.fd = fd;
+            this.a = a;
+            this.b = b;
+            this.notify();
+        }
+
+        @Override
+        public void run() {
+            synchronized (this) {
+                while (!stop) {
+                    try {
+                        this.wait();
+                    } catch (InterruptedException e) {
+                        System.out.println("Executor started");
+                    }
+                    if (!stop) {
+                        action.perform(self,cmd,fd,a,b);
+                    }
+                }
+            }
+        }
+
+        public synchronized void cancel() {
+            this.stop = true;
+            this.notify();
+        }
+    }
+
+    private Executor executor = new Executor();
     private static HashMap<String,Class> loadModClasses = new HashMap<String,Class>();
     private QwicsInputStream inputStream = null;
     private QwicsOutputStream outputStream = null;
@@ -80,6 +130,7 @@ public class QwicsTPMServerWrapper extends Socket {
         fd = init();
         inputStream = new QwicsInputStream(this,fd[0]);
         outputStream = new QwicsOutputStream(this,fd[0]);
+        executor.start();
     }
 
     public static QwicsTPMServerWrapper getWrapper() {
@@ -122,25 +173,19 @@ public class QwicsTPMServerWrapper extends Socket {
             System.out.println("launchClass "+loadModClasses.get(name).getCanonicalName());
             final CobVarResolverImpl _resolver = CobVarResolverImpl.getInstance();
             _resolver.prepareClassloader();
+            for (Class cl : loadModClasses.values()) {
+                _resolver.registerModule(cl);
+            }
 
             outputStream.setWriteThrough(true);
-            Thread exec = new Thread() {
-                    @Override
-                    public void run() {
-                        try {
-                            synchronized (loadModClasses) {
-                                for (Class cl : loadModClasses.values()) {
-                                    _resolver.registerModule(cl);
-                                }
-                            }
-                            _this.setAsInstance();
-                            _this.execInTransaction(name,_this.fd[1],setCommArea,parCount);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-            };
-            exec.start();
+            executor.exec((self,cmd,fd,a,b) -> {
+                try {
+                    self.setAsInstance();
+                    self.execInTransaction(cmd,fd,a,b);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            },_this,name,this.fd[1],setCommArea,parCount);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -164,6 +209,7 @@ public class QwicsTPMServerWrapper extends Socket {
 
     @Override
     public synchronized void close() throws IOException {
+        executor.cancel();
         clear(fd);
     }
 
@@ -186,18 +232,14 @@ public class QwicsTPMServerWrapper extends Socket {
         System.out.println("execSql "+sql);
         try {
             final QwicsTPMServerWrapper _this = this;
-            Thread exec = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        _this.setAsInstance();
-                        _this.execSqlNative(sql, _this.fd[1], sendRes, sync);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+            executor.exec((self,cmd,fd,a,b) -> {
+                try {
+                    self.setAsInstance();
+                    self.execSqlNative(cmd,fd,a,b);
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-            };
-            exec.start();
+            },_this,sql,_this.fd[1], sendRes, sync);
         } catch (Exception e) {
             e.printStackTrace();
         }
