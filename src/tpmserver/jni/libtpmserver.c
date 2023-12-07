@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 06.12.2023                                  */
+/*   Author: Philipp Brune               Date: 07.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -158,7 +158,7 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
     const char* cmdStr = (*env)->GetStringUTFChars(env, cmd, NULL);
     struct cobVarData *execVars = (struct cobVarData*)pthread_getspecific(execVarsKey);
     struct cobVarData *globVars = (struct cobVarData*)pthread_getspecific(globVarsKey);
-printf("execCallbackNative %s %x %x %x %d\n",cmdStr,var,execVars,globVars,len);
+//printf("execCallbackNative %s %x %x %x %d\n",cmdStr,var,execVars,globVars,len);
 
     if (strstr(cmdStr,"TPMI:SET") != NULL) {
         if ((globVars != NULL) && (len >= 0)) {
@@ -178,7 +178,7 @@ printf("execCallbackNative %s %x %x %x %d\n",cmdStr,var,execVars,globVars,len);
                 f->attr = a;
                 f->size = (int)len;
 
-                execCallback((char*)cmdStr,f);
+                execCallback((char*)&cmdStr[5],f); 
             }
         }
         return;
@@ -200,7 +200,7 @@ printf("execCallbackNative %s %x %x %x %d\n",cmdStr,var,execVars,globVars,len);
     }
 
     if (len < 0) {
-        execCallback((char*)cmdStr,NULL);
+        execCallback((char*)&cmdStr[5],NULL);
     } else {
         if (execVars != NULL) {
             unsigned char* memBuffer = getMemBuffer(var,env,globVars,0);
@@ -219,7 +219,7 @@ printf("execCallbackNative %s %x %x %x %d\n",cmdStr,var,execVars,globVars,len);
                 f->attr = a;
                 f->size = (int)len;
 
-                execCallback((char*)cmdStr,f);
+                execCallback((char*)&cmdStr[5],f);
             }
         }
     }

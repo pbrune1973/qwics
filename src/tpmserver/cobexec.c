@@ -1223,7 +1223,6 @@ void* globalCallCallback(char *name) {
     char fname[255];
     char response[1024];
     int *callStackPtr = (int*)pthread_getspecific(callStackPtrKey);
-printf("globalCallCallback %s %d\n",name,(*callStackPtr));
     struct callLoadlib *callStack = (struct callLoadlib *)pthread_getspecific(callStackKey);
     int i = 0;
     #ifdef __APPLE__
@@ -1231,7 +1230,6 @@ printf("globalCallCallback %s %d\n",name,(*callStackPtr));
     #else
     sprintf(fname,"%s%s%s%s",GETENV_STRING(loadmodDir,"QWICS_LOADMODDIR","../loadmod"),"/",name,".so");
     #endif
-printf("%s\n",fname);
 
     if (strcmp("DSNTIAR",name) == 0) {
         return (void*)&dsntiar;
@@ -1450,7 +1448,7 @@ int execCallback(char *cmd, void *var) {
 
     struct taskLock *taskLocks = (struct taskLock *)pthread_getspecific(taskLocksKey);
 
-    printf("%s %s %d %d %x %d\n","execCallback",cmd,*cmdState,*memParamsState,var,(*callStackPtr));
+    printf("%s %s %d %d %x %d %x %x %x\n","execCallback",cmd,*cmdState,*memParamsState,var,(*callStackPtr),isamTx,var,memParams[5]);
 
     if (strstr(cmd,"SET SQLCODE") && (var != NULL)) {
         sqlcode = var;
@@ -2547,7 +2545,7 @@ int execCallback(char *cmd, void *var) {
                 if (resp > 0) {
                   abend(resp,resp2);
                 }
-            }
+            }            
             if (((*cmdState) == -24) && ((*memParamsState) >= 1)) {
                 struct openDatasetType *ods;
                 void* ds = getOpenDataset(currentNames->openDatasets,currentNames->fileName,&ods);
@@ -2679,7 +2677,6 @@ int execCallback(char *cmd, void *var) {
                             resp2 = 120;                                
                         }
                     }
-
                     if ((rec != NULL) && (*((int*)memParams[7]) >= 0)) {
                         if ((len == 0) || ((*((int*)memParams[7]) < len))) {
                             len = *((int*)memParams[7]);
@@ -4806,7 +4803,6 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(callStackPtrKey, callStackPtr);
     pthread_setspecific(chnBufListKey, &chnBufList);
     pthread_setspecific(chnBufListPtrKey, &chnBufListPtr);
-    pthread_setspecific(isamTxKey, NULL);
     pthread_setspecific(currentNamesKey, &currentNames);
     
     // Oprionally read in content of commarea
