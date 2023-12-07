@@ -43,7 +43,10 @@ OF SUCH DAMAGE.
 
 package org.qwics.jni;
 
+import java.lang.reflect.AccessibleObject;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 
 public class CobVarResolverImpl implements CobVarResolver {
     private static CobVarResolverImpl instance = null;
@@ -141,5 +144,14 @@ public class CobVarResolverImpl implements CobVarResolver {
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public boolean isInitializer(String name) {
+        return false;
+    }
+
+    @Override
+    public void runInitializers(HashMap<String, ArrayList<AccessibleObject>> initializers) {
     }
 }

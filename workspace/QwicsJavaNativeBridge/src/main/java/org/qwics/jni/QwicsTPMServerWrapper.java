@@ -49,8 +49,11 @@ import org.qwics.jni.streams.QwicsOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class QwicsTPMServerWrapper extends Socket {
@@ -122,9 +125,11 @@ public class QwicsTPMServerWrapper extends Socket {
 
     private Executor executor = new Executor();
     private static HashMap<String,Class> loadModClasses = new HashMap<String,Class>();
+    private static HashMap<String,ArrayList<AccessibleObject>> loadModInitializers = new HashMap<String,ArrayList<AccessibleObject>>();
     private QwicsInputStream inputStream = null;
     private QwicsOutputStream outputStream = null;
     private long fd[] = null;
+    private boolean afterQwicslen = false;
 
     private QwicsTPMServerWrapper() {
         fd = init();
@@ -195,6 +200,33 @@ public class QwicsTPMServerWrapper extends Socket {
         synchronized (loadModClasses) {
             loadModClasses.put(loadMod, clazz);
         }
+        try {
+            final CobVarResolverImpl resolver = CobVarResolverImpl.getInstance();
+            ArrayList<AccessibleObject> initializers = new ArrayList<AccessibleObject>();
+
+            Method methods[] = clazz.getDeclaredMethods();
+            for (Method m : methods) {
+                if (resolver.isInitializer(m.getName())) {
+                    m.setAccessible(true);
+                    initializers.add(m);
+                }
+            }
+
+            Field fields[] = clazz.getDeclaredFields();
+            for (Field f: fields) {
+                Class fc = f.getDeclaringClass();
+                if (fc != null && fc.getCanonicalName().contains("data.")) {
+                    f.setAccessible(true);
+                    initializers.add(f);
+                }
+            }
+
+            synchronized(loadModInitializers) {
+                loadModInitializers.put(clazz.getCanonicalName(), initializers);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -216,8 +248,8 @@ public class QwicsTPMServerWrapper extends Socket {
     public void execCallback(String cmd, Object var) {
         int pos = 0, len = -1, attr = 0;
         byte[] varBuf = null;
+        CobVarResolver varResolver = CobVarResolverImpl.getInstance();
         if (var != null) {
-            CobVarResolver varResolver = CobVarResolverImpl.getInstance();
             varResolver.setVar(var);
             varBuf = varResolver.getMemoryBuffer();
             pos = varResolver.getPos();
@@ -225,7 +257,21 @@ public class QwicsTPMServerWrapper extends Socket {
             attr = varResolver.getAttr();
         }
 
+        if (cmd.contains("CICS") || afterQwicslen) {
+            afterQwicslen = false;
+            synchronized(loadModInitializers) {
+                varResolver.runInitializers(loadModInitializers);
+            }
+        }
+        if (cmd.contains("LENGTH")) {
+            afterQwicslen = true;
+        }
         execCallbackNative(cmd,varBuf,pos,len,attr);
+        if (cmd.contains("END-EXEC")) {
+            synchronized(loadModInitializers) {
+                varResolver.runInitializers(loadModInitializers);
+            }
+        }
     }
 
     public void execSql(String sql, int sendRes, int sync) {

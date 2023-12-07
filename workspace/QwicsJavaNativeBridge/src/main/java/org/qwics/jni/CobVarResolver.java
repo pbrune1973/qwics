@@ -43,6 +43,10 @@ OF SUCH DAMAGE.
 
 package org.qwics.jni;
 
+import java.lang.reflect.AccessibleObject;
+import java.util.ArrayList;
+import java.util.HashMap;
+
 public interface CobVarResolver {
     public void setVar(Object var);
     public byte[] getMemoryBuffer();
@@ -57,4 +61,7 @@ public interface CobVarResolver {
     public void cobmain(String name, String args[]);
 
     public void prepareClassloader();
+
+    public boolean isInitializer(String name);
+    public void runInitializers(HashMap<String, ArrayList<AccessibleObject>> initializers);
 }
