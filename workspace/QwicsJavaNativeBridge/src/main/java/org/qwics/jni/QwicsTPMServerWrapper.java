@@ -249,13 +249,6 @@ public class QwicsTPMServerWrapper extends Socket {
         int pos = 0, len = -1, attr = 0;
         byte[] varBuf = null;
         CobVarResolver varResolver = CobVarResolverImpl.getInstance();
-        if (var != null) {
-            varResolver.setVar(var);
-            varBuf = varResolver.getMemoryBuffer();
-            pos = varResolver.getPos();
-            len = varResolver.getLen();
-            attr = varResolver.getAttr();
-        }
 
         if (cmd.contains("CICS") || afterQwicslen) {
             afterQwicslen = false;
@@ -266,6 +259,15 @@ public class QwicsTPMServerWrapper extends Socket {
         if (cmd.contains("LENGTH")) {
             afterQwicslen = true;
         }
+
+        if (var != null) {
+            varResolver.setVar(var);
+            varBuf = varResolver.getMemoryBuffer();
+            pos = varResolver.getPos();
+            len = varResolver.getLen();
+            attr = varResolver.getAttr();
+        }
+
         execCallbackNative(cmd,varBuf,pos,len,attr);
         if (cmd.contains("END-EXEC")) {
             synchronized(loadModInitializers) {

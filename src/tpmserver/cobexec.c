@@ -2677,6 +2677,7 @@ int execCallback(char *cmd, void *var) {
                             resp2 = 120;                                
                         }
                     }
+printf("READNEXT params %d %x %x %x %x %d\n",len,rec,memParams[5],memParams[6],memParams[7],*((int*)memParams[7]));
                     if ((rec != NULL) && (*((int*)memParams[7]) >= 0)) {
                         if ((len == 0) || ((*((int*)memParams[7]) < len))) {
                             len = *((int*)memParams[7]);
@@ -2684,6 +2685,7 @@ int execCallback(char *cmd, void *var) {
                             resp2 = 11;
                         }
                     }
+printf("READNEXT params %d %x %x %x %x\n",len,rec,memParams[5],memParams[6],memParams[7]);
 
                     int reqId = *((int*)memParams[2]);
                     struct openCursorType *cur = NULL;
