@@ -246,16 +246,20 @@ public class QwicsTPMServerWrapper extends Socket {
     }
 
     public void execCallback(String cmd, Object var) {
-        int pos = 0, len = -1, attr = 0;
+        int pos = 0, len = -1, attr = 0, varMode = 0;
         byte[] varBuf = null;
         CobVarResolver varResolver = CobVarResolverImpl.getInstance();
 
-        if (cmd.contains("CICS") || afterQwicslen) {
+        if (cmd.endsWith("EXEC") || afterQwicslen) {
+            if (afterQwicslen) {
+                varMode = 1;
+            }
             afterQwicslen = false;
             synchronized(loadModInitializers) {
                 varResolver.runInitializers(loadModInitializers);
             }
         }
+
         if (cmd.contains("LENGTH")) {
             afterQwicslen = true;
         }
@@ -268,7 +272,7 @@ public class QwicsTPMServerWrapper extends Socket {
             attr = varResolver.getAttr();
         }
 
-        execCallbackNative(cmd,varBuf,pos,len,attr);
+        execCallbackNative(cmd,varBuf,pos,len,attr,varMode);
         if (cmd.contains("END-EXEC")) {
             synchronized(loadModInitializers) {
                 varResolver.runInitializers(loadModInitializers);
@@ -293,7 +297,7 @@ public class QwicsTPMServerWrapper extends Socket {
         }
     }
 
-    public native void execCallbackNative(String cmd, byte[] var, int pos, int len, int attr);
+    public native void execCallbackNative(String cmd, byte[] var, int pos, int len, int attr, int varMode);
     public native int readByte(long fd, int mode);
     public native int writeByte(long fd, byte b);
     public static native void initGlobal();

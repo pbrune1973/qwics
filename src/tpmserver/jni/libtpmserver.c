@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 07.12.2023                                  */
+/*   Author: Philipp Brune               Date: 10.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -101,8 +101,10 @@ unsigned char *getMemBuffer(jbyteArray var, JNIEnv *env, struct cobVarData *glob
     int i = 0,j = -1;
     for (i = 0; i < globVars->bufNum; i++) {
         if ((*env)->IsSameObject(env,globVars->memBuffers[i].var,var)) {
-            globVars->memBuffers[i].memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, var, 0); 
-            globVars->memBuffers[i].isMapped = 1;
+            if (!globVars->memBuffers[i].isMapped) {
+                globVars->memBuffers[i].memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, globVars->memBuffers[i].var, 0); 
+                globVars->memBuffers[i].isMapped = 1;
+            }
             // Remember var if already found
             j = i;
         } else {
@@ -148,11 +150,11 @@ void releaseMemBuffers(JNIEnv *env, struct cobVarData *globVars) {
 
 
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNative(JNIEnv *env, jobject self, 
-                jstring cmd, jbyteArray var, jint pos, jint len, jint attr) {
+                jstring cmd, jbyteArray var, jint pos, jint len, jint attr, jint varMode) {
     const char* cmdStr = (*env)->GetStringUTFChars(env, cmd, NULL);
     struct cobVarData *execVars = (struct cobVarData*)pthread_getspecific(execVarsKey);
     struct cobVarData *globVars = (struct cobVarData*)pthread_getspecific(globVarsKey);
-printf("execCallbackNative %s %x %x %x %d %d\n",cmdStr,var,execVars,globVars,pos,len);
+printf("execCallbackNative %s %x %x %x %d %d %d\n",cmdStr,var,execVars,globVars,pos,len,varMode);
 
     if (strstr(cmdStr,"TPMI:SET") != NULL) {
         if ((globVars != NULL) && (len >= 0)) {
@@ -190,6 +192,7 @@ printf("execCallbackNative %s %x %x %x %d %d\n",cmdStr,var,execVars,globVars,pos
 
         execVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
         execVars->varNum = 0;
+        execVars->bufNum = 0;
         pthread_setspecific(execVarsKey,execVars);
     }
 
@@ -208,8 +211,17 @@ printf("execCallbackNative %s %x %x %x %d %d\n",cmdStr,var,execVars,globVars,pos
                 a->digits = (attr >> 16) & 0xFF;
                 a->scale = (attr >> 24) & 0xFF; 
                 a->pic = NULL;
-
-                f->data = &(memBuffer[pos]);
+                if (varMode == 0) {
+                    f->data = &(memBuffer[pos]);
+                } else {
+                    execVars->memBuffers[execVars->bufNum].var = (jbyteArray)(*env)->NewGlobalRef(env,var);
+                    execVars->memBuffers[execVars->bufNum].memBuffer = (unsigned char*)malloc((int)len);
+                    (*env)->GetByteArrayRegion(env, var, (jsize)pos, (jsize)len, (jbyte*)execVars->memBuffers[execVars->bufNum].memBuffer);
+                    execVars->memBuffers[execVars->bufNum].isMapped = 1;
+                    execVars->memBuffers[execVars->bufNum].isGlobal = 0;
+                    f->data = execVars->memBuffers[execVars->bufNum].memBuffer;
+                    execVars->bufNum++;
+                }
                 f->attr = a;
                 f->size = (int)len;
 int i;
@@ -239,6 +251,13 @@ printf("\n");
             int i;
             for (i = 0; i < execVars->varNum; i++) {
                 free((void*)execVars->vars[i].attr);
+            }
+            for (i = 0; i < execVars->bufNum; i++) {
+                if (execVars->memBuffers[i].memBuffer != NULL) {
+                    //Does not work without len, pos!! (*env)->SetByteArrayRegion(env, execVars->memBuffers[i].var, (jsize)pos, (jsize)len, (jbyte*)execVars->memBuffers[i].memBuffer);
+                    free(execVars->memBuffers[i].memBuffer);
+                }
+                (*env)->DeleteGlobalRef(env,execVars->memBuffers[i].var);
             }
             free(execVars);
         }

@@ -13,7 +13,7 @@ extern "C" {
  * Signature: (Ljava/lang/String;[BIII)V
  */
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNative
-  (JNIEnv *, jobject, jstring, jbyteArray, jint, jint, jint);
+  (JNIEnv *, jobject, jstring, jbyteArray, jint, jint, jint, jint);
 
 /*
  * Class:     org_qwics_jni_QwicsTPMServerWrapper
