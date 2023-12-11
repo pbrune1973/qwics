@@ -176,15 +176,15 @@ public class QwicsTPMServerWrapper extends Socket {
                 }
             }
             System.out.println("launchClass "+loadModClasses.get(name).getCanonicalName());
-            final CobVarResolverImpl _resolver = CobVarResolverImpl.getInstance();
-            _resolver.prepareClassloader();
-            for (Class cl : loadModClasses.values()) {
-                _resolver.registerModule(cl);
-            }
 
             outputStream.setWriteThrough(true);
             executor.exec((self,cmd,fd,a,b) -> {
                 try {
+                    final CobVarResolverImpl _resolver = CobVarResolverImpl.getInstance();
+                    _resolver.prepareClassloader();
+                    for (Class cl : loadModClasses.values()) {
+                        _resolver.registerModule(cl);
+                    }
                     self.setAsInstance();
                     self.execInTransaction(cmd,fd,a,b);
                 } catch (Exception e) {

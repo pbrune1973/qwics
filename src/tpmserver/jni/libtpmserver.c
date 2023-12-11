@@ -174,7 +174,8 @@ void adjustByteOrder(int i, struct cobVarData *vars) {
     int len = vars->vars[i].size,j;
 
 printf("adjustByteOrder %d %d %x\n",i,len,vars->vars[i].attr->type);
-    if ((vars->vars[i].attr->type & 0xFF) == 0x11) {
+    if (vars->vars[i].attr->type == 0x11) {
+printf("adjustByteorder\n");
         memcpy(hbuf,buf,len);
         for (j = 0; j < len; j++) {
             buf[j] = hbuf[len-1-j];
@@ -408,9 +409,14 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
     (*env)->DeleteGlobalRef(env,callbackFunc->self);
     free(callbackFunc);
     (*env)->ReleaseStringUTFChars(env, loadmodGlob, name);
-    releaseAllMemBuffers(env,globVars);
 
     int i;
+    for (i = 0; i < globVars->varNum; i++) {
+        adjustByteOrder(i,globVars);
+    }
+
+    releaseAllMemBuffers(env,globVars);
+
     for (i = 0; i < globVars->bufNum; i++) {
         (*env)->DeleteGlobalRef(env,globVars->memBuffers[i].var);
     }

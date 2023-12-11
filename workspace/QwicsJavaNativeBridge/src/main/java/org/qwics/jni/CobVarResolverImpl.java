@@ -47,7 +47,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 
 public class CobVarResolverImpl implements CobVarResolver {
-    private static CobVarResolverImpl instance = null;
+    private static ThreadLocal<CobVarResolverImpl> instance = new ThreadLocal<CobVarResolverImpl>();
     protected byte[] memoryBuffer = null;
     protected int pos = 0;
     protected int len = 0;
@@ -57,25 +57,25 @@ public class CobVarResolverImpl implements CobVarResolver {
     }
 
     public static CobVarResolverImpl getInstance() {
-        if (instance == null) {
+        if (instance.get() == null) {
             String cl = null;
             try {
                 if ((cl = System.getProperty("org.qwics.cobvarresolver")) != null) {
                     Class clazz = Class.forName(cl);
-                    instance = (CobVarResolverImpl)clazz.newInstance();
+                    instance.set((CobVarResolverImpl)clazz.newInstance());
                 } else {
-                    instance = new CobVarResolverImpl();
+                    instance.set(new CobVarResolverImpl());
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                instance = new CobVarResolverImpl();
+                instance.set(new CobVarResolverImpl());
             }
         }
-        return instance;
+        return instance.get();
     }
 
     public static void setInstance(CobVarResolverImpl instance) {
-        CobVarResolverImpl.instance = instance;
+        CobVarResolverImpl.instance.set(instance);
     }
 
     @Override
