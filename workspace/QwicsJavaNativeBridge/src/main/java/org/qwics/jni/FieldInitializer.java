@@ -43,23 +43,50 @@ OF SUCH DAMAGE.
 
 package org.qwics.jni;
 
-import java.util.HashMap;
+import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Method;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
 
-public interface CobVarResolver {
-    public void setVar(Object var);
-    public byte[] getMemoryBuffer();
 
-    public int getPos();
+public class FieldInitializer {
+    private ArrayList<Method> synchronizers = new ArrayList<Method>();
+    private ArrayList<Field> valids = new ArrayList<Field>();
+    private ArrayList<Field> groupFields = new ArrayList<Field>();
+    private ArrayList<FieldInitializer> groupFieldInitializers = new ArrayList<FieldInitializer>();
 
-    public int getLen();
+    public FieldInitializer() {
+    }
 
-    public int getAttr();
+    public void addSynchronizer(Method m) {
+        synchronizers.add(m);
+    }
 
-    public void registerModule(Class module);
-    public void cobmain(String name, String args[]);
+    public void addValid(Field f) {
+        valids.add(f);
+    }
 
-    public void prepareClassloader();
+    public void addGroupField(Field f, FieldInitializer initializer) {
+        groupFields.add(f);
+        groupFieldInitializers.add(initializer);
+    }
 
-    public boolean isInitializer(String name);
-    public void runInitializers(HashMap<String, FieldInitializer> initializers, int mode);
+    public void apply(Object obj, int mode) throws Exception {
+        if (mode == 0) {
+            for (Method m : synchronizers) {
+                m.invoke(obj);
+            }
+        }
+        if (mode == 1) {
+            for (Field f : valids) {
+                f.setBoolean(obj,false);
+            }
+        }
+        int i = 0;
+        for (Field f : groupFields) {
+            Object groupField = f.get(obj);
+            groupFieldInitializers.get(i).apply(groupField,mode);
+            i++;
+        }
+    }
 }

@@ -85,12 +85,7 @@ int put(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, u
 	DBC *cur = (DBC*)curptr;
 	DBT key, data;
 	int ret = 0;
-printf("put %x %x %x %d\n",dsptr,txptr,curptr,lrecl);	
-int i = 0;
-for (i = 0; i < lrecl; i++) {
-	printf("%c",(char)rec[i]);
-}
-printf("\n");
+
 	memset(&key, 0, sizeof(DBT));
  	memset(&data, 0, sizeof(DBT));
  	key.data = rid;
@@ -115,7 +110,6 @@ int get(void *dsptr, void *txptr, void *curptr, unsigned char *rid, int idlen, u
 	DBC *cur = (DBC*)curptr;
 	DBT key, data;
 	int ret = 0;
-printf("get %x %x %x %d\n",dsptr,txptr,curptr,lrecl);	
 
 	memset(&key, 0, sizeof(DBT));
  	memset(&data, 0, sizeof(DBT));
@@ -147,11 +141,7 @@ printf("get %x %x %x %d\n",dsptr,txptr,curptr,lrecl);
 			memcpy(rec,data.data,l);
 		}
 	}
-int i = 0;
-for (i = 0; i < lrecl; i++) {
-	printf("%c",(char)rec[i]);
-}
-printf("\n");
+
 	return ret;
 }
 

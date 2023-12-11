@@ -125,7 +125,7 @@ public class QwicsTPMServerWrapper extends Socket {
 
     private Executor executor = new Executor();
     private static HashMap<String,Class> loadModClasses = new HashMap<String,Class>();
-    private static HashMap<String,ArrayList<AccessibleObject>> loadModInitializers = new HashMap<String,ArrayList<AccessibleObject>>();
+    private static HashMap<String,FieldInitializer> loadModInitializers = new HashMap<String,FieldInitializer>();
     private QwicsInputStream inputStream = null;
     private QwicsOutputStream outputStream = null;
     private long fd[] = null;
@@ -196,33 +196,43 @@ public class QwicsTPMServerWrapper extends Socket {
         }
     }
 
+    private static FieldInitializer createInitializers(Class clazz) throws Exception {
+        final CobVarResolverImpl resolver = CobVarResolverImpl.getInstance();
+        FieldInitializer initializer = new FieldInitializer();
+
+        Method methods[] = clazz.getDeclaredMethods();
+        for (Method m : methods) {
+            if (resolver.isInitializer(m.getName())) {
+                m.setAccessible(true);
+                initializer.addSynchronizer(m);
+            }
+        }
+
+        Field fields[] = clazz.getDeclaredFields();
+        for (Field f: fields) {
+            if (resolver.isInitializer(f.getName())) {
+                f.setAccessible(true);
+                initializer.addValid(f);
+            }
+
+            Class fc = f.getDeclaringClass();
+            if (fc != null && fc.getCanonicalName().contains("data.")) {
+                f.setAccessible(true);
+                initializer.addGroupField(f,createInitializers(fc));
+            }
+        }
+
+        return initializer;
+    }
+
     public static void defineLoadModClass(String loadMod, Class clazz) {
         synchronized (loadModClasses) {
             loadModClasses.put(loadMod, clazz);
         }
         try {
-            final CobVarResolverImpl resolver = CobVarResolverImpl.getInstance();
-            ArrayList<AccessibleObject> initializers = new ArrayList<AccessibleObject>();
-
-            Method methods[] = clazz.getDeclaredMethods();
-            for (Method m : methods) {
-                if (resolver.isInitializer(m.getName())) {
-                    m.setAccessible(true);
-                    initializers.add(m);
-                }
-            }
-
-            Field fields[] = clazz.getDeclaredFields();
-            for (Field f: fields) {
-                Class fc = f.getDeclaringClass();
-                if (fc != null && fc.getCanonicalName().contains("data.")) {
-                    f.setAccessible(true);
-                    initializers.add(f);
-                }
-            }
-
+            FieldInitializer initializer = createInitializers(clazz);
             synchronized(loadModInitializers) {
-                loadModInitializers.put(clazz.getCanonicalName(), initializers);
+                loadModInitializers.put(clazz.getCanonicalName(), initializer);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -256,7 +266,7 @@ public class QwicsTPMServerWrapper extends Socket {
             }
             afterQwicslen = false;
             synchronized(loadModInitializers) {
-                varResolver.runInitializers(loadModInitializers);
+                varResolver.runInitializers(loadModInitializers,0);
             }
         }
 
@@ -275,7 +285,7 @@ public class QwicsTPMServerWrapper extends Socket {
         execCallbackNative(cmd,varBuf,pos,len,attr,varMode);
         if (cmd.contains("END-EXEC")) {
             synchronized(loadModInitializers) {
-                varResolver.runInitializers(loadModInitializers);
+                varResolver.runInitializers(loadModInitializers,1);
             }
         }
     }

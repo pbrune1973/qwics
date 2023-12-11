@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 06.12.2023                                  */
+/*   Author: Philipp Brune               Date: 11.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -1448,7 +1448,7 @@ int execCallback(char *cmd, void *var) {
 
     struct taskLock *taskLocks = (struct taskLock *)pthread_getspecific(taskLocksKey);
 
-    printf("%s %s %d %d %x %d %x %x %x\n","execCallback",cmd,*cmdState,*memParamsState,var,(*callStackPtr),isamTx,var,memParams[5]);
+    //printf("%s %s %d %d %x %d %x %x %x\n","execCallback",cmd,*cmdState,*memParamsState,var,(*callStackPtr),isamTx,var,memParams[5]);
 
     if (strstr(cmd,"SET SQLCODE") && (var != NULL)) {
         sqlcode = var;
@@ -2677,7 +2677,7 @@ int execCallback(char *cmd, void *var) {
                             resp2 = 120;                                
                         }
                     }
-printf("READNEXT params %d %x %x %x %x %d\n",len,rec,memParams[5],memParams[6],memParams[7],*((int*)memParams[7]));
+
                     if ((rec != NULL) && (*((int*)memParams[7]) >= 0)) {
                         if ((len == 0) || ((*((int*)memParams[7]) < len))) {
                             len = *((int*)memParams[7]);
@@ -2685,7 +2685,6 @@ printf("READNEXT params %d %x %x %x %x %d\n",len,rec,memParams[5],memParams[6],m
                             resp2 = 11;
                         }
                     }
-printf("READNEXT params %d %x %x %x %x\n",len,rec,memParams[5],memParams[6],memParams[7]);
 
                     int reqId = *((int*)memParams[2]);
                     struct openCursorType *cur = NULL;
