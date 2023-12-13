@@ -312,11 +312,14 @@ public class QwicsTPMServerWrapper extends Socket {
     }
 
     public void abend(int mode, int condCode) throws Throwable {
-        if (condHandler.containsKey(condCode)) {
+        CobVarResolver resolver = CobVarResolverImpl.getInstance();
 
+        if (condHandler.containsKey(condCode)) {
+            resolver.perform(condHandler.get(condCode));
+            return;
         }
 
-
+        resolver.perform("ABNDHNDL");
     }
 
     public void setConditionHandler(int condCode, String label) {
