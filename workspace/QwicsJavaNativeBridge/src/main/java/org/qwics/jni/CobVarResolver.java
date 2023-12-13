@@ -56,7 +56,8 @@ public interface CobVarResolver {
     public int getAttr();
 
     public void registerModule(Class module);
-    public void cobmain(String name, String args[]);
+    public void cobmain(String name, String args[]) throws Throwable;
+    public void perform(String section) throws Throwable;
 
     public void prepareClassloader();
 

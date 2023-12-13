@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 11.12.2023                                  */
+/*   Author: Philipp Brune               Date: 13.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -51,9 +51,11 @@ pthread_key_t globVarsKey;
 
 struct callbackFuncType {
     int (*callback)(char *loadmod, void *data);
+    int (*abendHandler)(void *data);
     JNIEnv *env;
     jobject self;
     int mode;
+    int condCode;
 };
 
 struct memBufferDef {
@@ -81,6 +83,30 @@ int execLoadModuleCallback(char *loadmod, void *data) {
     jstring loadmodStr = (*env)->NewStringUTF(env,loadmod);
     (*env)->CallVoidMethod(env, callbackFunc->self, exec, loadmodStr, (jint)callbackFunc->mode);
     (*env)->DeleteLocalRef(env,loadmodStr);
+    return 0;
+}
+
+
+int abendCallback(void *data) {
+    struct callbackFuncType *callbackFunc = (struct callbackFuncType *)data;
+    if (callbackFunc != NULL) {
+        JNIEnv *env = callbackFunc->env;
+
+        if (callbackFunc->mode == 17) {
+            callbackFunc->mode = 1;
+            // Hard abend
+            jclass exClass = (*env)->FindClass(env,"org/qwics/jni/Abend");
+            if (exClass == NULL ) {
+                return (*env)->ThrowNew(env,exClass,NULL);
+            }
+            return 0;
+        }
+
+        jclass wrapperClass = (*env)->GetObjectClass(env, callbackFunc->self);
+        jmethodID exec = (*env)->GetMethodID(env, wrapperClass, "abend", "(I;I)V");
+        (*env)->CallVoidMethod(env, callbackFunc->self, exec, 
+                (jint)callbackFunc->mode,(jint)callbackFunc->condCode);
+    }
     return 0;
 }
 
@@ -173,9 +199,8 @@ void adjustByteOrder(int i, struct cobVarData *vars) {
     unsigned char *buf = vars->vars[i].data;
     int len = vars->vars[i].size,j;
 
-printf("adjustByteOrder %d %d %x\n",i,len,vars->vars[i].attr->type);
+//printf("adjustByteOrder %d %d %x\n",i,len,vars->vars[i].attr->type);
     if (vars->vars[i].attr->type == 0x11) {
-printf("adjustByteorder\n");
         memcpy(hbuf,buf,len);
         for (j = 0; j < len; j++) {
             buf[j] = hbuf[len-1-j];
@@ -392,6 +417,7 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execInTransactio
     jstring loadmodGlob = (*env)->NewGlobalRef(env,loadmod);
     struct callbackFuncType *callbackFunc = (struct callbackFuncType*)malloc(sizeof(struct callbackFuncType));
     callbackFunc->callback = &execLoadModuleCallback;
+    callbackFunc->abendHandler = &abendCallback;
     callbackFunc->env = env;
     callbackFunc->self = (*env)->NewGlobalRef(env,self);
     callbackFunc->mode = 1;

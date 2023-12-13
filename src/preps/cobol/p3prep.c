@@ -1061,17 +1061,8 @@ void processExecLine(char *buf, FILE *fp2, FILE *fp) {
                         } while (buf[i] != ')');
 
                         if (para == 1) {
-                          sprintf(execbuf,"%s%s\n","           CALL \"setjmp\" USING QWICSJMP",getExecTerminator(0));
-                          fputs(execbuf, (FILE*)fp2);
-                          sprintf(execbuf,"%s\n","           IF RETURN-CODE > 0 THEN");
-                          fputs(execbuf, (FILE*)fp2);
-                          sprintf(execbuf,"%s%s\n","             PERFORM ",token);
-                          fputs(execbuf, (FILE*)fp2);
-                          sprintf(execbuf,"%s\n","           ELSE");
-                          fputs(execbuf, (FILE*)fp2);
-                          sprintf(execbuf,"%s%d%s\n","             CALL \"setJmpAbend\" USING ",isErrHandlerField,",QWICSJMP");
-                          fputs(execbuf, (FILE*)fp2);
-                          sprintf(execbuf,"%s%s\n","           END-IF",getExecTerminator(0));
+                          sprintf(execbuf,"%s%d%s%s%s\n","           java\n               org.qwics.jni.QwicsTPMServerWrapper.getInstance()\n                   .setConditionHandler(",
+                                    isErrHandlerField,"\"",token,"\");\n           end-java");
                           fputs(execbuf, (FILE*)fp2);
                         } else {
                           printJavaCmd(execbuf,"%s%s%s\n","           DISPLAY \"TPMI:\" ",

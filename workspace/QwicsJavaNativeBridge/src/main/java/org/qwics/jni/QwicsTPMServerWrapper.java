@@ -130,6 +130,7 @@ public class QwicsTPMServerWrapper extends Socket {
     private QwicsOutputStream outputStream = null;
     private long fd[] = null;
     private boolean afterQwicslen = false;
+    private HashMap<Integer,String> condHandler = new HashMap<Integer,String>();
 
     private QwicsTPMServerWrapper() {
         fd = init();
@@ -158,11 +159,13 @@ public class QwicsTPMServerWrapper extends Socket {
             }
             CobVarResolverImpl resolver = CobVarResolverImpl.getInstance();
             resolver.cobmain(cl.getCanonicalName(),null);
+        } catch (Abend a) {
+        } catch (Throwable e) {
+            e.printStackTrace();
+        } finally {
             if (mode == 1) {
                 outputStream.setWriteThrough(false);
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 
@@ -185,6 +188,7 @@ public class QwicsTPMServerWrapper extends Socket {
                     for (Class cl : loadModClasses.values()) {
                         _resolver.registerModule(cl);
                     }
+                    self.condHandler.clear();
                     self.setAsInstance();
                     self.execInTransaction(cmd,fd,a,b);
                 } catch (Exception e) {
@@ -305,6 +309,18 @@ public class QwicsTPMServerWrapper extends Socket {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public void abend(int mode, int condCode) throws Throwable {
+        if (condHandler.containsKey(condCode)) {
+
+        }
+
+
+    }
+
+    public void setConditionHandler(int condCode, String label) {
+        condHandler.put(condCode,label);
     }
 
     public native void execCallbackNative(String cmd, byte[] var, int pos, int len, int attr, int varMode);

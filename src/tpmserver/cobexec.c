@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 11.12.2023                                  */
+/*   Author: Philipp Brune               Date: 13.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -130,9 +130,11 @@ struct currentNamesType {
 
 struct callbackFuncType {
     int (*callback)(char *loadmod, void *data);
+    int (*abendHandler)(void *data);
     JNIEnv *env;
     jobject self;
     int mode;
+    int condCode;
 };
 
 #endif
@@ -1098,6 +1100,9 @@ void abend(int resp, int resp2) {
   int *cmdState = (int*)pthread_getspecific(cmdStateKey);
   int *xctlState = (int*)pthread_getspecific(xctlStateKey);
   struct currentNamesType *currentNames = (struct currentNamesType*)pthread_getspecific(currentNamesKey);
+  #ifdef _LIBTPMSERVER_
+  struct callbackFuncType *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
+  #endif
 
   if (strlen(currentNames->abcode) > 0) {
     abcode = currentNames->abcode;
@@ -1112,6 +1117,11 @@ void abend(int resp, int resp2) {
 
     int *runState = (int*)pthread_getspecific(runStateKey);
     if ((*runState) != 3) {
+        #ifdef _LIBTPMSERVER_
+        if (cbInfo != NULL) {
+            cbInfo->condCode = resp;    
+        }
+        #endif
         // Check for active ABEND handlers
         int i = 0;
         for (i = currentNames->abendHandlerCnt-1; i >= 0; i--) {
@@ -1148,6 +1158,14 @@ void abend(int resp, int resp2) {
     }
   }
   fprintf(stderr,"%s%s%s%d%s%d\n","ABEND ABCODE=",abcode," RESP=",resp," RESP2=",resp2);
+  #ifdef _LIBTPMSERVER_
+  if (cbInfo != NULL) {
+    cbInfo->mode = 17;
+    cbInfo->condCode = resp;    
+    abendHndl();
+    return;
+  }
+  #endif
   jmp_buf *h = condHandler[resp];
   if (h != NULL) {
     longjmp(*h,1);
@@ -1284,6 +1302,18 @@ void globalCallCleanup() {
 }
 
 
+#ifdef _LIBTPMSERVER_
+int abendHndl() {
+    int r = 0;
+    struct callbackFuncType *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
+    if (cbInfo != NULL) {
+        r = (*(cbInfo->abendHandler))((void*)cbInfo);
+    }
+    return r;
+}
+#endif
+
+
 // Execute COBOL loadmod in transaction
 int execLoadModule(char *name, int mode, int parCount) {
     int (*loadmod)();
@@ -1309,9 +1339,23 @@ int execLoadModule(char *name, int mode, int parCount) {
                 cbInfo->mode = 0;
             }
         }
- 
+
+        if (currentNames->abendHandlerCnt < MAX_ABENDHANDLERS) {
+            currentNames->abendHandlers[currentNames->abendHandlerCnt].abendHandler = &abendHndl;
+            currentNames->abendHandlers[currentNames->abendHandlerCnt].abendProgname[0] = 0x00;
+            currentNames->abendHandlers[currentNames->abendHandlerCnt].abendIsActive = 0;
+            currentNames->abendHandlerCnt++;
+        }
+
         int r = (*(cbInfo->callback))(name,(void*)cbInfo);
 
+        if (currentNames->abendHandlerCnt > 0) {
+            currentNames->abendHandlers[currentNames->abendHandlerCnt].abendHandler = NULL;
+            currentNames->abendHandlers[currentNames->abendHandlerCnt].abendProgname[0] = 0x00;
+            currentNames->abendHandlers[currentNames->abendHandlerCnt].abendIsActive = 0;
+            currentNames->abendHandlerCnt--;
+        }
+ 
         if ((mode == 0) && ((*runState) < 3)) {
             sprintf(response,"\n%s\n","STOP");
             write(childfd,&response,strlen(response));
