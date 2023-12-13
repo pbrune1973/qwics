@@ -53,6 +53,7 @@ import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import java.net.Socket;
+import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -131,12 +132,14 @@ public class QwicsTPMServerWrapper extends Socket {
     private long fd[] = null;
     private boolean afterQwicslen = false;
     private HashMap<Integer,String> condHandler = new HashMap<Integer,String>();
+    private boolean isOpen = false;
 
     private QwicsTPMServerWrapper() {
         fd = init();
         inputStream = new QwicsInputStream(this,fd[0]);
         outputStream = new QwicsOutputStream(this,fd[0]);
         executor.start();
+        isOpen = true;
     }
 
     public static QwicsTPMServerWrapper getWrapper() {
@@ -257,6 +260,17 @@ public class QwicsTPMServerWrapper extends Socket {
     public synchronized void close() throws IOException {
         executor.cancel();
         clear(fd);
+        isOpen = false;
+    }
+
+    @Override
+    public boolean isConnected() {
+        return isOpen;
+    }
+
+    @Override
+    public boolean isClosed() {
+        return !isOpen;
     }
 
     public void execCallback(String cmd, Object var) {

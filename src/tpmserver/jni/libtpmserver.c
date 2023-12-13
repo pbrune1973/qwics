@@ -88,22 +88,24 @@ int execLoadModuleCallback(char *loadmod, void *data) {
 
 
 int abendCallback(void *data) {
+printf("abendCallback\n");
     struct callbackFuncType *callbackFunc = (struct callbackFuncType *)data;
     if (callbackFunc != NULL) {
         JNIEnv *env = callbackFunc->env;
+printf("abendCallback %d\n",callbackFunc->mode);
 
         if (callbackFunc->mode == 17) {
             callbackFunc->mode = 1;
             // Hard abend
             jclass exClass = (*env)->FindClass(env,"org/qwics/jni/Abend");
-            if (exClass == NULL ) {
+            if (exClass != NULL ) {
                 return (*env)->ThrowNew(env,exClass,NULL);
             }
             return 0;
         }
 
         jclass wrapperClass = (*env)->GetObjectClass(env, callbackFunc->self);
-        jmethodID exec = (*env)->GetMethodID(env, wrapperClass, "abend", "(I;I)V");
+        jmethodID exec = (*env)->GetMethodID(env, wrapperClass, "abend", "(II)V");
         (*env)->CallVoidMethod(env, callbackFunc->self, exec, 
                 (jint)callbackFunc->mode,(jint)callbackFunc->condCode);
     }
