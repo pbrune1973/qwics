@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 13.12.2023                                  */
+/*   Author: Philipp Brune               Date: 14.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -88,11 +88,9 @@ int execLoadModuleCallback(char *loadmod, void *data) {
 
 
 int abendCallback(void *data) {
-printf("abendCallback\n");
     struct callbackFuncType *callbackFunc = (struct callbackFuncType *)data;
     if (callbackFunc != NULL) {
         JNIEnv *env = callbackFunc->env;
-printf("abendCallback %d\n",callbackFunc->mode);
 
         if (callbackFunc->mode == 17) {
             callbackFunc->mode = 1;
@@ -243,15 +241,6 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
     }
 
     if (strstr(cmdStr,"TPMI:EXEC") != NULL) {
-        if (execVars != NULL) {
-            int i;
-            for (i = 0; i < execVars->varNum; i++) {
-                free((void*)execVars->vars[i].attr);
-            }
-            free(execVars);
-            execVars = NULL;
-        }
-
         execVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
         execVars->varNum = 0;
         execVars->bufNum = 0;

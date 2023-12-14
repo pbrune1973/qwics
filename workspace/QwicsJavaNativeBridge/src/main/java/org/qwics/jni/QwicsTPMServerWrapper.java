@@ -195,7 +195,7 @@ public class QwicsTPMServerWrapper extends Socket {
                     self.setAsInstance();
                     self.execInTransaction(cmd,fd,a,b);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    //e.printStackTrace();
                 }
             },_this,name,this.fd[1],setCommArea,parCount);
         } catch (Exception e) {
@@ -317,7 +317,7 @@ public class QwicsTPMServerWrapper extends Socket {
                     self.setAsInstance();
                     self.execSqlNative(cmd,fd,a,b);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    //e.printStackTrace();
                 }
             },_this,sql,_this.fd[1], sendRes, sync);
         } catch (Exception e) {
