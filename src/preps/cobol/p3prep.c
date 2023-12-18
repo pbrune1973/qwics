@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor for EasiRun(tm) P3 Cobol Compiler (tm)                */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 17.11.2023                                  */
+/*   Author: Philipp Brune               Date: 18.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -61,6 +61,7 @@ int xmlBlock = 0;
 FILE *fpLookup = NULL;
 char *eiblkAlias = NULL;
 int addedUsing = 0;
+int inCall = 0;
 
 
 struct linkageVarDef {
@@ -300,6 +301,35 @@ void printJavaCmd(char *outbuf, char *fmt, ...) {
     }
 
     va_end(list);
+}
+
+
+int convertParam4Java(char *param, int l, char *output) {
+    int i = 0, j = 0, verb = 0;
+    int res = 0;
+    for (i = 0; i < l; i++) {
+        if (!verb && param[i] == ' ') {
+            if (j == 0) {
+                continue;
+            }
+            break;
+        }
+        if (param[i] == '\'' || param[i] == '\"') {
+            verb = !verb;
+            // Java string
+            output[j] = '"'; 
+            res = 1;           
+            j++;
+        } else {
+            output[j] = param[i];    
+            j++;
+        }
+    }
+    output[j] = 0x00;
+    if (res == 0 && isNumber(output)) {
+        res = 1;
+    }
+    return res;
 }
 
 
@@ -1821,38 +1851,107 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
                 } 
                 addedUsing = 0;        
             }
+            char callBuf[1024];
+            char cobMod[80];
+            char *end = NULL;
             if (strstr_noverb(buf," CALL ") != 0) {
-                char callBuf[255];
-                char *end = NULL;
-                int l = 0;
-
+                inCall = 1;
                 end = strstr_noverb(buf,"CALL"); 
                 end = strstr(end," "); 
+                char *b = end;
+                int i = 0;
+                char *s1 = "`ADDRESS OF ";
+                char *s2 = "`";
                 if (strstr(end,"USING") != NULL) {
                     end = strstr(end,"USING") + 5;
-                    l = (int)(end-buf);
-                    strncpy(callBuf,buf,l);
-                    strcpy(&callBuf[l]," DFHCOMMAREA,\n");
-                    l = l + 14;
+                    int l = (int)(end-b)-5;
+                    if (convertParam4Java(b,l,cobMod)) {
+                        s1 = "";
+                        s2 = "";
+                    }
                 } else {
-                    char *end2 = strstr(end,".");
+                    char *end2 = strstr_noverb(end,".");
+                    if (end2 == NULL) {
+                        end2 = strstr_noverb(end,"END-CALL");
+                    }
                     if (end2 == NULL) {
                        end2 = strstr(end,"\n");
                        if (end2 == NULL) {
                           end2 = &end[strlen(end)-1];
                        }
                     }
-                    end = end2;
-   
-                    l = (int)(end-buf);
-                    strncpy(callBuf,buf,l);
-                    strcpy(&callBuf[l]," USING DFHCOMMAREA\n");
+                    end = end2;   
+                    int l = (int)(end-b);
+                    if (convertParam4Java(b,l,cobMod)) {
+                        s1 = "";
+                        s2 = "";
+                    }
                     addedUsing = 1;
-                    l = l + 19;
                 }
-                callBuf[l] = 0x00;
+
+                sprintf(&callBuf,"%s%s%s%s%s%s%s%s","           java\n",
+                        "               try {\n",
+                        "                   org.qwics.jni.QwicsTPMServerWrapper.getInstance()\n",
+                        "                       .doCall(",s1,cobMod,s2,",`ADDRESS OF DFHCOMMAREA`,\n                           ");
                 fputs(callBuf,fp2);
-                sprintf(buf,"%s%s","             ",end);
+            }
+            if (inCall) {
+                int l = 0, off = 7;
+                if (end == NULL) {
+                    end = buf;
+                    off = 0;
+                }
+                char *comma = NULL;
+                while ((comma = strstr_noverb(end,",")) != NULL) {
+                    char *s1 = "`ADDRESS OF ";
+                    char *s2 = "`";
+                    l = (int)comma-(int)end;    
+                    if (convertParam4Java(end,l,callBuf)) {
+                        s1 = "";
+                        s2 = "";
+                    }
+                    fputs(s1,fp2);
+                    fputs(callBuf,fp2);
+                    fputs(s2,fp2);
+                    fputs(",\n                           ",fp2);
+                    end = comma+1;
+                    inCall = 1;
+                    off = 7;
+                }
+                if (!isEmptyLine(end-off)) {
+                    inCall = 0;
+                    char *s1 = "`ADDRESS OF ";
+                    char *s2 = "`";
+                    l = strlen(end);
+                    int s = 0;
+                    if (l > 72) {
+                        s = l-72;
+                    }
+                    if (hasDotTerminator(&end[s-off])) {
+                        l = (int)strstr(end,".")-(int)end;
+                    } else 
+                    if (strstr(end,"END-CALL")) {
+                        l = (int)strstr(end,"END-CALL")-(int)end;
+                    } else {
+                        l = (int)strstr(end,"\n")-(int)end;
+                    }
+                    if (convertParam4Java(end,l,callBuf)) {
+                        s1 = "";
+                        s2 = "";
+                    }
+                    fputs(s1,fp2);
+                    fputs(callBuf,fp2);
+                    fputs(s2,fp2);
+                    sprintf(buf,"%s%s%s%s%s%s%s%s\n",");\n",
+                        "               } catch(Throwable ex) {\n",
+			            "                   throw ex;\n",
+           		        "               } finally {\n",
+		                "                   set_Return_code(getReturnCode());\n",
+		                "               }\n",
+                        "           end-java",getExecTerminator(0));
+                } else {
+                    sprintf(buf,"%s","");
+                }
             }
 
             if ((xmlBlock == 0) && (strstr(buf," XML ") != 0) && (strstr(buf," GENERATE ") != 0)) {

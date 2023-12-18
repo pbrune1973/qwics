@@ -308,6 +308,9 @@ public class QwicsTPMServerWrapper extends Socket {
         }
     }
 
+    public void doCall(Object loadmod, Object commArea, Object... params) throws Throwable {
+    }
+
     public void execSql(String sql, int sendRes, int sync) {
         System.out.println("execSql "+sql);
         try {
