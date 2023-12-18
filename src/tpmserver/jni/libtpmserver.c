@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 14.12.2023                                  */
+/*   Author: Philipp Brune               Date: 18.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -35,6 +35,7 @@
 #include <libcob.h>
 #include "../shm/shmtpm.h"
 #include "../env/envconf.h"
+#include "../msg/queueman.h"
 #include "../config.h"
 #include "../cobexec.h"
 #include "org_qwics_jni_QwicsTPMServerWrapper.h"
@@ -314,6 +315,91 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
 }
 
 
+JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_doCallNative(JNIEnv *env, jobject self, 
+                jstring cmd, jbyteArray var, jint pos, jint len, jint attr, jint varMode) {
+    const char* cmdStr = (*env)->GetStringUTFChars(env, cmd, NULL);
+    struct cobVarData *execVars = (struct cobVarData*)pthread_getspecific(execVarsKey);
+    struct cobVarData *globVars = (struct cobVarData*)pthread_getspecific(globVarsKey);
+
+    char *name = strstr(cmdStr,"CALL:");
+    if (name != NULL) {
+        name = &name[5];
+printf("doCallNative %s\n",name);
+        void* func = callCallback(name);
+        if (func == NULL) {
+            (*env)->ReleaseStringUTFChars(env, cmd, cmdStr); 
+            return 0;
+        }
+
+        execVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
+        execVars->varNum = 0;
+        execVars->bufNum = 0;
+        pthread_setspecific(execVarsKey,execVars);
+    }
+
+    if ((len >= 0) && (execVars != NULL)) {
+        unsigned char* memBuffer = getMemBuffer(var,env,globVars,0);
+        if ((execVars->varNum < 50) && (memBuffer != NULL)) {
+            cob_field *f = &(execVars->vars[execVars->varNum]);
+            execVars->varNum++;
+
+            cob_field_attr *a = (cob_field_attr*)malloc(sizeof(cob_field_attr));
+            a->type = attr & 0xFF; 
+            a->flags = (attr >> 8) & 0xFF;
+            a->digits = (attr >> 16) & 0xFF;
+            a->scale = (attr >> 24) & 0xFF; 
+            a->pic = NULL;
+            if (varMode == 0) {
+                f->data = &(memBuffer[pos]);
+            } else {
+                execVars->memBuffers[execVars->bufNum].var = (jbyteArray)(*env)->NewGlobalRef(env,var);
+                execVars->memBuffers[execVars->bufNum].memBuffer = (unsigned char*)malloc((int)len);
+                (*env)->GetByteArrayRegion(env, var, (jsize)pos, (jsize)len, (jbyte*)execVars->memBuffers[execVars->bufNum].memBuffer);
+                execVars->memBuffers[execVars->bufNum].isMapped = 1;
+                execVars->memBuffers[execVars->bufNum].isGlobal = 0;
+                f->data = execVars->memBuffers[execVars->bufNum].memBuffer;
+                execVars->bufNum++;
+            }
+            f->attr = a;
+            f->size = (int)len;
+        }
+    }
+
+    if (strstr(cmdStr,"END-CALL") != NULL) {
+        int i;
+        for (i = 0; i < execVars->varNum; i++) {
+            adjustByteOrder(i,execVars);
+            printf("VAR %d %d %x %d %d\n",i,execVars->vars[i].size,execVars->vars[i].attr->type,execVars->vars[i].attr->digits,execVars->vars[i].attr->scale);
+            int j;
+            for (j = 0; j < execVars->vars[i].size; j++) {
+                printf("%x ",execVars->vars[i].data[j]);
+            }
+            printf("\n\n");
+        }
+
+        releaseMemBuffers(env,globVars);
+
+        if (execVars != NULL) {
+            for (i = 0; i < execVars->varNum; i++) {
+                free((void*)execVars->vars[i].attr);
+            }
+            for (i = 0; i < execVars->bufNum; i++) {
+                if (execVars->memBuffers[i].memBuffer != NULL) {
+                    //Does not work without len, pos!! (*env)->SetByteArrayRegion(env, execVars->memBuffers[i].var, (jsize)pos, (jsize)len, (jbyte*)execVars->memBuffers[i].memBuffer);
+                    free(execVars->memBuffers[i].memBuffer);
+                }
+                (*env)->DeleteGlobalRef(env,execVars->memBuffers[i].var);
+            }
+            free(execVars);
+        }
+        pthread_setspecific(execVarsKey,NULL);
+    }
+
+    (*env)->ReleaseStringUTFChars(env, cmd, cmdStr); 
+    return 1;   
+}
+
+
 JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_readByte(JNIEnv *env, jobject self, jlong fd, jint mode) {
     int b = 0;
 
@@ -352,6 +438,7 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_writeByte(JNIEnv
 
 
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_initGlobal(JNIEnv *env, jclass clazz) {
+    printf("initGlobal \n");
     // Set signal handler for SIGINT (proper shutdown of server)
     struct sigaction a;
     a.sa_handler = sig_handler;

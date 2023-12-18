@@ -49,12 +49,10 @@ import org.qwics.jni.streams.QwicsOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import java.net.Socket;
-import java.net.SocketAddress;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 
 public class QwicsTPMServerWrapper extends Socket {
@@ -70,7 +68,7 @@ public class QwicsTPMServerWrapper extends Socket {
                     QwicsTPMServerWrapper.clearGlobal();
                 }
             });
-        } catch (Exception e) {
+        } catch (Throwable e) {
             e.printStackTrace();
         }
     }
@@ -309,6 +307,34 @@ public class QwicsTPMServerWrapper extends Socket {
     }
 
     public void doCall(Object loadmod, Object commArea, Object... params) throws Throwable {
+        int pos = 0, len = -1, attr = 0;
+        byte[] varBuf = null;
+        String name = null;
+        CobVarResolver varResolver = CobVarResolverImpl.getInstance();
+
+        if (loadmod instanceof String) {
+            name = (String)loadmod;
+        } else {
+            varResolver.setVar(loadmod);
+            varBuf = varResolver.getMemoryBuffer();
+            pos = varResolver.getPos();
+            len = varResolver.getLen();
+            name = new String(Arrays.copyOfRange(varBuf,pos,pos+len));
+        }
+System.out.println("CALL "+name);
+
+        if (doCallNative("CALL:"+name,null,0,-1,0,0) > 0) {
+            varResolver.setVar(commArea);
+            varBuf = varResolver.getMemoryBuffer();
+            pos = varResolver.getPos();
+            len = varResolver.getLen();
+            attr = varResolver.getAttr();
+            doCallNative("COMMAREA",varBuf,pos,len,attr,0);
+
+            doCallNative("END-CALL",null,0,-1,0,0);
+        } else {
+            // Direct in-Java call
+        }
     }
 
     public void execSql(String sql, int sendRes, int sync) {
@@ -344,6 +370,7 @@ public class QwicsTPMServerWrapper extends Socket {
     }
 
     public native void execCallbackNative(String cmd, byte[] var, int pos, int len, int attr, int varMode);
+    public native int doCallNative(String cmd, byte[] var, int pos, int len, int attr, int varMode);
     public native int readByte(long fd, int mode);
     public native int writeByte(long fd, byte b);
     public static native void initGlobal();

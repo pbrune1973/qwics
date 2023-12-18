@@ -10,9 +10,17 @@ extern "C" {
 /*
  * Class:     org_qwics_jni_QwicsTPMServerWrapper
  * Method:    execCallbackNative
- * Signature: (Ljava/lang/String;[BIII)V
+ * Signature: (Ljava/lang/String;[BIIII)V
  */
 JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNative
+  (JNIEnv *, jobject, jstring, jbyteArray, jint, jint, jint, jint);
+
+/*
+ * Class:     org_qwics_jni_QwicsTPMServerWrapper
+ * Method:    doCallNative
+ * Signature: (Ljava/lang/String;[BIIII)I
+ */
+JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_doCallNative
   (JNIEnv *, jobject, jstring, jbyteArray, jint, jint, jint, jint);
 
 /*

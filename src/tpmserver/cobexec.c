@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 13.12.2023                                  */
+/*   Author: Philipp Brune               Date: 18.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -37,6 +37,8 @@
 #include "shm/shmtpm.h"
 #include "enqdeq/enqdeq.h"
 #include "dataset/isamdb.h"
+#include "qims/qims.h"
+#include "qims/qimsdb.h"
 
 #ifdef __APPLE__
 #include "macosx/fmemopen.h"
@@ -82,6 +84,10 @@ pthread_key_t chnBufListPtrKey;
 pthread_key_t isamTxKey;
 pthread_key_t currentNamesKey;
 pthread_key_t callbackFuncKey;
+pthread_key_t qimsInMsgCountKey;
+pthread_key_t qimsOutMsgCountKey;
+pthread_key_t qimsCIKey;
+pthread_key_t qimsSegAreaKey;
 
 // Callback function declared in libcob
 extern int (*performEXEC)(char*, void*);
@@ -1236,6 +1242,11 @@ int xmlGenerate(unsigned char *xmlOutput, unsigned char *sourceRec, int32_t *xml
 }
 
 
+void zeroStack() {
+    unsigned char zeros[65536] = { 0 };
+}
+
+
 void* globalCallCallback(char *name) {
     void *res = NULL;
     char fname[255];
@@ -1253,9 +1264,18 @@ void* globalCallCallback(char *name) {
         return (void*)&dsntiar;
     }
 
+    if (strcmp("CBLTDLI",name) == 0) {
+        zeroStack();
+        return (void*)&cbltdli;
+    }
+
     if (strcmp("xmlGenerate",name) == 0) {
         return (void*)&xmlGenerate;
     }
+
+    #ifdef _LIBTPMSERVER_
+    return NULL;
+    #endif
 
     for (i = 0; i < (*callStackPtr); i++) {
         if (strcmp(name,callStack[i].name) == 0) {
@@ -1379,6 +1399,11 @@ int execLoadModule(char *name, int mode, int parCount) {
     } else {
         dlerror();
         *(void**)(&loadmod) = dlsym(sdl_library,name);
+        // Handle IMS program call
+        if (parCount > 100) {
+          // Use ENTRY point for IMS  
+          *(void**)(&loadmod) = dlsym(sdl_library,"DLITCBL");
+        }
         char *error;
         if ((error = dlerror()) != NULL)  {
             sprintf(response,"%s%s\n","ERROR: ",error);
@@ -1411,6 +1436,21 @@ int execLoadModule(char *name, int mode, int parCount) {
 
             if (mode == 0) {
               if (setjmp(taskState) == 0) {
+                // Handle IMS program call
+                if (parCount > 100) {
+                  int *inMsgCount = (int*)pthread_getspecific(qimsInMsgCountKey);
+                  *inMsgCount = 0;
+                  int *outMsgCount = (int*)pthread_getspecific(qimsOutMsgCountKey);
+                  *outMsgCount = 0;
+                  int *ci = (int*)pthread_getspecific(qimsCIKey);
+                  *ci = 0;
+                  if (parCount == 101) (*loadmod)(paramList[0]);
+                  if (parCount == 102) (*loadmod)(paramList[0],paramList[1]);
+                  if (parCount == 103) (*loadmod)(paramList[0],paramList[1],paramList[2]);
+                  if (parCount == 104) (*loadmod)(paramList[0],paramList[1],paramList[2],paramList[3]);
+                  if (parCount == 105) (*loadmod)(paramList[0],paramList[1],paramList[2],paramList[3],paramList[4]);
+                  if (parCount == 106) (*loadmod)(paramList[0],paramList[1],paramList[2],paramList[3],paramList[4],paramList[5]);
+                } else
                 if (parCount > 0) {
                     if (parCount == 1) (*loadmod)(commArea,paramList[0]);
                     if (parCount == 2) (*loadmod)(commArea,paramList[0],paramList[1]);
@@ -4574,6 +4614,10 @@ void initExec(int initCons) {
     pthread_key_create(&isamTxKey, NULL);
     pthread_key_create(&currentNamesKey, NULL);
     pthread_key_create(&callbackFuncKey, NULL);
+    pthread_key_create(&qimsInMsgCountKey, NULL);
+    pthread_key_create(&qimsOutMsgCountKey, NULL);
+    pthread_key_create(&qimsCIKey, NULL);
+    pthread_key_create(&qimsSegAreaKey, NULL);
 
 #ifndef _USE_ONLY_PROCESSES_
     pthread_mutex_init(&moduleMutex,NULL);
@@ -4655,6 +4699,11 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     struct chnBuf chnBufList[256];
     void *isamTx = NULL;
     struct currentNamesType currentNames;
+    int qimsInMsgCount = 0;
+    int qimsOutMsgCount = 0;
+    int qimsCI = 0;
+    struct seg_area_t qimsSegArea;
+    initSegArea(&qimsSegArea);
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
@@ -4698,6 +4747,10 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(chnBufListKey, &chnBufList);
     pthread_setspecific(chnBufListPtrKey, &chnBufListPtr);
     pthread_setspecific(currentNamesKey, &currentNames);
+    pthread_setspecific(qimsInMsgCountKey, &qimsInMsgCount);
+    pthread_setspecific(qimsOutMsgCountKey, &qimsOutMsgCount);
+    pthread_setspecific(qimsCIKey, &qimsCI);
+    pthread_setspecific(qimsSegAreaKey, &qimsSegArea);
 
     // Optionally read in content of commarea
     if (setCommArea == 1) {
@@ -4733,6 +4786,20 @@ void execTransaction(char *name, void *fd, int setCommArea, int parCount) {
             paramList[i] = (void*)&linkArea[linkAreaPtr];
             linkAreaAdr = &linkArea[linkAreaPtr];
             linkAreaPtr += atoi(len);
+            // Handle IMS program call
+            if (parCount > 100) {
+              // Read in value from client
+              char c = 0x00;
+              int pos = 0;
+              int l = atoi(len);
+              while (pos < l) {
+                int n = read(*(int*)fd,&c,1);
+                if (n == 1) {
+                    ((char*)paramList[i])[pos] = c;
+                    pos++;
+                }
+              }
+            }
         }
     }
 
@@ -4806,6 +4873,11 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     struct chnBuf chnBufList[256];
     void *isamTx = NULL;
     struct currentNamesType currentNames;
+    int qimsInMsgCount = 0;
+    int qimsOutMsgCount = 0;
+    int qimsCI = 0;
+    struct seg_area_t qimsSegArea;
+    initSegArea(&qimsSegArea);
     int i = 0;
     for (i= 0; i < 150; i++) eibbuf[i] = 0;
     xctlParams[0] = progname;
@@ -4849,6 +4921,10 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     pthread_setspecific(chnBufListKey, &chnBufList);
     pthread_setspecific(chnBufListPtrKey, &chnBufListPtr);
     pthread_setspecific(currentNamesKey, &currentNames);
+    pthread_setspecific(qimsInMsgCountKey, &qimsInMsgCount);
+    pthread_setspecific(qimsOutMsgCountKey, &qimsOutMsgCount);
+    pthread_setspecific(qimsCIKey, &qimsCI);
+    pthread_setspecific(qimsSegAreaKey, &qimsSegArea);
     
     // Oprionally read in content of commarea
     if (setCommArea == 1) {
@@ -4884,6 +4960,20 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
             paramList[i] = (void*)&linkArea[linkAreaPtr];
             linkAreaAdr = &linkArea[linkAreaPtr];
             linkAreaPtr += atoi(len);
+            // Handle IMS program call
+            if (parCount > 100) {
+              // Read in value from client
+              char c = 0x00;
+              int pos = 0;
+              int l = atoi(len);
+              while (pos < l) {
+                int n = read(*(int*)fd,&c,1);
+                if (n == 1) {
+                    ((char*)paramList[i])[pos] = c;
+                    pos++;
+                }
+              }
+            }
         }
     }
 
