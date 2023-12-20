@@ -153,13 +153,17 @@ public class QwicsTPMServerWrapper extends Socket {
     }
 
     public void execLoadModule(String loadmod, int mode) {
+        this.execLoadModule(loadmod,mode,null);
+    }
+
+    public void execLoadModule(String loadmod, int mode, Object... args) {
         try {
             Class cl = null;
             synchronized (loadModClasses) {
                 cl = loadModClasses.get(loadmod);
             }
             CobVarResolverImpl resolver = CobVarResolverImpl.getInstance();
-            resolver.cobmain(cl.getCanonicalName(),null);
+            resolver.cobmain(cl.getCanonicalName(),args);
         } catch (Abend a) {
         } catch (Throwable e) {
             e.printStackTrace();
@@ -331,9 +335,20 @@ System.out.println("CALL "+name);
             attr = varResolver.getAttr();
             doCallNative("COMMAREA",varBuf,pos,len,attr,0);
 
+            for (Object p : params) {
+                varResolver.setVar(p);
+                varBuf = varResolver.getMemoryBuffer();
+                pos = varResolver.getPos();
+                len = varResolver.getLen();
+                attr = varResolver.getAttr();
+                doCallNative("PARAM",varBuf,pos,len,attr,0);
+            }
+
             doCallNative("END-CALL",null,0,-1,0,0);
         } else {
             // Direct in-Java call
+            System.out.println("CALL Java "+name);
+            execLoadModule(name,0,commArea,params);
         }
     }
 

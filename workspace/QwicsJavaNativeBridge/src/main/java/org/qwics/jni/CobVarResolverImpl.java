@@ -126,7 +126,7 @@ public class CobVarResolverImpl implements CobVarResolver {
     }
 
     @Override
-    public void cobmain(String name, String[] args) throws Throwable {
+    public void cobmain(String name, Object... args) throws Throwable {
     }
 
     @Override

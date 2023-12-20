@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.12.2023                                  */
+/*   Author: Philipp Brune               Date: 20.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -48,7 +48,14 @@ void *shmPtr;
 
 pthread_key_t execVarsKey;
 pthread_key_t globVarsKey;
+extern pthread_key_t callStackKey;
+extern pthread_key_t callStackPtrKey;
 
+struct callLoadlib {
+    char name[9];
+    void* sdl_library;
+    int (*loadmod)();    
+};
 
 struct callbackFuncType {
     int (*callback)(char *loadmod, void *data);
@@ -320,6 +327,8 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_doCallNative(JNI
     const char* cmdStr = (*env)->GetStringUTFChars(env, cmd, NULL);
     struct cobVarData *execVars = (struct cobVarData*)pthread_getspecific(execVarsKey);
     struct cobVarData *globVars = (struct cobVarData*)pthread_getspecific(globVarsKey);
+    int *callStackPtr = (int*)pthread_getspecific(callStackPtrKey);
+    struct callLoadlib *callStack = (struct callLoadlib *)pthread_getspecific(callStackKey);
 
     char *name = strstr(cmdStr,"CALL:");
     if (name != NULL) {
@@ -331,13 +340,22 @@ printf("doCallNative %s\n",name);
             return 0;
         }
 
+        if ((*callStackPtr) < 1024) {
+            strcpy(callStack[(*callStackPtr)].name,name);
+            callStack[(*callStackPtr)].sdl_library = NULL;
+            callStack[(*callStackPtr)].loadmod = func;
+            (*callStackPtr)++;
+        }
+
         execVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
         execVars->varNum = 0;
         execVars->bufNum = 0;
         pthread_setspecific(execVarsKey,execVars);
     }
 
-    if ((len >= 0) && (execVars != NULL)) {
+    if ((strstr(cmdStr,"COMMAREA") || strstr(cmdStr,"PARAM")) && 
+        (len >= 0) && (execVars != NULL)) {
+printf("doCallNative param %s\n",cmdStr);            
         unsigned char* memBuffer = getMemBuffer(var,env,globVars,0);
         if ((execVars->varNum < 50) && (memBuffer != NULL)) {
             cob_field *f = &(execVars->vars[execVars->varNum]);
@@ -375,6 +393,85 @@ printf("doCallNative %s\n",name);
                 printf("%x ",execVars->vars[i].data[j]);
             }
             printf("\n\n");
+        }
+
+        if ((*callStackPtr) > 0) {
+            (*callStackPtr)--;
+            int s = 0;
+            if ((callStack[(*callStackPtr)].name[0] == 'M') &&
+                (callStack[(*callStackPtr)].name[1] == 'Q')) {
+                s = 1;
+            }
+            
+            switch (execVars->varNum) {
+                case 0: callStack[(*callStackPtr)].loadmod();
+                        break;
+                case 1: callStack[(*callStackPtr)].loadmod(execVars->vars[s+0].data);
+                        break;
+                case 2: callStack[(*callStackPtr)].loadmod(execVars->vars[s+0].data,
+                                                    execVars->vars[s+1].data);
+                        break;
+                case 3: callStack[(*callStackPtr)].loadmod(execVars->vars[s+0].data,
+                                                    execVars->vars[s+1].data,
+                                                    execVars->vars[s+2].data);
+                        break;
+                case 4: callStack[(*callStackPtr)].loadmod(execVars->vars[s+0].data,
+                                                    execVars->vars[s+1].data,
+                                                    execVars->vars[s+2].data,
+                                                    execVars->vars[s+3].data);
+                        break;
+                case 5: callStack[(*callStackPtr)].loadmod(execVars->vars[s+0].data,
+                                                    execVars->vars[s+1].data,
+                                                    execVars->vars[s+2].data,
+                                                    execVars->vars[s+3].data,
+                                                    execVars->vars[s+4].data);
+                        break;
+                case 6: callStack[(*callStackPtr)].loadmod(execVars->vars[s+0].data,
+                                                    execVars->vars[s+1].data,
+                                                    execVars->vars[s+2].data,
+                                                    execVars->vars[s+3].data,
+                                                    execVars->vars[s+4].data,
+                                                    execVars->vars[s+5].data);
+                        break;
+                case 7: callStack[(*callStackPtr)].loadmod(execVars->vars[s+0].data,
+                                                    execVars->vars[s+1].data,
+                                                    execVars->vars[s+2].data,
+                                                    execVars->vars[s+3].data,
+                                                    execVars->vars[s+4].data,
+                                                    execVars->vars[s+5].data,
+                                                    execVars->vars[s+6].data);
+                        break;
+                case 8: callStack[(*callStackPtr)].loadmod(execVars->vars[s+0].data,
+                                                    execVars->vars[s+1].data,
+                                                    execVars->vars[s+2].data,
+                                                    execVars->vars[s+3].data,
+                                                    execVars->vars[s+4].data,
+                                                    execVars->vars[s+5].data,
+                                                    execVars->vars[s+6].data,
+                                                    execVars->vars[s+7].data);
+                        break;
+                case 9: callStack[(*callStackPtr)].loadmod(execVars->vars[s+0].data,
+                                                    execVars->vars[s+1].data,
+                                                    execVars->vars[s+2].data,
+                                                    execVars->vars[s+3].data,
+                                                    execVars->vars[s+4].data,
+                                                    execVars->vars[s+5].data,
+                                                    execVars->vars[s+6].data,
+                                                    execVars->vars[s+7].data,
+                                                    execVars->vars[s+8].data);
+                        break;
+                case 10:callStack[(*callStackPtr)].loadmod(execVars->vars[s+0].data,
+                                                    execVars->vars[s+1].data,
+                                                    execVars->vars[s+2].data,
+                                                    execVars->vars[s+3].data,
+                                                    execVars->vars[s+4].data,
+                                                    execVars->vars[s+5].data,
+                                                    execVars->vars[s+6].data,
+                                                    execVars->vars[s+7].data,
+                                                    execVars->vars[s+8].data,
+                                                    execVars->vars[s+9].data);
+                        break;
+            }
         }
 
         releaseMemBuffers(env,globVars);

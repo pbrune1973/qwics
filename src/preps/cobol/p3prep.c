@@ -1944,7 +1944,7 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
                     fputs(s2,fp2);
                     sprintf(buf,"%s%s%s%s%s%s%s%s\n",");\n",
                         "               } catch(Throwable ex) {\n",
-			            "                   throw ex;\n",
+			            "                   throw new P3RuntimeException(ex);\n",
            		        "               } finally {\n",
 		                "                   set_Return_code(getReturnCode());\n",
 		                "               }\n",
