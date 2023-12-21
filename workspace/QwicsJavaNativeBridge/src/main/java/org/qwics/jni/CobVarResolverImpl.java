@@ -156,4 +156,9 @@ public class CobVarResolverImpl implements CobVarResolver {
     @Override
     public void runInitializers(HashMap<String, FieldInitializer> initializers, int mode) {
     }
+
+    @Override
+    public Object getUsingParam(Object val) {
+        return val;
+    }
 }

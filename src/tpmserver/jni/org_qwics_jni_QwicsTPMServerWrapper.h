@@ -25,6 +25,14 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_doCallNative
 
 /*
  * Class:     org_qwics_jni_QwicsTPMServerWrapper
+ * Method:    getCallParam
+ * Signature: (I)Ljava/nio/ByteBuffer;
+ */
+JNIEXPORT jobject JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_getCallParam
+  (JNIEnv *, jobject, jint);
+
+/*
+ * Class:     org_qwics_jni_QwicsTPMServerWrapper
  * Method:    readByte
  * Signature: (JI)I
  */

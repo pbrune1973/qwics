@@ -50,6 +50,8 @@ pthread_key_t execVarsKey;
 pthread_key_t globVarsKey;
 extern pthread_key_t callStackKey;
 extern pthread_key_t callStackPtrKey;
+extern pthread_key_t commAreaKey;
+extern pthread_key_t callbackFuncKey;
 
 struct callLoadlib {
     char name[9];
@@ -64,6 +66,9 @@ struct callbackFuncType {
     jobject self;
     int mode;
     int condCode;
+    int paramSize[10];
+    void *paramList[10];
+    int parCount;
 };
 
 struct memBufferDef {
@@ -503,6 +508,19 @@ printf("doCallNative param %s\n",cmdStr);
     return 1;   
 }
 
+
+JNIEXPORT jobject JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_getCallParam(JNIEnv *env, jobject self, jint index) {
+    if (index == 0) {
+        char *commArea = (char*)pthread_getspecific(commAreaKey);
+        return (*env)->NewDirectByteBuffer(env,(void*)commArea,(jlong)32768);
+    }
+    struct callbackFuncType *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
+    if ((cbInfo != NULL) && (index > 0) && ((index-1) < cbInfo->parCount)) {
+        return (*env)->NewDirectByteBuffer(env,cbInfo->paramList[index-1],(jlong)cbInfo->paramSize[index-1]);
+    }
+    return NULL;
+}
+    
 
 JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_readByte(JNIEnv *env, jobject self, jlong fd, jint mode) {
     int b = 0;

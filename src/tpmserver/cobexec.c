@@ -141,6 +141,9 @@ struct callbackFuncType {
     jobject self;
     int mode;
     int condCode;
+    int paramSize[10];
+    void *paramList[10];
+    int parCount;
 };
 
 #endif
@@ -4944,6 +4947,12 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
 
     // Optionally initialize call params
     if ((parCount > 0) && (parCount <= 10)) {
+        #ifdef _LIBTPMSERVER_
+        struct callbackFuncType *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
+        if (cbInfo != NULL) {
+            cbInfo->parCount = parCount;
+        }
+        #endif
         cob_get_global_ptr ()->cob_call_params = cob_get_global_ptr ()->cob_call_params + parCount;
         for (i = 0; i < parCount; i++) {
             char len[10];
@@ -4959,6 +4968,12 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
             len[pos] = 0x00; 
             paramList[i] = (void*)&linkArea[linkAreaPtr];
             linkAreaAdr = &linkArea[linkAreaPtr];
+            #ifdef _LIBTPMSERVER_
+            if (cbInfo != NULL) {
+                cbInfo->paramList[i] = (void*)&linkArea[linkAreaPtr];
+                cbInfo->paramSize[i] = atoi(len);
+            }
+            #endif
             linkAreaPtr += atoi(len);
             // Handle IMS program call
             if (parCount > 100) {
@@ -4970,6 +4985,11 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
                 int n = read(*(int*)fd,&c,1);
                 if (n == 1) {
                     ((char*)paramList[i])[pos] = c;
+                    #ifdef _LIBTPMSERVER_
+                    if (cbInfo != NULL) {
+                        ((char*)cbInfo->paramList[i])[pos] = c;
+                    }
+                    #endif
                     pos++;
                 }
               }

@@ -52,6 +52,8 @@ import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -170,7 +172,26 @@ public class QwicsTPMServerWrapper extends Socket {
     }
 
     public void execLoadModule(String loadmod, int mode) {
-        this.execLoadModule(loadmod,mode,null);
+        ArrayList<Object> args = new ArrayList<>();
+        Object[] argArray = null;
+        try {
+            CobVarResolverImpl resolver = CobVarResolverImpl.getInstance();
+            args.add(loadmod);
+            for (int i = 0; i < 11; i++) {
+                ByteBuffer arg = getCallParam(i);
+                if (arg == null) {
+                    break;
+                }
+                args.add(resolver.getUsingParam(arg));
+            }
+            if (args.size() > 0) {
+                argArray = args.toArray();
+            }
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+
+        this.execLoadModule(loadmod,mode,argArray);
     }
 
     public void execLoadModule(String loadmod, int mode, Object... args) {
@@ -373,7 +394,15 @@ System.out.println("CALL "+name);
         } else {
             // Direct in-Java call
             System.out.println("CALL Java "+name);
-            execLoadModule(name,0,commArea,params);
+            Object[] args = new Object[params.length+2];
+            args[0] = name;
+            args[1] = commArea;
+            int j = 2;
+            for (Object o : params) {
+                args[j] = varResolver.getUsingParam(o);
+                j++;
+            }
+            execLoadModule(name,0,args);
             // Decrement callStackPtr
             doCallNative("END-JAVA-CALL",null,0,-1,0,0);
         }
@@ -413,6 +442,7 @@ System.out.println("CALL "+name);
 
     public native void execCallbackNative(String cmd, byte[] var, int pos, int len, int attr, int varMode);
     public native int doCallNative(String cmd, byte[] var, int pos, int len, int attr, int varMode);
+    public native ByteBuffer getCallParam(int index);
     public native int readByte(long fd, int mode);
     public native int writeByte(long fd, byte b);
     public static native void initGlobal();
