@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 20.12.2023                                  */
+/*   Author: Philipp Brune               Date: 21.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -335,16 +335,17 @@ JNIEXPORT jint JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_doCallNative(JNI
         name = &name[5];
 printf("doCallNative %s\n",name);
         void* func = callCallback(name);
-        if (func == NULL) {
-            (*env)->ReleaseStringUTFChars(env, cmd, cmdStr); 
-            return 0;
-        }
 
         if ((*callStackPtr) < 1024) {
             strcpy(callStack[(*callStackPtr)].name,name);
             callStack[(*callStackPtr)].sdl_library = NULL;
             callStack[(*callStackPtr)].loadmod = func;
             (*callStackPtr)++;
+        }
+
+        if (func == NULL) {
+            (*env)->ReleaseStringUTFChars(env, cmd, cmdStr); 
+            return 0;
         }
 
         execVars = (struct cobVarData*)malloc(sizeof(struct cobVarData));
@@ -380,6 +381,12 @@ printf("doCallNative param %s\n",cmdStr);
             }
             f->attr = a;
             f->size = (int)len;
+        }
+    }
+
+    if (strstr(cmdStr,"END-JAVA-CALL") != NULL) {
+        if ((*callStackPtr) > 0) {
+            (*callStackPtr)--;
         }
     }
 

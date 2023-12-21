@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor for EasiRun(tm) P3 Cobol Compiler (tm)                */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.12.2023                                  */
+/*   Author: Philipp Brune               Date: 21.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -223,7 +223,7 @@ void printJavaCmd(char *outbuf, char *fmt, ...) {
 
     int cnt = 0,i,l = strlen(fmt);
     for (i = 0; i < l; i++) {
-        if (fmt[i] == 's') {
+        if ((fmt[i] == 's') || (fmt[i] == 'd')) {
             cnt++;
         }
     }
@@ -1549,6 +1549,7 @@ void outputLinkageVar(int *idx, FILE *fp2) {
         }
 
         if (linkageVars[n].occurs == 0) {
+/*
             if (linkageVars[n].isGroup) {
                 printJavaCmd(buf,"%s%d%s%s%s%s%s%s%s%s%s\n","           DISPLAY \"TPMI:SETL1 ",
                         linkageVars[n].level," ",
@@ -1561,6 +1562,7 @@ void outputLinkageVar(int *idx, FILE *fp2) {
                         "      -     ",linkageVars[n].name,inSuffix,subscript2,getExecTerminator(0));
             }
             fputs(buf,(FILE*)fp2);
+*/
         }
         m = n+1;
         if (linkageVars[n].isGroup) {            

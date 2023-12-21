@@ -4,4 +4,6 @@
 -DTESTWRT=programs.Testwrt
 -DTESTABND=programs.Testabnd
 -DABNDHNDL=programs.Abndhndl
+-DGETQ=programs.Getq
+-DpreloadClasses=GETQ
 -Xss10m

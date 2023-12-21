@@ -57,6 +57,8 @@ import java.util.HashMap;
 
 public class QwicsTPMServerWrapper extends Socket {
     private static ThreadLocal<QwicsTPMServerWrapper> _instance = new ThreadLocal<QwicsTPMServerWrapper>();
+    private static HashMap<String,Class> loadModClasses = new HashMap<String,Class>();
+    private static HashMap<String,FieldInitializer> loadModInitializers = new HashMap<String,FieldInitializer>();
 
     static {
         try {
@@ -68,6 +70,23 @@ public class QwicsTPMServerWrapper extends Socket {
                     QwicsTPMServerWrapper.clearGlobal();
                 }
             });
+
+            String clList = System.getProperty("preloadClasses");
+            if (clList != null) {
+                String names[] = clList.split(",");
+                if ((names == null) || (names.length == 0)) {
+                    names = new String[]{ clList };
+                }
+                for (String n : names) {
+                    if (!loadModClasses.containsKey(n)) {
+                        String lmClass = null;
+                        if ((lmClass = System.getProperty(n)) != null) {
+                            defineLoadModClass(n,Class.forName(lmClass));
+                            System.out.println("Preloading class "+lmClass);
+                        }
+                    }
+                }
+            }
         } catch (Throwable e) {
             e.printStackTrace();
         }
@@ -123,8 +142,6 @@ public class QwicsTPMServerWrapper extends Socket {
     }
 
     private Executor executor = new Executor();
-    private static HashMap<String,Class> loadModClasses = new HashMap<String,Class>();
-    private static HashMap<String,FieldInitializer> loadModInitializers = new HashMap<String,FieldInitializer>();
     private QwicsInputStream inputStream = null;
     private QwicsOutputStream outputStream = null;
     private long fd[] = null;
@@ -328,6 +345,10 @@ public class QwicsTPMServerWrapper extends Socket {
 System.out.println("CALL "+name);
 
         if (doCallNative("CALL:"+name,null,0,-1,0,0) > 0) {
+            synchronized(loadModInitializers) {
+                varResolver.runInitializers(loadModInitializers,0);
+            }
+
             varResolver.setVar(commArea);
             varBuf = varResolver.getMemoryBuffer();
             pos = varResolver.getPos();
@@ -345,10 +366,16 @@ System.out.println("CALL "+name);
             }
 
             doCallNative("END-CALL",null,0,-1,0,0);
+
+            synchronized(loadModInitializers) {
+                varResolver.runInitializers(loadModInitializers,1);
+            }
         } else {
             // Direct in-Java call
             System.out.println("CALL Java "+name);
             execLoadModule(name,0,commArea,params);
+            // Decrement callStackPtr
+            doCallNative("END-JAVA-CALL",null,0,-1,0,0);
         }
     }
 
