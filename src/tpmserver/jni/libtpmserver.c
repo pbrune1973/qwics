@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server JNI shared library implementation                                        */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 21.12.2023                                  */
+/*   Author: Philipp Brune               Date: 26.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de               */
 /*                                                                                         */
@@ -76,6 +76,7 @@ struct memBufferDef {
     unsigned char *memBuffer;
     int isGlobal;
     int isMapped;
+    int isDirect;
 };
 
 struct cobVarData {
@@ -164,6 +165,7 @@ unsigned char *getMemBuffer(jbyteArray var, JNIEnv *env, struct cobVarData *glob
         globVars->memBuffers[globVars->bufNum].memBuffer = (unsigned char*)(*env)->GetByteArrayElements(env, globVars->memBuffers[globVars->bufNum].var, 0); 
         globVars->memBuffers[globVars->bufNum].isMapped = 1;
         globVars->memBuffers[globVars->bufNum].isGlobal = isGlobal;
+        globVars->memBuffers[globVars->bufNum].isDirect = 0;
         globVars->bufNum++;    
         return globVars->memBuffers[globVars->bufNum-1].memBuffer;
     }
@@ -179,6 +181,9 @@ void releaseMemBuffers(JNIEnv *env, struct cobVarData *globVars) {
 
     int i;
     for (i = 0; i < globVars->bufNum; i++) {
+        if (globVars->memBuffers[i].isDirect) {
+            continue;
+        }
         if (globVars->memBuffers[i].isMapped) {
             if (globVars->memBuffers[i].isGlobal) {
                 // Only commit changes for global vars, do not release buffer
@@ -199,6 +204,9 @@ void releaseAllMemBuffers(JNIEnv *env, struct cobVarData *globVars) {
 
     int i;
     for (i = 0; i < globVars->bufNum; i++) {
+        if (globVars->memBuffers[i].isDirect) {
+            continue;
+        }
         if (globVars->memBuffers[i].isMapped) {
             (*env)->ReleaseByteArrayElements(env, globVars->memBuffers[i].var, (jbyte*)globVars->memBuffers[i].memBuffer, 0);
             globVars->memBuffers[i].isMapped = 0;
@@ -283,6 +291,7 @@ JNIEXPORT void JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_execCallbackNati
                     (*env)->GetByteArrayRegion(env, var, (jsize)pos, (jsize)len, (jbyte*)execVars->memBuffers[execVars->bufNum].memBuffer);
                     execVars->memBuffers[execVars->bufNum].isMapped = 1;
                     execVars->memBuffers[execVars->bufNum].isGlobal = 0;
+                    execVars->memBuffers[execVars->bufNum].isDirect = 0;
                     f->data = execVars->memBuffers[execVars->bufNum].memBuffer;
                     execVars->bufNum++;
                 }
@@ -381,6 +390,7 @@ printf("doCallNative param %s\n",cmdStr);
                 (*env)->GetByteArrayRegion(env, var, (jsize)pos, (jsize)len, (jbyte*)execVars->memBuffers[execVars->bufNum].memBuffer);
                 execVars->memBuffers[execVars->bufNum].isMapped = 1;
                 execVars->memBuffers[execVars->bufNum].isGlobal = 0;
+                execVars->memBuffers[execVars->bufNum].isDirect = 0;
                 f->data = execVars->memBuffers[execVars->bufNum].memBuffer;
                 execVars->bufNum++;
             }
@@ -510,13 +520,35 @@ printf("doCallNative param %s\n",cmdStr);
 
 
 JNIEXPORT jobject JNICALL Java_org_qwics_jni_QwicsTPMServerWrapper_getCallParam(JNIEnv *env, jobject self, jint index) {
+    struct cobVarData *globVars = (struct cobVarData*)pthread_getspecific(globVarsKey);
     if (index == 0) {
         char *commArea = (char*)pthread_getspecific(commAreaKey);
-        return (*env)->NewDirectByteBuffer(env,(void*)commArea,(jlong)32768);
+printf("getCallParam native %x %d\n",commArea,index); 
+        jobject buf = (*env)->NewDirectByteBuffer(env,(void*)commArea,(jlong)32768);
+        buf = (*env)->NewGlobalRef(env,buf);
+        if (globVars->bufNum < 50) {
+            globVars->memBuffers[globVars->bufNum].var = (jbyteArray)buf;
+            globVars->memBuffers[globVars->bufNum].memBuffer = (unsigned char*)commArea;
+            globVars->memBuffers[globVars->bufNum].isMapped = 1;
+            globVars->memBuffers[globVars->bufNum].isGlobal = 1;
+            globVars->memBuffers[globVars->bufNum].isDirect = 1;
+            globVars->bufNum++;     
+        }      
+        return buf;
     }
     struct callbackFuncType *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
     if ((cbInfo != NULL) && (index > 0) && ((index-1) < cbInfo->parCount)) {
-        return (*env)->NewDirectByteBuffer(env,cbInfo->paramList[index-1],(jlong)cbInfo->paramSize[index-1]);
+        jobject buf = (*env)->NewDirectByteBuffer(env,cbInfo->paramList[index-1],(jlong)cbInfo->paramSize[index-1]);
+        buf = (*env)->NewGlobalRef(env,buf);
+        if (globVars->bufNum < 50) {
+            globVars->memBuffers[globVars->bufNum].var = (jbyteArray)buf;
+            globVars->memBuffers[globVars->bufNum].memBuffer = (unsigned char*)cbInfo->paramList[index-1];
+            globVars->memBuffers[globVars->bufNum].isMapped = 1;
+            globVars->memBuffers[globVars->bufNum].isGlobal = 1;
+            globVars->memBuffers[globVars->bufNum].isDirect = 1;
+            globVars->bufNum++;     
+        }      
+        return buf;
     }
     return NULL;
 }

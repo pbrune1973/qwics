@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL load module executor                                               */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 18.12.2023                                  */
+/*   Author: Philipp Brune               Date: 22.12.2023                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@qwics.org            */
 /*                                                                                         */
@@ -4945,14 +4945,14 @@ void execInTransaction(char *name, void *fd, int setCommArea, int parCount) {
     cob_get_global_ptr()->cob_current_module = &thisModule;
     cob_get_global_ptr()->cob_call_params = 1;
 
+    #ifdef _LIBTPMSERVER_
+    struct callbackFuncType *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
+    if (cbInfo != NULL) {
+        cbInfo->parCount = parCount;
+    }
+    #endif
     // Optionally initialize call params
     if ((parCount > 0) && (parCount <= 10)) {
-        #ifdef _LIBTPMSERVER_
-        struct callbackFuncType *cbInfo = (struct callbackFuncType*)pthread_getspecific(callbackFuncKey);
-        if (cbInfo != NULL) {
-            cbInfo->parCount = parCount;
-        }
-        #endif
         cob_get_global_ptr ()->cob_call_params = cob_get_global_ptr ()->cob_call_params + parCount;
         for (i = 0; i < parCount; i++) {
             char len[10];
