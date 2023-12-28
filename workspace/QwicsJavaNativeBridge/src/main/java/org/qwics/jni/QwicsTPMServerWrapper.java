@@ -53,6 +53,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -438,6 +439,11 @@ System.out.println("CALL "+name);
 
     public void setConditionHandler(int condCode, String label) {
         condHandler.put(condCode,label);
+    }
+
+    public void setConnection(Connection con) {
+        CobVarResolver resolver = CobVarResolverImpl.getInstance();
+        resolver.setConnection(con);
     }
 
     public native void execCallbackNative(String cmd, byte[] var, int pos, int len, int attr, int varMode);

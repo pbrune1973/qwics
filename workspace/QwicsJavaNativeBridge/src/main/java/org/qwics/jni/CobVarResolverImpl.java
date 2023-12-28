@@ -43,6 +43,7 @@ OF SUCH DAMAGE.
 
 package org.qwics.jni;
 
+import java.sql.Connection;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -52,6 +53,7 @@ public class CobVarResolverImpl implements CobVarResolver {
     protected int pos = 0;
     protected int len = 0;
     protected int attr = 0;
+    protected Connection con = null;
 
     protected CobVarResolverImpl() {
     }
@@ -160,5 +162,10 @@ public class CobVarResolverImpl implements CobVarResolver {
     @Override
     public Object getUsingParam(Object val) {
         return val;
+    }
+
+    @Override
+    public void setConnection(Connection con) {
+        this.con = con;
     }
 }

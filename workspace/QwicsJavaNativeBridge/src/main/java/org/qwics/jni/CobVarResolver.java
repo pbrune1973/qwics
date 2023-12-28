@@ -43,6 +43,7 @@ OF SUCH DAMAGE.
 
 package org.qwics.jni;
 
+import java.sql.Connection;
 import java.util.HashMap;
 
 public interface CobVarResolver {
@@ -64,4 +65,5 @@ public interface CobVarResolver {
     public boolean isInitializer(String name);
     public void runInitializers(HashMap<String, FieldInitializer> initializers, int mode);
     public Object getUsingParam(Object val);
+    public void setConnection(Connection con);
 }
