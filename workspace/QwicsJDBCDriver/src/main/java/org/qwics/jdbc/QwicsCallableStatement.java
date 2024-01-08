@@ -45,7 +45,9 @@ package org.qwics.jdbc;
 
 import java.io.InputStream;
 import java.io.Reader;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.net.Socket;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -1277,6 +1279,20 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 	public void setObject(String parameterName, Object x) throws SQLException {
 		if ("COMMAREA".equals(parameterName) && (x != null) && (x instanceof char[])) {
 			commArea = (char[]) x;
+		}
+		if ("SQLCONNECTION".equals(parameterName) && (x != null) && (x instanceof Connection)) {
+			try {
+				Class wr = Class.forName("org.qwics.jni.QwicsTPMServerWrapper");
+				Method getInstance = wr.getMethod("getInstance");
+				Object wrObj = getInstance.invoke(null);
+				Class[] cArg = new Class[1];
+				cArg[0] = Connection.class;
+				Method setConnection = wr.getMethod("setConnection",cArg);
+				setConnection.invoke(wrObj,(Connection)x);
+			} catch (Exception e) {
+				e.printStackTrace();
+				throw new SQLException(e);
+			}
 		}
 	}
 
