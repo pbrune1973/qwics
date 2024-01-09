@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018-2023 Philipp Brune    Email: Philipp.Brune@qwics.org
+Copyright (c) 2018-2024 Philipp Brune    Email: Philipp.Brune@qwics.org
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -45,6 +45,7 @@ package org.qwics.jdbc;
 
 import java.io.InputStream;
 import java.io.Reader;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.sql.Array;
@@ -470,6 +471,9 @@ System.out.println(fname+" "+fpos+" "+flen+" "+new String(data));
 					return true;
 				} else if (mapCmd.startsWith("RECEIVE")) {
 					sendMapValues();
+				} else if (mapCmd.startsWith("JCALL")) {
+					putMapValue("SYNCPOINT", "false");
+					return true;
 				} else if (mapCmd.startsWith("RETURN")) {
 					String name = "";
 					int into = 0;
@@ -2368,6 +2372,18 @@ System.out.println(fname+" "+fpos+" "+flen+" "+new String(data));
 		if ((columnLabel != null) && columnLabel.startsWith("THISMAP")) {
 			ignoreClose = true;
 			return this;
+		}
+		if ((columnLabel != null) && columnLabel.startsWith("JFUNC")) {
+			try {
+				Class wr = Class.forName("org.qwics.jni.QwicsTPMServerWrapper");
+				Method getInstance = wr.getMethod("getInstance");
+				Object wrObj = getInstance.invoke(null);
+				Method getFunc = wr.getMethod("getFunc");
+				return getFunc.invoke(wrObj);
+			} catch (Exception e) {
+				e.printStackTrace();
+				throw new SQLException(e);
+			}
 		}
 		return getObject(nameIndices.get(columnLabel));
 	}

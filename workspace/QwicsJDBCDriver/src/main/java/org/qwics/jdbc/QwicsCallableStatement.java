@@ -1,7 +1,7 @@
 /*
 Qwics JDBC Client for Java
 
-Copyright (c) 2018-2020 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de  
+Copyright (c) 2018-2024 Philipp Brune    Email: Philipp.Brune@hs-neu-ulm.de  
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Lesser General Public License as published by the Free
@@ -1289,6 +1289,20 @@ public class QwicsCallableStatement implements CallableStatement, ConnectionEven
 				cArg[0] = Connection.class;
 				Method setConnection = wr.getMethod("setConnection",cArg);
 				setConnection.invoke(wrObj,(Connection)x);
+			} catch (Exception e) {
+				e.printStackTrace();
+				throw new SQLException(e);
+			}
+		}
+		if ("JRESULT".equals(parameterName) && (x != null)) {
+			try {
+				Class wr = Class.forName("org.qwics.jni.QwicsTPMServerWrapper");
+				Method getInstance = wr.getMethod("getInstance");
+				Object wrObj = getInstance.invoke(null);
+				Class[] cArg = new Class[1];
+				cArg[0] = Object.class;
+				Method setFuncVal = wr.getMethod("setFuncVal",cArg);
+				setFuncVal.invoke(wrObj,x);
 			} catch (Exception e) {
 				e.printStackTrace();
 				throw new SQLException(e);

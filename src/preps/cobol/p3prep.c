@@ -1,7 +1,7 @@
 /*******************************************************************************************/
 /*   QWICS Server COBOL Preprocessor for EasiRun(tm) P3 Cobol Compiler (tm)                */
 /*                                                                                         */
-/*   Author: Philipp Brune               Date: 21.12.2023                                  */
+/*   Author: Philipp Brune               Date: 09.01.2024                                  */
 /*                                                                                         */
 /*   Copyright (C) 2018 - 2023 by Philipp Brune  Email: Philipp.Brune@hs-neu-ulm.de        */
 /*                                                                                         */
@@ -62,6 +62,7 @@ FILE *fpLookup = NULL;
 char *eiblkAlias = NULL;
 int addedUsing = 0;
 int inCall = 0;
+int inJava = 0;
 
 
 struct linkageVarDef {
@@ -1587,6 +1588,9 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
 
   // Turn everything to caps
   int verb = 0;
+  if (inJava) {
+    verb = 4;
+  }
   int bl = strlen(buf);
   for (int i = 0; i < bl; i++) {
     if ((verb == 1) && (buf[i] == '\'')) {
@@ -1596,6 +1600,11 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
         verb = 0;
     }
     if ((verb == 3) && (buf[i] == '=') && (buf[(i+1) % bl] == '=')) {
+        verb = 0;
+    }
+    if ((verb == 4) && ((strncmp(&buf[i],"end-java",8) == 0) || (strncmp(&buf[i],"END-JAVA",8) == 0))) {
+        i = i + 8;
+        inJava = 0;
         verb = 0;
     }
     if ((verb == 0) && (buf[i] == '\'')) {
@@ -1608,6 +1617,11 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
         i++;
         verb = 3;
     }
+    if ((verb == 0) && ((strncmp(&buf[i],"java",4) == 0) || (strncmp(&buf[i],"JAVA",4) == 0))) {
+        i = i+4;
+        inJava = 1;
+        verb = 4;
+    }
     if (verb == 0) {
        buf[i] = toupper(buf[i]);
        // Remove tabs
@@ -1615,6 +1629,11 @@ void processLine(char *buf, FILE *fp2, FILE *fp) {
          buf[i] = ' ';
        }
     }
+  }
+
+  if (inJava) {
+    fputs(buf,(FILE*)fp2);
+    return;
   }
 
   if (include > 0) {

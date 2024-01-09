@@ -57,6 +57,7 @@ import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.function.Function;
 
 public class QwicsTPMServerWrapper extends Socket {
     private static ThreadLocal<QwicsTPMServerWrapper> _instance = new ThreadLocal<QwicsTPMServerWrapper>();
@@ -151,6 +152,8 @@ public class QwicsTPMServerWrapper extends Socket {
     private boolean afterQwicslen = false;
     private HashMap<Integer,String> condHandler = new HashMap<Integer,String>();
     private boolean isOpen = false;
+    private Object func = null;
+    private Object funcVal = null;
 
     private QwicsTPMServerWrapper() {
         fd = init();
@@ -216,13 +219,14 @@ public class QwicsTPMServerWrapper extends Socket {
     public void launchClass(String name, int setCommArea, int parCount) {
         try {
             final QwicsTPMServerWrapper _this = this;
+            this.setAsInstance();
+
             if (!loadModClasses.containsKey(name)) {
                 String lmClass = null;
                 if ((lmClass = System.getProperty(name)) != null) {
                     defineLoadModClass(name,Class.forName(lmClass));
                 }
             }
-            System.out.println("launchClass "+loadModClasses.get(name).getCanonicalName());
 
             outputStream.setWriteThrough(true);
             executor.exec((self,cmd,fd,a,b) -> {
@@ -241,7 +245,7 @@ public class QwicsTPMServerWrapper extends Socket {
             },_this,name,this.fd[1],setCommArea,parCount);
         } catch (Exception e) {
             e.printStackTrace();
-        }
+         }
     }
 
     private static FieldInitializer createInitializers(Class clazz) throws Exception {
@@ -349,6 +353,44 @@ public class QwicsTPMServerWrapper extends Socket {
         }
     }
 
+    public <T,R> R callInTransaction(Function<T,R> func) throws Throwable {
+        this.funcVal = null;
+        this.func = func;
+
+        byte msg[] = "JCALL\n\n".getBytes();
+        for (byte b : msg) {
+            writeByte(this.fd[1],b);
+        }
+
+        if (this.func != null) {
+            synchronized (this.func) {
+                this.func.wait();
+            }
+        }
+
+        if (this.funcVal instanceof Throwable) {
+            throw (Throwable)this.funcVal;
+        }
+        return (R)this.funcVal;
+    }
+
+    public <T,R> Function<T,R> getFunc() {
+        return (Function<T,R>)func;
+    }
+
+    public <T> void setFuncVal(T funcVal) {
+        this.funcVal = funcVal;
+        try {
+            if (this.func != null) {
+                synchronized (this.func) {
+                    this.func.notify();
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     public void doCall(Object loadmod, Object commArea, Object... params) throws Throwable {
         int pos = 0, len = -1, attr = 0;
         byte[] varBuf = null;
@@ -364,7 +406,6 @@ public class QwicsTPMServerWrapper extends Socket {
             len = varResolver.getLen();
             name = new String(Arrays.copyOfRange(varBuf,pos,pos+len));
         }
-System.out.println("CALL "+name);
 
         if (doCallNative("CALL:"+name,null,0,-1,0,0) > 0) {
             synchronized(loadModInitializers) {

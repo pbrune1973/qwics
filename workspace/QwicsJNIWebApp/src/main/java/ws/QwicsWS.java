@@ -27,8 +27,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Function;
 
 import javax.annotation.Resource;
+import javax.ejb.EJB;
 import javax.ejb.LocalBean;
 import javax.ejb.Stateless;
 import javax.ejb.TransactionAttribute;
@@ -44,6 +46,8 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 
+import ejb.TestEJB;
+
 @Stateless
 @LocalBean
 @TransactionManagement(TransactionManagementType.BEAN)
@@ -55,6 +59,9 @@ public class QwicsWS {
 	@Resource(lookup = "jdbc/QwicsCobolDS")
 	DataSource datasource;
 
+	@EJB
+	private TestEJB ejb;
+	
 	private Connection con;
 	private CallableStatement call;
 	private ResultSet maps;
@@ -133,6 +140,20 @@ public class QwicsWS {
 			}
 			if (isSend && "SEND".equals(maps.getString("MAP_CMD"))) {
 				return true;
+			}
+			if (isSend && "JCALL".equals(maps.getString("MAP_CMD"))) {
+				System.out.println("JCALL received");
+				Function func = (Function)maps.getObject("JFUNC");
+				if (func != null) {
+					try {
+						Object res = func.apply(ejb);
+						call.setObject("JRESULT",res);
+					} catch (Throwable t) {
+						call.setObject("JRESULT", t);
+						throw new Exception(t);
+					}
+				}
+				continue;
 			}
 			String program = "";
 			if (!isSend) {
