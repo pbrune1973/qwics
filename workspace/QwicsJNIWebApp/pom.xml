@@ -44,6 +44,13 @@
       <version>0.9.6</version>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>org.qwics</groupId>
+      <artifactId>loadlib</artifactId>
+      <version>0.9</version>
+      <scope>system</scope>
+      <systemPath>/Users/pbrune/qwics/workspace/loadlib/target/loadlib-0.9.jar</systemPath>
+    </dependency>
     <!-- Test dependencies -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
